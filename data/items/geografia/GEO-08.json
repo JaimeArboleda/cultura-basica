@@ -1,23 +1,20 @@
 {
   "id": "GEO-08",
   "bloque": "geografia",
-  "dificultad": "dificil",
+  "dificultad": "medio",
   "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Qué río atraviesa más países que ningún otro en el mundo?",
+  "formato": "abierto",
+  "enunciado": "¿Cuál es el desierto cálido más grande del mundo?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "El Danubio",
-    "El Nilo",
-    "El Amazonas",
-    "El Rin",
-    "El Misisipi",
-    "El Volga"
+  "respuesta_canonica": "Sahara",
+  "alias": [
+    "sahara",
+    "el sahara",
+    "desierto del sahara"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
 }

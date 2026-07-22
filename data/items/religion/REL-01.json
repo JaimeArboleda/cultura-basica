@@ -1,23 +1,23 @@
 {
   "id": "REL-01",
   "bloque": "religion",
-  "dificultad": "medio",
-  "ancla": true,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Qué diferencia hay entre agnosticismo y ateísmo?",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿A qué religión pertenece el Bhagavad Gita?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "El ateo niega la existencia de Dios; el agnóstico sostiene que no puede saberse",
-    "El ateo duda de la existencia de Dios; el agnóstico la niega",
-    "El ateo rechaza toda religión; el agnóstico solo las religiones reveladas",
-    "El ateo no practica ninguna religión; el agnóstico practica varias",
-    "El ateo cree en la ciencia; el agnóstico, en una fuerza espiritual indefinida",
-    "No hay diferencia real: son dos formas de designar la incredulidad"
+  "respuesta_canonica": "El hinduismo",
+  "alias": [
+    "hinduismo",
+    "al hinduismo",
+    "el hinduismo",
+    "hindu",
+    "religion hindu",
+    "brahmanismo"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
 }

@@ -1,0 +1,23 @@
+{
+  "id": "BIO-12",
+  "bloque": "biologia_geologia",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Cómo se llama el proceso geológico por el que el choque entre placas tectónicas da lugar a la formación de cordilleras?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "La orogenia",
+    "La subducción",
+    "La sedimentación",
+    "El vulcanismo",
+    "La meteorización",
+    "La erosión"
+  ],
+  "indice_correcto": 0
+}

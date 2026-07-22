@@ -1,20 +1,24 @@
 {
   "id": "HIS-05",
   "bloque": "historia",
-  "dificultad": "facil",
-  "ancla": false,
+  "dificultad": "medio",
+  "ancla": true,
   "formato": "abierto",
-  "enunciado": "¿En qué año se produjo la Revolución Francesa?",
+  "enunciado": "¿Qué dinastía llegó a España tras la Guerra de Sucesión Española?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "1789",
+  "respuesta_canonica": "Los Borbones",
   "alias": [
-    "1789",
-    "1.789",
-    "ano 1789"
+    "borbon",
+    "borbones",
+    "los borbones",
+    "casa de borbon",
+    "la casa de borbon",
+    "dinastia borbonica",
+    "borbonica"
   ],
   "alias_parcial": null,
-  "tolerancia_edicion": 0,
+  "tolerancia_edicion": 1,
   "opciones": null,
   "indice_correcto": null
 }

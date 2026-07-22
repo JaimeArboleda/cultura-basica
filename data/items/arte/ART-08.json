@@ -4,15 +4,14 @@
   "dificultad": "medio",
   "ancla": false,
   "formato": "abierto",
-  "enunciado": "¿Cuál fue el pintor de corte en la época del rey español Carlos IV?",
+  "enunciado": "¿Qué pintor postimpresionista se cortó una parte de la oreja?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "Goya",
+  "respuesta_canonica": "Vincent van Gogh",
   "alias": [
-    "goya",
-    "francisco de goya",
-    "francisco goya",
-    "francisco jose de goya"
+    "van gogh",
+    "vincent van gogh",
+    "gogh"
   ],
   "alias_parcial": null,
   "tolerancia_edicion": 1,

@@ -1,10 +1,10 @@
 {
   "id": "ART-04",
   "bloque": "arte",
-  "dificultad": "dificil",
+  "dificultad": "facil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿De qué siglo es Delacroix?",
+  "enunciado": "¿A qué se dedicó Le Corbusier?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Siglo XIX",
-    "Siglo XVI",
-    "Siglo XVII",
-    "Siglo XVIII",
-    "Siglo XX",
-    "Finales del siglo XV y principios del XVI"
+    "A la arquitectura y el urbanismo",
+    "A la pintura al fresco y el muralismo",
+    "A la escultura monumental en bronce",
+    "A la composición musical de vanguardia",
+    "Al diseño de moda y textil",
+    "A la fotografía documental"
   ],
   "indice_correcto": 0
 }

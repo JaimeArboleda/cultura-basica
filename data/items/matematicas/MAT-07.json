@@ -1,23 +1,21 @@
 {
   "id": "MAT-07",
   "bloque": "matematicas",
-  "dificultad": "dificil",
+  "dificultad": "medio",
   "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Qué es el logaritmo de un número?",
+  "formato": "abierto",
+  "enunciado": "Si tiras dos dados y sumas las puntuaciones, ¿cuál es el valor más probable?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "El exponente al que hay que elevar la base para obtener ese número",
-    "El número de cifras que tiene ese número",
-    "La raíz que hay que extraer a la base para obtener ese número",
-    "El resultado de multiplicar el número por sí mismo tantas veces como indique la base",
-    "El inverso multiplicativo de ese número respecto de la base",
-    "El número de veces que la base cabe dentro de ese número"
+  "respuesta_canonica": "7",
+  "alias": [
+    "7",
+    "siete",
+    "el 7",
+    "el siete"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 0,
+  "opciones": null,
+  "indice_correcto": null
 }

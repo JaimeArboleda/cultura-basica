@@ -4,7 +4,7 @@
   "dificultad": "medio",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué diferencia hay entre renta fija y renta variable?",
+  "enunciado": "¿Qué es la deflación?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "La renta fija paga una rentabilidad pactada de antemano; la variable depende de los resultados",
-    "La renta fija se cobra mensualmente; la variable, una sola vez al año",
-    "La renta fija no puede perder valor en ningún caso; la variable sí",
-    "La renta fija la emiten los Estados; la variable, las empresas privadas",
-    "La renta fija se negocia en bolsa; la variable, fuera de los mercados organizados",
-    "La renta fija exige una inversión mínima elevada; la variable, no"
+    "La caída generalizada y sostenida de los precios",
+    "La subida generalizada y sostenida de los precios",
+    "La ralentización de la tasa de inflación, sin llegar a bajar los precios",
+    "La pérdida de valor de una moneda frente a otras divisas",
+    "La reducción del gasto público para equilibrar las cuentas del Estado",
+    "La contracción del PIB durante dos trimestres consecutivos"
   ],
   "indice_correcto": 0
 }

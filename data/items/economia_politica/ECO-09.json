@@ -1,10 +1,10 @@
 {
   "id": "ECO-09",
   "bloque": "economia_politica",
-  "dificultad": "medio",
+  "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué es la deflación?",
+  "enunciado": "¿Qué diferencia hay entre plutocracia y aristocracia?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "La caída generalizada y sostenida de los precios",
-    "La subida generalizada y sostenida de los precios",
-    "La ralentización de la tasa de inflación, sin llegar a bajar los precios",
-    "La pérdida de valor de una moneda frente a otras divisas",
-    "La reducción del gasto público para equilibrar las cuentas del Estado",
-    "La contracción del PIB durante dos trimestres consecutivos"
+    "En la plutocracia gobiernan los más ricos; en la aristocracia, los considerados mejores o más nobles",
+    "En la plutocracia gobierna una minoría; en la aristocracia, la mayoría",
+    "En la plutocracia gobiernan los militares; en la aristocracia, los sacerdotes",
+    "En la plutocracia el poder se hereda; en la aristocracia se compra",
+    "En la plutocracia gobierna un solo hombre rico; en la aristocracia, un consejo",
+    "No hay diferencia real: son dos nombres para el gobierno de los nobles"
   ],
   "indice_correcto": 0
 }

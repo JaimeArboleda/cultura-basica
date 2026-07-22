@@ -1,10 +1,10 @@
 {
   "id": "FIQ-09",
   "bloque": "fisica_quimica",
-  "dificultad": "facil",
+  "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué gas es el principal responsable del efecto invernadero de origen humano?",
+  "enunciado": "¿Qué dice la segunda ley de la termodinámica?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "El dióxido de carbono",
-    "El oxígeno",
-    "El nitrógeno",
-    "El hidrógeno",
-    "El ozono",
-    "El helio"
+    "La entropía de un sistema aislado nunca disminuye",
+    "La energía ni se crea ni se destruye, solo se transforma",
+    "La entropía de un cristal perfecto es cero en el cero absoluto",
+    "Dos cuerpos en equilibrio térmico con un tercero lo están entre sí",
+    "El calor absorbido por un cuerpo es proporcional a su masa y a su temperatura",
+    "Todo cuerpo sumergido en un fluido experimenta un empuje hacia arriba"
   ],
   "indice_correcto": 0
 }

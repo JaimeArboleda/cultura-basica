@@ -1,23 +1,20 @@
 {
   "id": "LEN-03",
   "bloque": "lengua_literatura",
-  "dificultad": "medio",
+  "dificultad": "facil",
   "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Cómo termina El Quijote?",
+  "formato": "abierto",
+  "enunciado": "¿Qué obra de Homero narra la guerra de Troya?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "Recobra el juicio, reniega de los libros de caballerías y muere en su cama",
-    "Muere en combate contra el Caballero de la Blanca Luna",
-    "Parte con Sancho hacia una nueva salida que el narrador deja abierta",
-    "Se retira a su aldea y se hace pastor junto a Sancho",
-    "Descubre que Dulcinea existe realmente y se casa con ella",
-    "Es encerrado por orden del cura y el barbero, y allí acaba sus días"
+  "respuesta_canonica": "La Ilíada",
+  "alias": [
+    "la iliada",
+    "iliada",
+    "ilíada"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
 }

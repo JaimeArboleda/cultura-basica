@@ -1,19 +1,17 @@
 {
   "id": "BIO-02",
   "bloque": "biologia_geologia",
-  "dificultad": "medio",
+  "dificultad": "facil",
   "ancla": false,
   "formato": "abierto",
-  "enunciado": "¿De qué moléculas están compuestas las proteínas?",
+  "enunciado": "¿Qué proceso permite a las plantas producir su propio alimento usando la luz solar?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "Aminoácidos",
+  "respuesta_canonica": "Fotosíntesis",
   "alias": [
-    "aminoacidos",
-    "aminoacido",
-    "de aminoacidos",
-    "cadenas de aminoacidos",
-    "amino acidos"
+    "fotosintesis",
+    "la fotosintesis",
+    "fotosintesis clorofilica"
   ],
   "alias_parcial": null,
   "tolerancia_edicion": 2,

@@ -1,0 +1,23 @@
+{
+  "id": "GEO-11",
+  "bloque": "geografia",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Cuál es el punto más bajo de la superficie terrestre sobre tierra firme?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Las orillas del mar Muerto",
+    "El delta del Nilo",
+    "La cuenca del mar Caspio",
+    "El Valle de la Muerte (Death Valley)",
+    "La depresión de Qattara",
+    "El lago Assal, en Yibuti"
+  ],
+  "indice_correcto": 0
+}

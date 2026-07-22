@@ -159,15 +159,17 @@ button {
 button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 button:hover { filter: brightness(0.97); }
 main { max-width: 900px; margin: 0 auto; padding: 16px; }
-nav.toc { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 20px; }
-nav.toc a {
-  font-size: 12.5px; text-decoration: none; color: var(--ink);
-  background: var(--chip-bg); border-radius: 999px; padding: 4px 10px;
+nav.toc { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 20px; position: sticky; top: 53px; z-index: 9; background: var(--bg); padding-top: 4px; padding-bottom: 4px; }
+nav.toc button {
+  font-size: 12.5px; color: var(--ink);
+  background: var(--chip-bg); border: 1px solid transparent; border-radius: 999px; padding: 5px 12px;
 }
+nav.toc button.activa { background: var(--accent); color: #fff; }
 section.bloque {
   background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
   margin-bottom: 22px; overflow: hidden;
 }
+section.bloque.oculto { display: none !important; }
 .bloque-header { padding: 14px 18px; border-bottom: 1px solid var(--border); }
 .bloque-header h2 { margin: 0 0 6px; font-size: 17px; }
 .stats { display: flex; flex-wrap: wrap; gap: 6px 8px; font-size: 12px; color: var(--muted); }
@@ -387,7 +389,12 @@ for (const b of BLOQUES) totalItems += b.items.length;
 $resumen.textContent = \`\${BLOQUES.length} bloques · \${totalItems} ítems cargados\`;
 
 for (const b of BLOQUES) {
-  $toc.insertAdjacentHTML("beforeend", \`<a href="#bloque-\${b.bloque}">\${b.nombre} (\${b.items.length})</a>\`);
+  const tab = document.createElement("button");
+  tab.type = "button";
+  tab.textContent = \`\${b.nombre} (\${b.items.length})\`;
+  tab.dataset.bloque = b.bloque;
+  tab.addEventListener("click", () => mostrarBloque(b.bloque));
+  $toc.appendChild(tab);
 
   const porDif = contar(b.items, "dificultad");
   const porFormato = contar(b.items, "formato");
@@ -415,6 +422,18 @@ for (const b of BLOQUES) {
   }
   $bloques.appendChild(section);
 }
+
+function mostrarBloque(bloque) {
+  document.querySelectorAll("section.bloque").forEach((s) => {
+    s.classList.toggle("oculto", s.id !== \`bloque-\${bloque}\`);
+  });
+  document.querySelectorAll("nav.toc button").forEach((btn) => {
+    btn.classList.toggle("activa", btn.dataset.bloque === bloque);
+  });
+  window.scrollTo({ top: 0 });
+}
+
+if (BLOQUES.length > 0) mostrarBloque(BLOQUES[0].bloque);
 
 function renderItem(item) {
   const div = document.createElement("div");
@@ -519,18 +538,26 @@ function corregirTarjeta(div) {
   $res.innerHTML = \`<strong>\${etiqueta}</strong><dl>\${filas}</dl>\`;
 }
 
+function bloqueActivo() {
+  return document.querySelector("section.bloque:not(.oculto)");
+}
+
 function comprobarTodo() {
-  document.querySelectorAll(".item").forEach(corregirTarjeta);
+  const bloque = bloqueActivo();
+  if (!bloque) return;
+  bloque.querySelectorAll(".item").forEach(corregirTarjeta);
 }
 
 function limpiarTodo() {
-  document.querySelectorAll('input[type="text"]').forEach((i) => (i.value = ""));
-  document.querySelectorAll('input[type="radio"]').forEach((i) => (i.checked = false));
-  document.querySelectorAll(".resultado").forEach((r) => {
+  const bloque = bloqueActivo();
+  if (!bloque) return;
+  bloque.querySelectorAll('input[type="text"]').forEach((i) => (i.value = ""));
+  bloque.querySelectorAll('input[type="radio"]').forEach((i) => (i.checked = false));
+  bloque.querySelectorAll(".resultado").forEach((r) => {
     r.className = "resultado";
     r.innerHTML = "";
   });
-  document.querySelectorAll("ul.ordenar").forEach((ul) => {
+  bloque.querySelectorAll("ul.ordenar").forEach((ul) => {
     const item = itemPorId(ul.closest(".item").dataset.itemId);
     const original = [...ul.querySelectorAll("li")];
     const porTexto = new Map(original.map((li) => [li.querySelector(".texto").textContent, li]));

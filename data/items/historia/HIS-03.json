@@ -1,10 +1,10 @@
 {
   "id": "HIS-03",
   "bloque": "historia",
-  "dificultad": "dificil",
+  "dificultad": "facil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿En qué siglo tuvo lugar el Cisma de Oriente, la separación entre la Iglesia católica y la ortodoxa?",
+  "enunciado": "¿Con qué otro nombre se conoce al Imperio Romano de Oriente?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Siglo XI",
-    "Siglo VIII",
-    "Siglo IX",
-    "Siglo X",
-    "Siglo XII",
-    "Siglo XIII"
+    "Imperio bizantino",
+    "Sacro Imperio Romano Germánico",
+    "Imperio otomano",
+    "Imperio carolingio",
+    "Imperio latino de Constantinopla",
+    "Imperio romano de Occidente"
   ],
   "indice_correcto": 0
 }

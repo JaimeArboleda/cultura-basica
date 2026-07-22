@@ -1,10 +1,10 @@
 {
   "id": "BIO-01",
   "bloque": "biologia_geologia",
-  "dificultad": "medio",
-  "ancla": true,
+  "dificultad": "facil",
+  "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Cuál es la principal función de las mitocondrias?",
+  "enunciado": "¿Para qué sirven los antibióticos?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Producir energía en forma de ATP mediante la respiración celular",
-    "Sintetizar proteínas a partir del ARN mensajero",
-    "Almacenar y transmitir la información genética",
-    "Digerir los residuos y sustancias de desecho de la célula",
-    "Regular la entrada y salida de sustancias en la célula",
-    "Fabricar glucosa a partir de la luz solar"
+    "Para combatir infecciones causadas por bacterias",
+    "Para combatir infecciones causadas por virus",
+    "Para reducir la fiebre y la inflamación",
+    "Para reforzar el sistema inmunitario frente a cualquier patógeno",
+    "Para prevenir cualquier infección antes de que se produzca",
+    "Para combatir cualquier microorganismo, sea bacteria, virus u hongo"
   ],
   "indice_correcto": 0
 }

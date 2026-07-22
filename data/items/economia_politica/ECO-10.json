@@ -4,7 +4,7 @@
   "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué es el óptimo de Pareto en economía?",
+  "enunciado": "¿Qué significa «marginal» en economía?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Una situación en la que no se puede mejorar el bienestar de alguien sin empeorar el de otra persona",
-    "El punto en que la oferta y la demanda se igualan",
-    "El nivel de producción que maximiza el beneficio de una empresa",
-    "La distribución de la renta en la que todos ganan exactamente lo mismo",
-    "El equilibrio en el que el Estado interviene para corregir un fallo de mercado",
-    "El punto en que el coste marginal iguala al coste medio"
+    "Relativo al efecto que produce una unidad adicional",
+    "Relativo a lo que queda fuera del mercado formal",
+    "Relativo al beneficio obtenido sobre el precio de venta",
+    "Relativo a los sectores de población económicamente más desfavorecidos",
+    "Relativo al valor mínimo por debajo del cual no resulta rentable producir",
+    "Relativo al margen de error de una previsión económica"
   ],
   "indice_correcto": 0
 }

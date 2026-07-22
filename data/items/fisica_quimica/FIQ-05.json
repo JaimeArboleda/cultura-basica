@@ -2,9 +2,9 @@
   "id": "FIQ-05",
   "bloque": "fisica_quimica",
   "dificultad": "medio",
-  "ancla": false,
+  "ancla": true,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué es la refracción?",
+  "enunciado": "¿Qué es la radiactividad?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "El cambio de dirección de una onda al pasar a un medio donde su velocidad es distinta",
-    "El rebote de una onda al chocar contra una superficie",
-    "La descomposición de la luz blanca en los colores del espectro",
-    "La superposición de dos ondas que se anulan mutuamente",
-    "La pérdida progresiva de energía de una onda a medida que avanza",
-    "La curvatura de una onda al bordear un obstáculo o una rendija"
+    "La emisión espontánea de partículas o radiación por núcleos atómicos inestables",
+    "La capacidad de un cuerpo caliente de emitir calor por radiación",
+    "La propagación de ondas electromagnéticas a través del vacío",
+    "La ionización del aire producida por una corriente eléctrica intensa",
+    "La reacción en cadena que se produce al fisionar un núcleo de uranio",
+    "La absorción de energía luminosa por los electrones de un metal"
   ],
   "indice_correcto": 0
 }

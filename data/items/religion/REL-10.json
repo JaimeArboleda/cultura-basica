@@ -1,10 +1,10 @@
 {
   "id": "REL-10",
   "bloque": "religion",
-  "dificultad": "facil",
+  "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Cuál es la rama del islam predominante en Irán?",
+  "enunciado": "¿Qué es la transubstanciación?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "El chiismo",
-    "El sunismo",
-    "El sufismo",
-    "El wahabismo",
-    "El ibadismo",
-    "El alauismo"
+    "La conversión del pan y el vino en el cuerpo y la sangre de Cristo durante la eucaristía",
+    "El paso del alma del difunto al más allá tras el juicio particular",
+    "La presencia simbólica de Cristo en el pan y el vino, sin cambio de sustancia",
+    "La transformación interior del pecador tras recibir el sacramento de la penitencia",
+    "La encarnación del Verbo divino en la persona de Jesús",
+    "El tránsito de la Virgen al cielo en cuerpo y alma"
   ],
   "indice_correcto": 0
 }

@@ -1,10 +1,10 @@
 {
   "id": "ECO-08",
   "bloque": "economia_politica",
-  "dificultad": "dificil",
+  "dificultad": "medio",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué significa «marginal» en economía?",
+  "enunciado": "¿Qué diferencia hay entre el derecho penal y el derecho civil?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Relativo al efecto que produce una unidad adicional",
-    "Relativo a lo que queda fuera del mercado formal",
-    "Relativo al beneficio obtenido sobre el precio de venta",
-    "Relativo a los sectores de población económicamente más desfavorecidos",
-    "Relativo al valor mínimo por debajo del cual no resulta rentable producir",
-    "Relativo al margen de error de una previsión económica"
+    "El penal regula los delitos y sus penas; el civil regula las relaciones entre particulares (contratos, herencias, etc.)",
+    "El penal regula el comercio; el civil regula la política",
+    "El penal solo se aplica a menores de edad; el civil a los adultos",
+    "El penal es de ámbito internacional; el civil es únicamente nacional",
+    "El penal regula las relaciones laborales; el civil las familiares",
+    "No hay diferencia real, son sinónimos"
   ],
   "indice_correcto": 0
 }

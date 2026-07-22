@@ -4,7 +4,7 @@
   "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Cuál es la capital de Australia?",
+  "enunciado": "¿Qué río atraviesa más países que ningún otro en el mundo?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Canberra",
-    "Sídney",
-    "Melbourne",
-    "Brisbane",
-    "Perth",
-    "Adelaida"
+    "El Danubio",
+    "El Nilo",
+    "El Amazonas",
+    "El Rin",
+    "El Misisipi",
+    "El Volga"
   ],
   "indice_correcto": 0
 }

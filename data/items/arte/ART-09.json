@@ -1,23 +1,30 @@
 {
   "id": "ART-09",
   "bloque": "arte",
-  "dificultad": "facil",
+  "dificultad": "dificil",
   "ancla": false,
-  "formato": "abierto",
-  "enunciado": "¿En qué ciudad está el Partenón?",
-  "elementos": null,
-  "elementos_ordenados": null,
-  "respuesta_canonica": "En Atenas",
-  "alias": [
-    "atenas",
-    "en atenas",
-    "acropolis de atenas",
-    "la acropolis de atenas",
-    "atenas grecia",
-    "en la acropolis de atenas"
+  "formato": "ordenar",
+  "enunciado": "Ordena estos compositores de más antiguo a más moderno:",
+  "elementos": [
+    "Beethoven",
+    "Bach",
+    "Brahms",
+    "Haydn",
+    "Mozart",
+    "Schubert"
   ],
+  "elementos_ordenados": [
+    "Bach",
+    "Haydn",
+    "Mozart",
+    "Beethoven",
+    "Schubert",
+    "Brahms"
+  ],
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 1,
+  "tolerancia_edicion": null,
   "opciones": null,
   "indice_correcto": null
 }

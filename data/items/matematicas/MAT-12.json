@@ -1,0 +1,23 @@
+{
+  "id": "MAT-12",
+  "bloque": "matematicas",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Cómo se conoce a la paradoja que surge al considerar el conjunto de todos los conjuntos que no se contienen a sí mismos?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "La paradoja de Russell",
+    "La paradoja de Zenón",
+    "La paradoja de Banach-Tarski",
+    "La paradoja del mentiroso",
+    "La paradoja de Fermi",
+    "La paradoja de Monty Hall"
+  ],
+  "indice_correcto": 0
+}

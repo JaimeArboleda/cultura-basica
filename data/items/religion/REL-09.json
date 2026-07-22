@@ -1,20 +1,17 @@
 {
   "id": "REL-09",
   "bloque": "religion",
-  "dificultad": "medio",
+  "dificultad": "dificil",
   "ancla": false,
   "formato": "abierto",
-  "enunciado": "¿Qué concilio católico se convocó en respuesta a la reforma luterana?",
+  "enunciado": "¿Qué dios egipcio con cabeza de chacal pesaba el corazón de los muertos en la balanza de Maat?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "El Concilio de Trento",
+  "respuesta_canonica": "Anubis",
   "alias": [
-    "trento",
-    "el concilio de trento",
-    "concilio de trento",
-    "de trento",
-    "tridentino",
-    "concilio tridentino"
+    "anubis",
+    "anubi",
+    "anpu"
   ],
   "alias_parcial": null,
   "tolerancia_edicion": 1,

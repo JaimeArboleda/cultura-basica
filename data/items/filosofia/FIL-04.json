@@ -4,7 +4,7 @@
   "dificultad": "facil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "Según Epicuro, ¿cuál es el objetivo del hombre?",
+  "enunciado": "¿Qué representan las sombras en el mito de la caverna?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Alcanzar el placer entendido como ausencia de dolor y de perturbación del ánimo",
-    "Cumplir el deber moral con independencia de las consecuencias",
-    "Vivir conforme a la naturaleza aceptando el destino con indiferencia",
-    "Contemplar mediante la razón las Ideas eternas e inmutables",
-    "Maximizar la felicidad del mayor número posible de personas",
-    "Someter los apetitos del cuerpo a la voluntad divina"
+    "Las apariencias sensibles que tomamos por realidad",
+    "Las Ideas eternas que solo el filósofo llega a contemplar",
+    "Los recuerdos deformados de una existencia anterior",
+    "Las pasiones que nublan el juicio del alma",
+    "Los dioses tal como los imagina el vulgo",
+    "El conocimiento matemático, intermedio entre la opinión y la ciencia"
   ],
   "indice_correcto": 0
 }

@@ -1,23 +1,23 @@
 {
   "id": "REL-07",
   "bloque": "religion",
-  "dificultad": "dificil",
+  "dificultad": "medio",
   "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Qué es la transubstanciación?",
+  "formato": "abierto",
+  "enunciado": "¿Qué concilio católico se convocó en respuesta a la reforma luterana?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "La conversión del pan y el vino en el cuerpo y la sangre de Cristo durante la eucaristía",
-    "El paso del alma del difunto al más allá tras el juicio particular",
-    "La presencia simbólica de Cristo en el pan y el vino, sin cambio de sustancia",
-    "La transformación interior del pecador tras recibir el sacramento de la penitencia",
-    "La encarnación del Verbo divino en la persona de Jesús",
-    "El tránsito de la Virgen al cielo en cuerpo y alma"
+  "respuesta_canonica": "El Concilio de Trento",
+  "alias": [
+    "trento",
+    "el concilio de trento",
+    "concilio de trento",
+    "de trento",
+    "tridentino",
+    "concilio tridentino"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
 }

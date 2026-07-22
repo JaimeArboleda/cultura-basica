@@ -1,0 +1,23 @@
+{
+  "id": "ART-11",
+  "bloque": "arte",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿De qué siglo es Delacroix?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Siglo XIX",
+    "Siglo XVI",
+    "Siglo XVII",
+    "Siglo XVIII",
+    "Siglo XX",
+    "Finales del siglo XV y principios del XVI"
+  ],
+  "indice_correcto": 0
+}

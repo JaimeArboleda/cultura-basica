@@ -36,12 +36,19 @@ El objetivo declarado es medir la existencia de analfabetismo funcional, razón 
 9. Arte
 10. Religión
 
-**10 ítems/preguntas por bloque = 100 ítems en el banco.**
+**12 ítems/preguntas por bloque = 120 ítems en el banco.**
+
+Dentro de los bloques anteriores se incluyen también, en el hueco que mejor
+encaja temáticamente, algunos ítems de disciplinas que de otro modo quedarían
+sin ningún ítem propio: **Derecho** (en Economía y Política), **Psicología**
+(en Filosofía), **Medicina** (en Biología y Geología) y **Tecnología** (en
+Física y Química). No constituyen bloques nuevos ni cambian el reparto por
+bloque; son ítems más dentro del bloque que mejor los acoge.
 
 ### 1.3 Niveles de dificultad
 
 Cada ítem se etiqueta como `facil`, `medio` o `dificil`.
-Distribución objetivo por bloque: 4 / 3 / 3.
+Distribución objetivo por bloque: 4 / 4 / 4.
 
 - Los ítems **fáciles** existen para documentar el efecto techo: son "mínimos absolutos"
   que una persona de cultura normal debería acertar. Su unidad de análisis es el **ítem**,
@@ -60,9 +67,9 @@ redacta un test estima mal la dificultad de sus propios ítems. Tras el piloto s
 ### 1.4 Modo corto y modo completo
 
 **Todo el mundo hace primero el modo corto de 30 ítems.** Al terminar, se muestra el
-resultado y se ofrece continuar con los 70 restantes.
+resultado y se ofrece continuar con los 90 restantes.
 
-> **No se ofrece la elección al principio.** Si el usuario elige entre "30" y "100" al
+> **No se ofrece la elección al principio.** Si el usuario elige entre "30" y "120" al
 > entrar, la elección está correlacionada con conocimiento y motivación, y las dos
 > submuestras dejan de ser comparables. Ofrecer la continuación *después* de terminar los
 > 30 resuelve esto: se obtienen datos del núcleo de todos los participantes, sube la tasa
@@ -252,7 +259,7 @@ CREATE TABLE sesiones (
   compromiso_honestidad INTEGER NOT NULL,
   completo_corto    INTEGER DEFAULT 0,       -- terminó los 30
   acepto_extension  INTEGER,                 -- NULL si no llegó a la oferta
-  completo_largo    INTEGER DEFAULT 0,       -- terminó los 100
+  completo_largo    INTEGER DEFAULT 0,       -- terminó los 120
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
   -- demografía
   anio_nacimiento   INTEGER,
@@ -347,7 +354,7 @@ redactar el ítem, fijo para todos los usuarios — igual que la posición de
 contra `elementos_ordenados`.
 
 **Invariantes que el código debe validar al arrancar:**
-- Exactamente 10 bloques × 10 ítems.
+- Exactamente 10 bloques × 12 ítems.
 - Exactamente 1 ítem con `ancla: true` por bloque, y su `dificultad` debe ser `medio`.
 - Todo ítem `opcion_multiple` tiene exactamente 6 opciones e `indice_correcto` válido.
 - Todo ítem `abierto` tiene `respuesta_canonica`, al menos un alias y
@@ -357,14 +364,14 @@ contra `elementos_ordenados`.
   `elementos_ordenados` (la misma lista permutada a su orden correcto, distinto de
   `elementos`).
 - Ítems `abierto` ≤ 50% del total por bloque (`ordenar` no cuenta para este tope, ver §1.5).
-- 4 fáciles, 3 medias y 3 difíciles.
+- 4 fáciles, 4 medias y 4 difíciles.
 
 ### 4.3 Endpoints del Worker
 
 ```
 POST /api/sesion            → crea sesión, devuelve id + set de ítems sorteado
 POST /api/respuesta         → guarda una respuesta (idempotente por sesion_id+item_id)
-POST /api/extender          → registra aceptación/rechazo y devuelve los 70 restantes
+POST /api/extender          → registra aceptación/rechazo y devuelve los 90 restantes
 GET  /api/resultado/:id     → devuelve el resultado de esa sesión
 GET  /api/export?token=…    → volcado CSV/JSON (protegido con secreto en env)
 ```
@@ -438,7 +445,7 @@ ejecutando `npm run build:debug` en la redacción de cada nuevo ítem.
 ## 6. Fases del proyecto
 
 ### Fase 1 — Banco de ítems
-Redactar los 100 ítems con: bloque, dificultad a priori, formato, enunciado,
+Redactar los 120 ítems con: bloque, dificultad a priori, formato, enunciado,
 respuesta canónica + alias (abiertos) o 6 opciones con distractores plausibles.
 Empezar por Filosofía e Historia y validar el estilo antes de continuar.
 
@@ -455,7 +462,7 @@ Objetivos:
 
 ### Fase 4 — Lanzamiento
 Objetivo: **≥300-400 sesiones**. Con 10 bloques × 3 niveles y sorteo aleatorio, cada
-ítem no fijo aparece en ~1/3 de las sesiones del modo corto; se necesitan ≥100 respuestas
+ítem no fijo aparece en ~1/4 de las sesiones del modo corto; se necesitan ≥100 respuestas
 por ítem para calibrarlo.
 
 ### Fase 5 — Análisis y publicación
@@ -495,7 +502,7 @@ cuestionarios online son un subconjunto muy atípico de su cohorte.
   funciona distinto en mayores y jóvenes a igual nivel general, **eso es el efecto
   cohorte hecho visible**, y es material central para el paper.
 - **Análisis de abandono:** quién abandona, en qué posición, y quién acepta la extensión
-  a 100 ítems. Es un dato observado, no ruido.
+  a 120 ítems. Es un dato observado, no ruido.
 
 ---
 
@@ -503,7 +510,7 @@ cuestionarios online son un subconjunto muy atípico de su cohorte.
 
 - `data/items.json` es la **fuente de verdad**. El front-end no debe contener enunciados
   ni respuestas hardcodeadas.
-- Escribir el validador de invariantes (§4.2) como test que corre en CI. Con 100 ítems
+- Escribir el validador de invariantes (§4.2) como test que corre en CI. Con 120 ítems
   redactados a mano, los errores de estructura son inevitables.
 - La corrección de respuestas abiertas debe vivir en el Worker y ser **testeable de forma
   aislada**, con una batería de casos por ítem (variantes con y sin acentos, erratas,

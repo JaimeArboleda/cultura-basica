@@ -2,23 +2,22 @@
   "id": "HIS-06",
   "bloque": "historia",
   "dificultad": "medio",
-  "ancla": true,
-  "formato": "abierto",
-  "enunciado": "¿Qué dinastía llegó a España tras la Guerra de Sucesión Española?",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué imperio resultó derrotado en la batalla de Lepanto?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "Los Borbones",
-  "alias": [
-    "borbon",
-    "borbones",
-    "los borbones",
-    "casa de borbon",
-    "la casa de borbon",
-    "dinastia borbonica",
-    "borbonica"
-  ],
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 1,
-  "opciones": null,
-  "indice_correcto": null
+  "tolerancia_edicion": null,
+  "opciones": [
+    "El Imperio otomano",
+    "El Imperio persa",
+    "El Imperio austrohúngaro",
+    "El Imperio bizantino",
+    "El Reino de Francia",
+    "El Imperio mogol"
+  ],
+  "indice_correcto": 0
 }

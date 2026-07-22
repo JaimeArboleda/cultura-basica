@@ -4,7 +4,7 @@
   "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Cómo se llama el proceso por el cual una placa oceánica se hunde bajo otra placa?",
+  "enunciado": "¿Cuál es la función de los telómeros en los cromosomas?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Subducción",
-    "Rifting",
-    "Obducción",
-    "Acreción",
-    "Orogenia",
-    "Expansión del fondo oceánico"
+    "Proteger los extremos de los cromosomas del deterioro y limitar el número de divisiones celulares",
+    "Codificar las proteínas necesarias para la división celular",
+    "Unir las dos cromátidas hermanas durante la mitosis",
+    "Transportar el ARN mensajero fuera del núcleo",
+    "Reparar mutaciones puntuales en el ADN",
+    "Regular la temperatura interna de la célula durante la replicación"
   ],
   "indice_correcto": 0
 }

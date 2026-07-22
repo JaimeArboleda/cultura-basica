@@ -1,0 +1,30 @@
+{
+  "id": "LEN-12",
+  "bloque": "lengua_literatura",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "ordenar",
+  "enunciado": "Ordena estos movimientos literarios de más antiguo a más moderno:",
+  "elementos": [
+    "Romanticismo",
+    "Renacimiento",
+    "Modernismo",
+    "Barroco",
+    "Realismo",
+    "Neoclasicismo"
+  ],
+  "elementos_ordenados": [
+    "Renacimiento",
+    "Barroco",
+    "Neoclasicismo",
+    "Romanticismo",
+    "Realismo",
+    "Modernismo"
+  ],
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": null,
+  "indice_correcto": null
+}

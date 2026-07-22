@@ -1,10 +1,10 @@
 {
   "id": "LEN-09",
   "bloque": "lengua_literatura",
-  "dificultad": "medio",
+  "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué es un verbo transitivo?",
+  "enunciado": "¿Quién escribió la primera gramática de la lengua castellana, publicada en 1492?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "El que admite complemento directo",
-    "El que expresa una acción que recae sobre el propio sujeto",
-    "El que no lleva sujeto expreso ni tácito",
-    "El que forma los tiempos compuestos con el auxiliar haber",
-    "El que indica movimiento o desplazamiento",
-    "El que puede sustituirse por un adjetivo sin alterar el sentido"
+    "Antonio de Nebrija",
+    "Alfonso X el Sabio",
+    "Gonzalo de Berceo",
+    "Juan Ruiz, Arcipreste de Hita",
+    "Sebastián de Covarrubias",
+    "Fray Luis de León"
   ],
   "indice_correcto": 0
 }

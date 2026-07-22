@@ -1,0 +1,23 @@
+{
+  "id": "FIL-12",
+  "bloque": "filosofia",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué corriente filosófica del siglo XX sostiene que \"la existencia precede a la esencia\"?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "El existencialismo",
+    "El estructuralismo",
+    "La fenomenología",
+    "El positivismo lógico",
+    "El marxismo",
+    "El pragmatismo"
+  ],
+  "indice_correcto": 0
+}

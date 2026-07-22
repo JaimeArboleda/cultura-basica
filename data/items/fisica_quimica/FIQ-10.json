@@ -4,7 +4,7 @@
   "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué establece el principio de Le Chatelier?",
+  "enunciado": "¿Qué dice el principio de incertidumbre?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Que un sistema en equilibrio, al ser perturbado, evoluciona para contrarrestar parcialmente esa perturbación",
-    "Que la masa total de un sistema en reacción química permanece constante",
-    "Que las proporciones entre los elementos de un compuesto son siempre las mismas",
-    "Que el volumen de un gas es inversamente proporcional a su presión a temperatura constante",
-    "Que el volumen de un gas es directamente proporcional a su temperatura a presión constante",
-    "Que a toda acción le corresponde una reacción igual y de sentido contrario"
+    "No se pueden conocer simultáneamente con precisión arbitraria la posición y el momento de una partícula",
+    "El resultado de una medida cuántica solo puede predecirse en términos de probabilidad",
+    "Ninguna señal puede propagarse a mayor velocidad que la luz",
+    "Dos electrones de un mismo átomo no pueden tener iguales sus cuatro números cuánticos",
+    "El acto de observar un sistema cuántico siempre lo destruye",
+    "La energía de un sistema cuántico solo puede tomar valores continuos"
   ],
   "indice_correcto": 0
 }

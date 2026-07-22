@@ -1,10 +1,10 @@
 {
   "id": "FIQ-07",
   "bloque": "fisica_quimica",
-  "dificultad": "facil",
+  "dificultad": "medio",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿A qué temperatura hierve el agua a nivel del mar?",
+  "enunciado": "¿Qué es la refracción?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "100 °C",
-    "90 °C",
-    "110 °C",
-    "0 °C",
-    "120 °C",
-    "80 °C"
+    "El cambio de dirección de una onda al pasar a un medio donde su velocidad es distinta",
+    "El rebote de una onda al chocar contra una superficie",
+    "La descomposición de la luz blanca en los colores del espectro",
+    "La superposición de dos ondas que se anulan mutuamente",
+    "La pérdida progresiva de energía de una onda a medida que avanza",
+    "La curvatura de una onda al bordear un obstáculo o una rendija"
   ],
   "indice_correcto": 0
 }

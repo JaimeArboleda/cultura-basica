@@ -2,7 +2,7 @@
 // Se ejecuta tras `node data/build-items.mjs`. Pensado para correr en CI (README §8).
 //
 // Durante la Fase 1 el banco se redacta bloque a bloque, así que los checks de
-// conteo/distribución/ancla solo se aplican a los bloques que YA tienen 10 ítems;
+// conteo/distribución/ancla solo se aplican a los bloques que YA tienen 12 ítems;
 // los checks de forma de cada ítem (opciones, alias, etc.) se aplican siempre.
 import { readFileSync } from "node:fs";
 
@@ -111,8 +111,8 @@ for (const it of items) {
 }
 
 for (const [bloque, its] of porBloque) {
-  if (its.length !== 10) {
-    warn(`[${bloque}] tiene ${its.length}/10 ítems (bloque incompleto, aún no evaluado)`);
+  if (its.length !== 12) {
+    warn(`[${bloque}] tiene ${its.length}/12 ítems (bloque incompleto, aún no evaluado)`);
     continue;
   }
   const anclas = its.filter((i) => i.ancla);
@@ -121,29 +121,29 @@ for (const [bloque, its] of porBloque) {
   }
   const porDificultad = { facil: 0, medio: 0, dificil: 0 };
   for (const i of its) porDificultad[i.dificultad]++;
-  if (porDificultad.facil !== 4 || porDificultad.medio !== 3 || porDificultad.dificil !== 3) {
+  if (porDificultad.facil !== 4 || porDificultad.medio !== 4 || porDificultad.dificil !== 4) {
     err(
       `[${bloque}] distribución de dificultad incorrecta: ` +
-        `facil=${porDificultad.facil} medio=${porDificultad.medio} dificil=${porDificultad.dificil} (esperado 4/3/3)`
+        `facil=${porDificultad.facil} medio=${porDificultad.medio} dificil=${porDificultad.dificil} (esperado 4/4/4)`
     );
   }
   const abiertos = its.filter((i) => i.formato === "abierto").length;
-  if (abiertos > 5) {
+  if (abiertos > 6) {
     err(`[${bloque}] ítems abiertos (${abiertos}) supera el máximo del 50% (§4.2)`);
   }
 }
 
 // --- Checks globales (solo si el banco está completo) ---
-if (items.length === 100) {
+if (items.length === 120) {
   if (porBloque.size !== 10) {
     err(`Se esperaban 10 bloques, hay ${porBloque.size}`);
   }
   const abiertosGlobal = items.filter((i) => i.formato === "abierto").length;
-  if (abiertosGlobal > 40) {
+  if (abiertosGlobal > 48) {
     err(`Ítems abiertos globales (${abiertosGlobal}) supera el máximo del 40% (§1.5)`);
   }
 } else {
-  warn(`Banco incompleto: ${items.length}/100 ítems`);
+  warn(`Banco incompleto: ${items.length}/120 ítems`);
 }
 
 for (const a of avisos) console.warn("AVISO:", a);

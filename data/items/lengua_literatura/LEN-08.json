@@ -1,21 +1,23 @@
 {
   "id": "LEN-08",
   "bloque": "lengua_literatura",
-  "dificultad": "facil",
+  "dificultad": "medio",
   "ancla": false,
-  "formato": "abierto",
-  "enunciado": "¿Cuántos versos tiene un soneto?",
+  "formato": "opcion_multiple",
+  "enunciado": "¿Cómo se llama la figura retórica que consiste en atribuir cualidades humanas a seres inanimados o animales?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "14",
-  "alias": [
-    "14",
-    "catorce",
-    "14 versos",
-    "catorce versos"
-  ],
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 0,
-  "opciones": null,
-  "indice_correcto": null
+  "tolerancia_edicion": null,
+  "opciones": [
+    "La personificación (o prosopopeya)",
+    "La metáfora",
+    "La hipérbole",
+    "La sinécdoque",
+    "La metonimia",
+    "El símil"
+  ],
+  "indice_correcto": 0
 }

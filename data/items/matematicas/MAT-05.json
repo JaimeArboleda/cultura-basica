@@ -1,10 +1,10 @@
 {
   "id": "MAT-05",
   "bloque": "matematicas",
-  "dificultad": "facil",
-  "ancla": false,
+  "dificultad": "medio",
+  "ancla": true,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué dice el teorema de Pitágoras?",
+  "enunciado": "¿Qué tiene más superficie: la mitad de un metro cuadrado o un cuadrado de medio metro de lado?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "En un triángulo rectángulo, el cuadrado de la hipotenusa es igual a la suma de los cuadrados de los catetos",
-    "En todo triángulo, la suma de los ángulos interiores es de 180 grados",
-    "En un triángulo rectángulo, la hipotenusa es igual a la suma de los catetos",
-    "En todo triángulo, cada lado es menor que la suma de los otros dos",
-    "En un triángulo rectángulo, la altura sobre la hipotenusa es la media de los catetos",
-    "En dos triángulos semejantes, los lados homólogos son proporcionales"
+    "La mitad de un metro cuadrado",
+    "El cuadrado de medio metro de lado",
+    "Las dos superficies son iguales",
+    "Depende de la forma que se dé a la mitad del metro cuadrado",
+    "No se pueden comparar: son magnitudes distintas",
+    "El cuadrado de medio metro de lado, que mide exactamente el doble"
   ],
   "indice_correcto": 0
 }

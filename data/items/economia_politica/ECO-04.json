@@ -4,7 +4,7 @@
   "dificultad": "facil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué bloques se enfrentaron en la Guerra Fría?",
+  "enunciado": "¿Qué es el PIB?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "El bloque occidental capitalista liderado por EE. UU. y el bloque comunista liderado por la URSS",
-    "Los países aliados y las potencias del Eje",
-    "La OTAN y la Unión Europea",
-    "El Reino Unido y sus colonias frente a los Estados Unidos",
-    "China y la Unión Soviética",
-    "Los países industrializados del norte y los países en desarrollo del sur"
+    "El valor de todos los bienes y servicios finales producidos en un país durante un periodo",
+    "La suma de los ingresos del Estado a lo largo de un año",
+    "El valor total de la riqueza acumulada por un país",
+    "La diferencia entre las exportaciones y las importaciones",
+    "La renta media de los habitantes de un país",
+    "El valor de todo lo producido por empresas nacionales, dentro y fuera del país"
   ],
   "indice_correcto": 0
 }

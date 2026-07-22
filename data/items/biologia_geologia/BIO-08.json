@@ -1,23 +1,18 @@
 {
   "id": "BIO-08",
   "bloque": "biologia_geologia",
-  "dificultad": "dificil",
+  "dificultad": "medio",
   "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Cuál es la función de los telómeros en los cromosomas?",
+  "formato": "abierto",
+  "enunciado": "¿Qué hormona, producida por el páncreas, regula el nivel de glucosa en sangre?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "Proteger los extremos de los cromosomas del deterioro y limitar el número de divisiones celulares",
-    "Codificar las proteínas necesarias para la división celular",
-    "Unir las dos cromátidas hermanas durante la mitosis",
-    "Transportar el ARN mensajero fuera del núcleo",
-    "Reparar mutaciones puntuales en el ADN",
-    "Regular la temperatura interna de la célula durante la replicación"
+  "respuesta_canonica": "Insulina",
+  "alias": [
+    "insulina"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
 }

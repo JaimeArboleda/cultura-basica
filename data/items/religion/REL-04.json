@@ -1,10 +1,10 @@
 {
   "id": "REL-04",
   "bloque": "religion",
-  "dificultad": "medio",
+  "dificultad": "facil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué es el Pentateuco?",
+  "enunciado": "¿Cuál es la rama del islam predominante en Irán?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Los cinco primeros libros de la Biblia, atribuidos a Moisés",
-    "Los cuatro evangelios más los Hechos de los Apóstoles",
-    "El conjunto de los libros proféticos del Antiguo Testamento",
-    "La recopilación de comentarios rabínicos a la ley judía",
-    "Los cinco preceptos fundamentales del islam",
-    "Los salmos atribuidos al rey David"
+    "El chiismo",
+    "El sunismo",
+    "El sufismo",
+    "El wahabismo",
+    "El ibadismo",
+    "El alauismo"
   ],
   "indice_correcto": 0
 }

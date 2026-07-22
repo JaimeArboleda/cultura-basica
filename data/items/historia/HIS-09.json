@@ -1,26 +1,23 @@
 {
   "id": "HIS-09",
   "bloque": "historia",
-  "dificultad": "medio",
+  "dificultad": "dificil",
   "ancla": false,
-  "formato": "abierto",
-  "enunciado": "¿A qué guerra puso fin el Tratado de Versalles?",
+  "formato": "opcion_multiple",
+  "enunciado": "¿En qué siglo tuvo lugar el Cisma de Oriente, la separación entre la Iglesia católica y la ortodoxa?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "La Primera Guerra Mundial",
-  "alias": [
-    "primera guerra mundial",
-    "la primera guerra mundial",
-    "i guerra mundial",
-    "1 guerra mundial",
-    "1a guerra mundial",
-    "gran guerra",
-    "la gran guerra",
-    "pgm",
-    "wwi"
-  ],
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 2,
-  "opciones": null,
-  "indice_correcto": null
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Siglo XI",
+    "Siglo VIII",
+    "Siglo IX",
+    "Siglo X",
+    "Siglo XII",
+    "Siglo XIII"
+  ],
+  "indice_correcto": 0
 }

@@ -3,17 +3,21 @@
   "bloque": "filosofia",
   "dificultad": "dificil",
   "ancla": false,
-  "formato": "abierto",
-  "enunciado": "¿Qué filósofo propuso el hilemorfismo?",
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué diferencia hay para Kant entre fenómeno y nóumeno?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "Aristóteles",
-  "alias": [
-    "aristoteles",
-    "aristotel"
-  ],
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 1,
-  "opciones": null,
-  "indice_correcto": null
+  "tolerancia_edicion": null,
+  "opciones": [
+    "El fenómeno es la cosa tal como se nos aparece; el nóumeno, la cosa en sí, incognoscible",
+    "El fenómeno es lo particular; el nóumeno, el concepto universal que lo agrupa",
+    "El fenómeno pertenece al mundo sensible; el nóumeno, al mundo de las Ideas accesible por la razón",
+    "El fenómeno es la apariencia engañosa; el nóumeno, la verdad revelada por la fe",
+    "El fenómeno es un hecho empírico; el nóumeno, una hipótesis aún no verificada",
+    "El fenómeno es lo que cambia; el nóumeno, la sustancia material permanente"
+  ],
+  "indice_correcto": 0
 }

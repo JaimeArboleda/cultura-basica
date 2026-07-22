@@ -1,19 +1,20 @@
 {
   "id": "ART-03",
   "bloque": "arte",
-  "dificultad": "dificil",
+  "dificultad": "facil",
   "ancla": false,
   "formato": "abierto",
-  "enunciado": "¿Quién compuso las Variaciones Goldberg?",
+  "enunciado": "¿En qué ciudad está el Partenón?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "Bach",
+  "respuesta_canonica": "En Atenas",
   "alias": [
-    "bach",
-    "johann sebastian bach",
-    "juan sebastian bach",
-    "j s bach",
-    "js bach"
+    "atenas",
+    "en atenas",
+    "acropolis de atenas",
+    "la acropolis de atenas",
+    "atenas grecia",
+    "en la acropolis de atenas"
   ],
   "alias_parcial": null,
   "tolerancia_edicion": 1,

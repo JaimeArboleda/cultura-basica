@@ -4,15 +4,12 @@
   "dificultad": "medio",
   "ancla": false,
   "formato": "abierto",
-  "enunciado": "Si tiras dos dados y sumas las puntuaciones, ¿cuál es el valor más probable?",
+  "enunciado": "¿Cuánto es el factorial de 5 (5!)?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "7",
+  "respuesta_canonica": "120",
   "alias": [
-    "7",
-    "siete",
-    "el 7",
-    "el siete"
+    "120"
   ],
   "alias_parcial": null,
   "tolerancia_edicion": 0,

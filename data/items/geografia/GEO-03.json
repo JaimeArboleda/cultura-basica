@@ -4,13 +4,15 @@
   "dificultad": "facil",
   "ancla": false,
   "formato": "abierto",
-  "enunciado": "¿Cuál es la capital de Francia?",
+  "enunciado": "¿Cuál es el océano más grande del mundo?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "París",
+  "respuesta_canonica": "El océano Pacífico",
   "alias": [
-    "paris",
-    "en paris"
+    "pacifico",
+    "el pacifico",
+    "oceano pacifico",
+    "el oceano pacifico"
   ],
   "alias_parcial": null,
   "tolerancia_edicion": 1,

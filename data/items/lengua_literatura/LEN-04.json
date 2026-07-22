@@ -1,23 +1,21 @@
 {
   "id": "LEN-04",
   "bloque": "lengua_literatura",
-  "dificultad": "dificil",
+  "dificultad": "facil",
   "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Quién escribió la primera gramática de la lengua castellana, publicada en 1492?",
+  "formato": "abierto",
+  "enunciado": "¿Cuántos versos tiene un soneto?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "Antonio de Nebrija",
-    "Alfonso X el Sabio",
-    "Gonzalo de Berceo",
-    "Juan Ruiz, Arcipreste de Hita",
-    "Sebastián de Covarrubias",
-    "Fray Luis de León"
+  "respuesta_canonica": "14",
+  "alias": [
+    "14",
+    "catorce",
+    "14 versos",
+    "catorce versos"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 0,
+  "opciones": null,
+  "indice_correcto": null
 }

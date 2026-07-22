@@ -3,21 +3,24 @@
   "bloque": "historia",
   "dificultad": "medio",
   "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Qué imperio resultó derrotado en la batalla de Lepanto?",
+  "formato": "abierto",
+  "enunciado": "¿A qué guerra puso fin el Tratado de Versalles?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "El Imperio otomano",
-    "El Imperio persa",
-    "El Imperio austrohúngaro",
-    "El Imperio bizantino",
-    "El Reino de Francia",
-    "El Imperio mogol"
+  "respuesta_canonica": "La Primera Guerra Mundial",
+  "alias": [
+    "primera guerra mundial",
+    "la primera guerra mundial",
+    "i guerra mundial",
+    "1 guerra mundial",
+    "1a guerra mundial",
+    "gran guerra",
+    "la gran guerra",
+    "pgm",
+    "wwi"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
 }

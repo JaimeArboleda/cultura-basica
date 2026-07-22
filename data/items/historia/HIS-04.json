@@ -3,21 +3,18 @@
   "bloque": "historia",
   "dificultad": "facil",
   "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Con qué otro nombre se conoce al Imperio Romano de Oriente?",
+  "formato": "abierto",
+  "enunciado": "¿En qué año se produjo la Revolución Francesa?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "Imperio bizantino",
-    "Sacro Imperio Romano Germánico",
-    "Imperio otomano",
-    "Imperio carolingio",
-    "Imperio latino de Constantinopla",
-    "Imperio romano de Occidente"
+  "respuesta_canonica": "1789",
+  "alias": [
+    "1789",
+    "1.789",
+    "ano 1789"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 0,
+  "opciones": null,
+  "indice_correcto": null
 }

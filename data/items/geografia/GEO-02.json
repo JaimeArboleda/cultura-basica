@@ -4,15 +4,13 @@
   "dificultad": "facil",
   "ancla": false,
   "formato": "abierto",
-  "enunciado": "¿En qué mar está la península de Crimea?",
+  "enunciado": "¿Cuál es la capital de Francia?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "El mar Negro",
+  "respuesta_canonica": "París",
   "alias": [
-    "mar negro",
-    "el mar negro",
-    "negro",
-    "en el mar negro"
+    "paris",
+    "en paris"
   ],
   "alias_parcial": null,
   "tolerancia_edicion": 1,

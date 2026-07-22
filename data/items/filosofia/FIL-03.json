@@ -1,22 +1,23 @@
 {
   "id": "FIL-03",
   "bloque": "filosofia",
-  "dificultad": "medio",
-  "ancla": true,
-  "formato": "abierto",
-  "enunciado": "¿Qué filósofo medieval sintetizó cristianismo y aristotelismo en su Suma Teológica?",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "Según Epicuro, ¿cuál es el objetivo del hombre?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "Tomás de Aquino",
-  "alias": [
-    "tomas de aquino",
-    "santo tomas de aquino",
-    "santo tomas",
-    "aquino",
-    "tomas aquino"
-  ],
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 2,
-  "opciones": null,
-  "indice_correcto": null
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Alcanzar el placer entendido como ausencia de dolor y de perturbación del ánimo",
+    "Cumplir el deber moral con independencia de las consecuencias",
+    "Vivir conforme a la naturaleza aceptando el destino con indiferencia",
+    "Contemplar mediante la razón las Ideas eternas e inmutables",
+    "Maximizar la felicidad del mayor número posible de personas",
+    "Someter los apetitos del cuerpo a la voluntad divina"
+  ],
+  "indice_correcto": 0
 }

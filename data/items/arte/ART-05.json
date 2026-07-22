@@ -1,21 +1,30 @@
 {
   "id": "ART-05",
   "bloque": "arte",
-  "dificultad": "facil",
-  "ancla": false,
-  "formato": "abierto",
-  "enunciado": "¿A qué estilo artístico pertenece Bernini?",
-  "elementos": null,
-  "elementos_ordenados": null,
-  "respuesta_canonica": "Barroco",
-  "alias": [
-    "barroco",
-    "el barroco",
-    "al barroco",
-    "barroco italiano"
+  "dificultad": "medio",
+  "ancla": true,
+  "formato": "ordenar",
+  "enunciado": "Ordena estos estilos artísticos de más antiguo a más moderno:",
+  "elementos": [
+    "Barroco",
+    "Románico",
+    "Impresionismo",
+    "Gótico",
+    "Renacimiento",
+    "Rococó"
   ],
+  "elementos_ordenados": [
+    "Románico",
+    "Gótico",
+    "Renacimiento",
+    "Barroco",
+    "Rococó",
+    "Impresionismo"
+  ],
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 1,
+  "tolerancia_edicion": null,
   "opciones": null,
   "indice_correcto": null
 }

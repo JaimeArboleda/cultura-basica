@@ -1,0 +1,23 @@
+{
+  "id": "HIS-11",
+  "bloque": "historia",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿En qué siglo empezó la expansión islámica?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Siglo VII",
+    "Siglo V",
+    "Siglo VI",
+    "Siglo VIII",
+    "Siglo IX",
+    "Siglo XI"
+  ],
+  "indice_correcto": 0
+}

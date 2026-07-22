@@ -1,23 +1,22 @@
 {
   "id": "FIL-05",
   "bloque": "filosofia",
-  "dificultad": "dificil",
-  "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Qué diferencia hay para Kant entre fenómeno y nóumeno?",
+  "dificultad": "medio",
+  "ancla": true,
+  "formato": "abierto",
+  "enunciado": "¿Qué filósofo medieval sintetizó cristianismo y aristotelismo en su Suma Teológica?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "El fenómeno es la cosa tal como se nos aparece; el nóumeno, la cosa en sí, incognoscible",
-    "El fenómeno es lo particular; el nóumeno, el concepto universal que lo agrupa",
-    "El fenómeno pertenece al mundo sensible; el nóumeno, al mundo de las Ideas accesible por la razón",
-    "El fenómeno es la apariencia engañosa; el nóumeno, la verdad revelada por la fe",
-    "El fenómeno es un hecho empírico; el nóumeno, una hipótesis aún no verificada",
-    "El fenómeno es lo que cambia; el nóumeno, la sustancia material permanente"
+  "respuesta_canonica": "Tomás de Aquino",
+  "alias": [
+    "tomas de aquino",
+    "santo tomas de aquino",
+    "santo tomas",
+    "aquino",
+    "tomas aquino"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
 }

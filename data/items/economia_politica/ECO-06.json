@@ -1,10 +1,10 @@
 {
   "id": "ECO-06",
   "bloque": "economia_politica",
-  "dificultad": "facil",
+  "dificultad": "medio",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué es el PIB?",
+  "enunciado": "¿Qué diferencia hay entre renta fija y renta variable?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "El valor de todos los bienes y servicios finales producidos en un país durante un periodo",
-    "La suma de los ingresos del Estado a lo largo de un año",
-    "El valor total de la riqueza acumulada por un país",
-    "La diferencia entre las exportaciones y las importaciones",
-    "La renta media de los habitantes de un país",
-    "El valor de todo lo producido por empresas nacionales, dentro y fuera del país"
+    "La renta fija paga una rentabilidad pactada de antemano; la variable depende de los resultados",
+    "La renta fija se cobra mensualmente; la variable, una sola vez al año",
+    "La renta fija no puede perder valor en ningún caso; la variable sí",
+    "La renta fija la emiten los Estados; la variable, las empresas privadas",
+    "La renta fija se negocia en bolsa; la variable, fuera de los mercados organizados",
+    "La renta fija exige una inversión mínima elevada; la variable, no"
   ],
   "indice_correcto": 0
 }

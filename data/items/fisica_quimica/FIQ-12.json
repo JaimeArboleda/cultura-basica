@@ -1,0 +1,23 @@
+{
+  "id": "FIQ-12",
+  "bloque": "fisica_quimica",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué observa la Ley de Moore en el campo de la tecnología?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Que el número de transistores en un microchip se duplica aproximadamente cada dos años",
+    "Que la velocidad de internet se duplica cada año",
+    "Que el precio de los ordenadores baja a la mitad cada década",
+    "Que la capacidad de las baterías crece de forma exponencial",
+    "Que el consumo energético de los procesadores decrece de forma lineal",
+    "Que el tamaño de las pantallas aumenta un 10% cada año"
+  ],
+  "indice_correcto": 0
+}

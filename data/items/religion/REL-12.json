@@ -1,0 +1,23 @@
+{
+  "id": "REL-12",
+  "bloque": "religion",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué es el Talmud?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "El conjunto de comentarios y debates rabínicos que interpretan la Torá, central en el judaísmo",
+    "El libro sagrado del Islam",
+    "Los cinco primeros libros de la Biblia",
+    "El texto fundacional del budismo zen",
+    "La colección de himnos védicos del hinduismo",
+    "El código legal del Imperio romano"
+  ],
+  "indice_correcto": 0
+}

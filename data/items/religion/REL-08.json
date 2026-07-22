@@ -1,23 +1,19 @@
 {
   "id": "REL-08",
   "bloque": "religion",
-  "dificultad": "dificil",
+  "dificultad": "medio",
   "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Qué santo fundó la Orden de los Dominicos?",
+  "formato": "abierto",
+  "enunciado": "¿Cuántos son los mandamientos en la tradición judeocristiana?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "Santo Domingo de Guzmán",
-    "San Francisco de Asís",
-    "San Ignacio de Loyola",
-    "San Benito de Nursia",
-    "San Bernardo de Claraval",
-    "San Agustín de Hipona"
+  "respuesta_canonica": "10",
+  "alias": [
+    "10",
+    "diez"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 0,
+  "opciones": null,
+  "indice_correcto": null
 }

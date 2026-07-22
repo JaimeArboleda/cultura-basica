@@ -1,0 +1,20 @@
+{
+  "id": "LEN-11",
+  "bloque": "lengua_literatura",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "Escriba la primera persona del singular del presente de subjuntivo del verbo «pedir».",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "pida",
+  "alias": [
+    "pida",
+    "yo pida",
+    "que yo pida"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 0,
+  "opciones": null,
+  "indice_correcto": null
+}

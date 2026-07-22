@@ -1,23 +1,22 @@
 {
   "id": "BIO-06",
   "bloque": "biologia_geologia",
-  "dificultad": "facil",
+  "dificultad": "medio",
   "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Qué tipo de roca se forma por el enfriamiento y solidificación del magma?",
+  "formato": "abierto",
+  "enunciado": "¿De qué moléculas están compuestas las proteínas?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "Roca ígnea",
-    "Roca sedimentaria",
-    "Roca metamórfica",
-    "Roca caliza",
-    "Roca detrítica",
-    "Roca evaporítica"
+  "respuesta_canonica": "Aminoácidos",
+  "alias": [
+    "aminoacidos",
+    "aminoacido",
+    "de aminoacidos",
+    "cadenas de aminoacidos",
+    "amino acidos"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
 }

@@ -1,10 +1,10 @@
 {
   "id": "LEN-05",
   "bloque": "lengua_literatura",
-  "dificultad": "dificil",
+  "dificultad": "medio",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué es un verso alejandrino?",
+  "enunciado": "¿Cómo termina El Quijote?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Un verso de catorce sílabas",
-    "Un verso de once sílabas",
-    "Una estrofa de catorce versos",
-    "Un verso de doce sílabas",
-    "Un verso de dieciséis sílabas",
-    "Una composición en prosa rítmica sin medida fija"
+    "Recobra el juicio, reniega de los libros de caballerías y muere en su cama",
+    "Muere en combate contra el Caballero de la Blanca Luna",
+    "Parte con Sancho hacia una nueva salida que el narrador deja abierta",
+    "Se retira a su aldea y se hace pastor junto a Sancho",
+    "Descubre que Dulcinea existe realmente y se casa con ella",
+    "Es encerrado por orden del cura y el barbero, y allí acaba sus días"
   ],
   "indice_correcto": 0
 }

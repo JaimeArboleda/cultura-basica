@@ -1,23 +1,23 @@
 {
   "id": "MAT-03",
   "bloque": "matematicas",
-  "dificultad": "dificil",
+  "dificultad": "facil",
   "ancla": false,
-  "formato": "abierto",
-  "enunciado": "¿Cómo se conoce a los teoremas de Gödel?",
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué dice el teorema de Pitágoras?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "Teoremas de incompletitud",
-  "alias": [
-    "incompletitud",
-    "teoremas de incompletitud",
-    "teorema de incompletitud",
-    "de incompletitud",
-    "incompletud",
-    "teoremas de la incompletitud"
-  ],
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 2,
-  "opciones": null,
-  "indice_correcto": null
+  "tolerancia_edicion": null,
+  "opciones": [
+    "En un triángulo rectángulo, el cuadrado de la hipotenusa es igual a la suma de los cuadrados de los catetos",
+    "En todo triángulo, la suma de los ángulos interiores es de 180 grados",
+    "En un triángulo rectángulo, la hipotenusa es igual a la suma de los catetos",
+    "En todo triángulo, cada lado es menor que la suma de los otros dos",
+    "En un triángulo rectángulo, la altura sobre la hipotenusa es la media de los catetos",
+    "En dos triángulos semejantes, los lados homólogos son proporcionales"
+  ],
+  "indice_correcto": 0
 }

@@ -4,7 +4,7 @@
   "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿En qué siglo empezó la expansión islámica?",
+  "enunciado": "¿Qué dinastía reinó en España inmediatamente antes de la llegada de los Borbones?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Siglo VII",
-    "Siglo V",
-    "Siglo VI",
-    "Siglo VIII",
-    "Siglo IX",
-    "Siglo XI"
+    "Los Austrias (Casa de Habsburgo)",
+    "Los Trastámara",
+    "Los Borgoña",
+    "Los Saboya",
+    "Los Braganza",
+    "Los Windsor"
   ],
   "indice_correcto": 0
 }

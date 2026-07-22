@@ -1,23 +1,21 @@
 {
   "id": "GEO-01",
   "bloque": "geografia",
-  "dificultad": "medio",
-  "ancla": true,
+  "dificultad": "facil",
+  "ancla": false,
   "formato": "abierto",
-  "enunciado": "¿Dónde desembocan el Tigris y el Éufrates?",
+  "enunciado": "¿En qué mar está la península de Crimea?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "En el golfo Pérsico",
+  "respuesta_canonica": "El mar Negro",
   "alias": [
-    "golfo persico",
-    "el golfo persico",
-    "en el golfo persico",
-    "persico",
-    "shatt al arab",
-    "shat al arab"
+    "mar negro",
+    "el mar negro",
+    "negro",
+    "en el mar negro"
   ],
   "alias_parcial": null,
-  "tolerancia_edicion": 2,
+  "tolerancia_edicion": 1,
   "opciones": null,
   "indice_correcto": null
 }

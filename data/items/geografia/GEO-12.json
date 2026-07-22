@@ -1,0 +1,26 @@
+{
+  "id": "GEO-12",
+  "bloque": "geografia",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "ordenar",
+  "enunciado": "Ordena estos ríos de más largo a más corto:",
+  "elementos": [
+    "Misisipi",
+    "Nilo",
+    "Yangtsé",
+    "Amazonas"
+  ],
+  "elementos_ordenados": [
+    "Nilo",
+    "Amazonas",
+    "Yangtsé",
+    "Misisipi"
+  ],
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": null,
+  "indice_correcto": null
+}

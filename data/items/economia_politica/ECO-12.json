@@ -1,0 +1,23 @@
+{
+  "id": "ECO-12",
+  "bloque": "economia_politica",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué diferencia hay entre el déficit fiscal estructural y el déficit fiscal cíclico?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "El estructural persiste incluso si la economía funciona a pleno rendimiento; el cíclico se debe a las fluctuaciones del ciclo económico",
+    "El estructural es siempre menor que el cíclico",
+    "El cíclico solo ocurre en épocas de guerra",
+    "El estructural depende del tipo de cambio; el cíclico no",
+    "Son la misma magnitud medida en distintas monedas",
+    "El estructural lo mide el FMI y el cíclico el Banco Mundial"
+  ],
+  "indice_correcto": 0
+}

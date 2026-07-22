@@ -4,7 +4,7 @@
   "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué enzima es la principal responsable de copiar el ADN durante la replicación?",
+  "enunciado": "¿Cómo se llama el proceso por el cual una placa oceánica se hunde bajo otra placa?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "La ADN polimerasa",
-    "La ARN polimerasa",
-    "La ligasa",
-    "La helicasa",
-    "La topoisomerasa",
-    "La primasa"
+    "Subducción",
+    "Rifting",
+    "Obducción",
+    "Acreción",
+    "Orogenia",
+    "Expansión del fondo oceánico"
   ],
   "indice_correcto": 0
 }

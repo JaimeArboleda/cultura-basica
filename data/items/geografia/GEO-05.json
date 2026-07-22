@@ -1,23 +1,23 @@
 {
   "id": "GEO-05",
   "bloque": "geografia",
-  "dificultad": "facil",
-  "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Cuál es el país más extenso del mundo?",
+  "dificultad": "medio",
+  "ancla": true,
+  "formato": "abierto",
+  "enunciado": "¿Dónde desembocan el Tigris y el Éufrates?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "Rusia",
-    "Canadá",
-    "China",
-    "Estados Unidos",
-    "Brasil",
-    "Australia"
+  "respuesta_canonica": "En el golfo Pérsico",
+  "alias": [
+    "golfo persico",
+    "el golfo persico",
+    "en el golfo persico",
+    "persico",
+    "shatt al arab",
+    "shat al arab"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
 }

@@ -4,21 +4,17 @@
   "dificultad": "facil",
   "ancla": false,
   "formato": "abierto",
-  "enunciado": "¿Quién enseñó que todo en la vida es dolor y que la causa del dolor es el deseo?",
+  "enunciado": "¿Qué dios romano es el equivalente al Zeus griego?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "Buda",
+  "respuesta_canonica": "Júpiter",
   "alias": [
-    "buda",
-    "el buda",
-    "budha",
-    "buddha",
-    "siddharta gautama",
-    "siddhartha gautama",
-    "gautama"
+    "jupiter",
+    "jove",
+    "iuppiter"
   ],
   "alias_parcial": null,
-  "tolerancia_edicion": 2,
+  "tolerancia_edicion": 1,
   "opciones": null,
   "indice_correcto": null
 }

@@ -1,20 +1,23 @@
 {
   "id": "REL-05",
   "bloque": "religion",
-  "dificultad": "facil",
-  "ancla": false,
-  "formato": "abierto",
-  "enunciado": "¿Qué dios romano es el equivalente al Zeus griego?",
+  "dificultad": "medio",
+  "ancla": true,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué diferencia hay entre agnosticismo y ateísmo?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "Júpiter",
-  "alias": [
-    "jupiter",
-    "jove",
-    "iuppiter"
-  ],
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 1,
-  "opciones": null,
-  "indice_correcto": null
+  "tolerancia_edicion": null,
+  "opciones": [
+    "El ateo niega la existencia de Dios; el agnóstico sostiene que no puede saberse",
+    "El ateo duda de la existencia de Dios; el agnóstico la niega",
+    "El ateo rechaza toda religión; el agnóstico solo las religiones reveladas",
+    "El ateo no practica ninguna religión; el agnóstico practica varias",
+    "El ateo cree en la ciencia; el agnóstico, en una fuerza espiritual indefinida",
+    "No hay diferencia real: son dos formas de designar la incredulidad"
+  ],
+  "indice_correcto": 0
 }

@@ -1,10 +1,10 @@
 {
   "id": "FIQ-02",
   "bloque": "fisica_quimica",
-  "dificultad": "medio",
-  "ancla": true,
+  "dificultad": "facil",
+  "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué es la radiactividad?",
+  "enunciado": "¿A qué temperatura hierve el agua a nivel del mar?",
   "elementos": null,
   "elementos_ordenados": null,
   "respuesta_canonica": null,
@@ -12,12 +12,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "La emisión espontánea de partículas o radiación por núcleos atómicos inestables",
-    "La capacidad de un cuerpo caliente de emitir calor por radiación",
-    "La propagación de ondas electromagnéticas a través del vacío",
-    "La ionización del aire producida por una corriente eléctrica intensa",
-    "La reacción en cadena que se produce al fisionar un núcleo de uranio",
-    "La absorción de energía luminosa por los electrones de un metal"
+    "100 °C",
+    "90 °C",
+    "110 °C",
+    "0 °C",
+    "120 °C",
+    "80 °C"
   ],
   "indice_correcto": 0
 }
