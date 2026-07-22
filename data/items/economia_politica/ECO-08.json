@@ -1,0 +1,23 @@
+{
+  "id": "ECO-08",
+  "bloque": "economia_politica",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué significa «marginal» en economía?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Relativo al efecto que produce una unidad adicional",
+    "Relativo a lo que queda fuera del mercado formal",
+    "Relativo al beneficio obtenido sobre el precio de venta",
+    "Relativo a los sectores de población económicamente más desfavorecidos",
+    "Relativo al valor mínimo por debajo del cual no resulta rentable producir",
+    "Relativo al margen de error de una previsión económica"
+  ],
+  "indice_correcto": 0
+}

@@ -1,0 +1,23 @@
+{
+  "id": "BIO-07",
+  "bloque": "biologia_geologia",
+  "dificultad": "medio",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué es la meiosis?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "La división celular que reduce a la mitad el número de cromosomas y da lugar a los gametos",
+    "La división celular que da lugar a dos células hijas genéticamente idénticas",
+    "El proceso de unión del óvulo y el espermatozoide",
+    "El proceso de muerte celular programada",
+    "La duplicación del ADN previa a la división celular",
+    "El proceso por el que una célula se especializa en un tejido concreto"
+  ],
+  "indice_correcto": 0
+}

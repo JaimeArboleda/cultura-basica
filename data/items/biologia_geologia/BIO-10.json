@@ -1,0 +1,23 @@
+{
+  "id": "BIO-10",
+  "bloque": "biologia_geologia",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué enzima es la principal responsable de copiar el ADN durante la replicación?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "La ADN polimerasa",
+    "La ARN polimerasa",
+    "La ligasa",
+    "La helicasa",
+    "La topoisomerasa",
+    "La primasa"
+  ],
+  "indice_correcto": 0
+}

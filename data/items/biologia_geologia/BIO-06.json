@@ -1,0 +1,23 @@
+{
+  "id": "BIO-06",
+  "bloque": "biologia_geologia",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué tipo de roca se forma por el enfriamiento y solidificación del magma?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Roca ígnea",
+    "Roca sedimentaria",
+    "Roca metamórfica",
+    "Roca caliza",
+    "Roca detrítica",
+    "Roca evaporítica"
+  ],
+  "indice_correcto": 0
+}

@@ -1,0 +1,23 @@
+{
+  "id": "ART-07",
+  "bloque": "arte",
+  "dificultad": "medio",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué tipo de pintura hacía Jackson Pollock?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Pintura abstracta, mediante goteo y salpicado de pintura sobre el lienzo",
+    "Retratos realistas de gran formato",
+    "Escenas urbanas de trazo geométrico y colores planos",
+    "Collages con recortes de prensa y materiales industriales",
+    "Paisajes al aire libre con pinceladas sueltas de color puro",
+    "Composiciones cubistas con figuras descompuestas en planos"
+  ],
+  "indice_correcto": 0
+}

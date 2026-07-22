@@ -1,0 +1,23 @@
+{
+  "id": "MAT-03",
+  "bloque": "matematicas",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Cómo se conoce a los teoremas de Gödel?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "Teoremas de incompletitud",
+  "alias": [
+    "incompletitud",
+    "teoremas de incompletitud",
+    "teorema de incompletitud",
+    "de incompletitud",
+    "incompletud",
+    "teoremas de la incompletitud"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
+}

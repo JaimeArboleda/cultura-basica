@@ -91,27 +91,70 @@ casi toda la muestra.
   definiciones y comparaciones ("¿qué es la refracción?", "¿qué diferencia hay entre
   agnosticismo y ateísmo?"). En texto libre esas producen miles de párrafos que habría
   que codificar a mano, lo que mataría el proyecto.
+- **Ordenar (drag-and-drop)** para ítems de secuencia/cronología (p.ej. ordenar
+  compositores o estilos artísticos de más antiguo a más moderno). El usuario arrastra
+  cajitas en vez de elegir entre listas completas ya ordenadas como opciones de MC —
+  evita el problema de legibilidad en móvil de leer 6 permutaciones enteras. La
+  corrección es una igualdad exacta de secuencia (sin Levenshtein ni alias).
 
 Restricciones:
-- **Máximo ~40% de ítems abiertos**, repartidos a lo largo del test (no agrupados).
-  Escribir en el móvil tiene coste y aumenta el abandono.
-- **No sumar formatos en una misma puntuación bruta.** Un ítem abierto y uno de 6
-  opciones no valen lo mismo: el segundo tiene suelo del 16,7%. Para calibrarse juntos se usa TRI 
-  (que absorbe esto en el parámetro de pseudo-azar).
+- **Máximo ~40% de ítems `abierto`**, repartidos a lo largo del test (no agrupados).
+  Escribir en el móvil tiene coste y aumenta el abandono. Los ítems `ordenar` **no
+  cuentan para este tope**: no hay tecleo, el coste de fricción es más parecido al de
+  MC.
+- **No sumar formatos en una misma puntuación bruta.** Un ítem `opcion_multiple` tiene
+  suelo de azar (16,7% con 6 opciones); un ítem `abierto` no tiene suelo; un ítem
+  `ordenar` tampoco (el azar de acertar una permutación completa de 6 al azar es
+  ~0,14%), así que a efectos de TRI se trata junto con `abierto` (sin parámetro de
+  pseudo-azar) en vez de junto con `opcion_multiple`. Para calibrarse todos juntos se
+  usa TRI 3PL, que absorbe el suelo de MC en el parámetro de pseudo-azar.
 - Los distractores de los ítems de opción múltiple deben ser **plausibles**. Seis
   opciones donde cinco son absurdas equivalen a una pregunta de dos opciones. 
 
 ### 1.6 Corrección automática del texto libre
 
-Pipeline por ítem:
+Algoritmo por ítem:
 
-1. Normalización: minúsculas, eliminar acentos/diacríticos, quitar signos de puntuación,
-   colapsar espacios, recortar.
-2. Comparación contra una **lista de alias** definida por ítem.
-   Ej.: `Platón` acepta `platon`, `plato`, `platon de atenas`.
-3. Tolerancia de **distancia de edición (Levenshtein) de 1-2** para erratas, ajustada a
-   la longitud de la respuesta canónica (no aplicar a respuestas de ≤4 caracteres).
-4. Lo que no empareje queda marcado como `pendiente_revision`.
+1. **Normalizar** la respuesta enviada y cada alias con la misma función:
+   minúsculas, eliminar acentos/diacríticos (NFD + strip de marcas combinantes),
+   quitar signos de puntuación, colapsar espacios, recortar.
+   ```js
+   function normalizar(s) {
+     return s
+       .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+       .toLowerCase()
+       .replace(/[^\p{L}\p{N}\s]/gu, "")
+       .replace(/\s+/g, " ")
+       .trim();
+   }
+   ```
+2. Calcular la **distancia de Levenshtein** entre la respuesta normalizada y cada alias
+   normalizado de `alias` (lista de alias por ítem, ej.: `Platón` acepta `platon`,
+   `plato`, `platon de atenas`). No se aplica tolerancia a respuestas de ≤4 caracteres
+   (deben coincidir exactas tras normalizar).
+3. Si la distancia mínima a algún alias de `alias` es ≤ `tolerancia_edicion` (la
+   distancia de Levenshtein admitida para ese ítem) → **acierto = 1**,
+   `estado_correccion = 'auto'`.
+4. Si no, repetir el paso 3 contra `alias_parcial` (lista aparte, opcional, para
+   respuestas que revelan conocimiento parcial pero no son la respuesta pedida — ver
+   más abajo). Si matchea → **acierto = 0**, `estado_correccion = 'parcial'`.
+5. Si tampoco matchea nada → **acierto = 0**, `estado_correccion = 'auto'` (incorrecta
+   directa, sin pasar por revisión manual).
+
+`pendiente_revision` deja de ser una consecuencia automática de "no matchea" — con eso
+se habría disparado revisión manual del 100% de las respuestas erróneas, incompatible
+con el presupuesto del 5-10% de abajo. Sigue existiendo como valor válido de
+`estado_correccion` para marcar a mano casos que un revisor decida re-codificar
+durante el piloto (Fase 3), pero el pipeline automático nunca lo asigna.
+
+**`alias_parcial`** (opcional, por ítem): respuestas que un revisor decidió que
+*merecen categoría propia* en vez de un 0 indistinguible del resto — conocimiento
+parcial y no simple azar. Ejemplo: en el ítem del Partenón, la respuesta "Grecia" no
+está en `alias` (no es la respuesta pedida, "Atenas") pero sí en `alias_parcial`: cuenta
+como fallo a efectos de puntuación (`acierto = 0`) pero queda distinguida en el dato
+crudo (`estado_correccion = 'parcial'`) de un fallo cualquiera. Aplica también a otros
+ítems marcados como "política de corrección" en la fase de redacción (p.ej.
+Bentham/Mill, Anubis/Osiris, √2 irracional/real, Sófocles tragedia/teatro).
 
 > **Presupuestar revisión manual del 5-10% de respuestas abiertas.** Es de lo más
 > informativo del estudio: los fallos cercanos dicen muchísimo. Quien contesta "1494" a
@@ -186,7 +229,12 @@ a CSV.
 │   ├── src/index.ts
 │   └── wrangler.toml
 ├── data/
-│   └── items.json       # Banco de 100 ítems (fuente de verdad)
+│   ├── items/            # Banco de ítems, un JSON por ítem, en carpetas por bloque (fuente de verdad)
+│   ├── items.json         # Generado: `npm run build:items` fusiona data/items/
+│   ├── build-items.mjs
+│   ├── build-debug.mjs    # Genera data/debug.html — `npm run build:debug` (ver §4.4)
+│   ├── debug.html         # Generado: web de debug autocontenida, no se edita a mano
+│   └── validate-items.mjs
 ├── schema/
 │   └── schema.sql       # DDL de D1
 ├── analysis/            # Scripts de análisis (R / Python)
@@ -229,8 +277,8 @@ CREATE TABLE respuestas (
   item_id           TEXT NOT NULL,
   respuesta_cruda   TEXT,                    -- SIEMPRE se guarda el texto original
   opcion_elegida    INTEGER,                 -- índice 0-5, NULL si abierta
-  acierto           INTEGER,                 -- 0/1/NULL(pendiente_revision)
-  estado_correccion TEXT DEFAULT 'auto',     -- 'auto'|'pendiente_revision'|'manual'
+  acierto           INTEGER,                 -- 0/1
+  estado_correccion TEXT DEFAULT 'auto',     -- 'auto'|'parcial'|'pendiente_revision'|'manual'
   t_ms              INTEGER,
   orden_presentacion INTEGER,
   perdio_foco       INTEGER DEFAULT 0,
@@ -250,14 +298,14 @@ CREATE INDEX idx_respuestas_item   ON respuestas(item_id);
     "bloque": "historia",
     "dificultad": "facil",          // facil | medio | dificil
     "ancla": false,                  // true en los 10 ítems fijos (uno por bloque, medio)
-    "formato": "abierto",            // abierto | opcion_multiple
+    "formato": "abierto",            // abierto | opcion_multiple | ordenar
     "enunciado": "¿En qué año llegó Cristóbal Colón a América?",
     "respuesta_canonica": "1492",
     "alias": ["1492", "año 1492", "1.492"],
+    "alias_parcial": null,           // opcional: respuestas de conocimiento parcial (§1.6)
     "tolerancia_edicion": 0,         // 0 para números y respuestas cortas
     "opciones": null,
-    "indice_correcto": null,
-    "fuente_nota": ""
+    "indice_correcto": null
   },
   {
     "id": "FIS-07",
@@ -273,16 +321,42 @@ CREATE INDEX idx_respuestas_item   ON respuestas(item_id);
     "indice_correcto": 0,
     "respuesta_canonica": null,
     "alias": null
+  },
+  {
+    "id": "ART-01",
+    "bloque": "arte",
+    "dificultad": "dificil",
+    "ancla": false,
+    "formato": "ordenar",
+    "enunciado": "Ordena estos compositores de más antiguo a más moderno:",
+    "elementos": ["Beethoven", "Bach", "Brahms", "Haydn", "Mozart", "Schubert"],
+    "elementos_ordenados": ["Bach", "Haydn", "Mozart", "Beethoven", "Schubert", "Brahms"],
+    "respuesta_canonica": null,
+    "alias": null,
+    "opciones": null,
+    "indice_correcto": null
   }
 ]
 ```
+
+Para `ordenar`, `elementos` es el orden **de presentación** (ya desordenado a mano al
+redactar el ítem, fijo para todos los usuarios — igual que la posición de
+`indice_correcto` en `opcion_multiple` no se aleatoriza por sesión) y
+`elementos_ordenados` es la secuencia **correcta** (fuente de verdad, hace el papel de
+`respuesta_canonica`). La respuesta enviada se compara por igualdad exacta de array
+contra `elementos_ordenados`.
 
 **Invariantes que el código debe validar al arrancar:**
 - Exactamente 10 bloques × 10 ítems.
 - Exactamente 1 ítem con `ancla: true` por bloque, y su `dificultad` debe ser `medio`.
 - Todo ítem `opcion_multiple` tiene exactamente 6 opciones e `indice_correcto` válido.
-- Todo ítem `abierto` tiene `respuesta_canonica` y al menos un alias.
-- Ítems abiertos ≤ 50% del total.
+- Todo ítem `abierto` tiene `respuesta_canonica`, al menos un alias y
+  `tolerancia_edicion` (distancia de Levenshtein admitida). `alias_parcial`, si existe,
+  no se solapa con `alias` (§1.6).
+- Todo ítem `ordenar` tiene `elementos` (≥4, sin duplicados, orden de presentación) y
+  `elementos_ordenados` (la misma lista permutada a su orden correcto, distinto de
+  `elementos`).
+- Ítems `abierto` ≤ 50% del total por bloque (`ordenar` no cuenta para este tope, ver §1.5).
 - 4 fáciles, 3 medias y 3 difíciles.
 
 ### 4.3 Endpoints del Worker
@@ -299,8 +373,52 @@ Notas de implementación:
 - El sorteo de ítems se hace **en el servidor** y se persiste, para que recargar la
   página no cambie el set y no se pueda "rerodar" hasta obtener preguntas fáciles.
 - **Las respuestas correctas nunca se envían al cliente** antes de que el ítem se
-  conteste. La corrección ocurre en el Worker.
+  conteste. La corrección ocurre en el Worker. Para ítems `ordenar`, esto significa que
+  `elementos_ordenados` no se envía al cliente hasta contestar; solo se envía
+  `elementos` (el orden de presentación, ya desordenado en los datos).
 - Rate limiting básico por IP para evitar envíos automatizados; la IP **no se almacena**.
+
+### 4.4 Web de debug de ítems (`data/debug.html`)
+
+Mientras se redacta el banco (Fase 1), antes de que exista el Worker/front-end
+definitivo, hace falta poder revisar visualmente cada ítem tal y como se vería en
+la app real y comprobar que la corrección automática lo clasifica como se espera.
+Para eso existe `data/debug.html`: una página **autocontenida** (HTML+CSS+JS
+embebidos, sin llamadas de red ni dependencias) generada por
+`data/build-debug.mjs` a partir de los ficheros en `data/items/<bloque>/*.json`.
+
+Se puede abrir directamente con doble clic (`file://…`) o descargarse y probarse
+en cualquier navegador, sin servidor.
+
+Qué muestra, por bloque y por ítem:
+- Las preguntas agrupadas por bloque y renderizadas como en la web definitiva
+  (texto libre, opción múltiple de 6 opciones, ordenar por arrastre).
+- Metadatos que la web de usuario **nunca** mostrará: id del ítem, dificultad,
+  formato y si es el ítem `ancla` del bloque.
+- Estadísticas por bloque: nº de ítems por dificultad y por formato, y cuál es
+  el ancla.
+- Un botón **"Comprobar todo"** que aplica el algoritmo de corrección del §1.6
+  (normalización, Levenshtein, alias/alias_parcial) y anota cada ítem como
+  acierto / fallo / parcial / sin responder, con el alias que hizo match y la
+  distancia — para verificar que la política de corrección de cada ítem hace lo
+  que se pretendía.
+
+**Los bloques o ítems que aún no están redactados (carpeta con solo
+`.gitkeep`) no aparecen y no producen error** — es el estado esperado mientras el
+banco se completa bloque a bloque.
+
+**Regenerar tras cualquier cambio en `data/items/`:**
+
+```bash
+npm run build:debug
+```
+
+Este comando lee de nuevo todos los JSON de `data/items/<bloque>/` y sobrescribe
+`data/debug.html`. `data/debug.html` es un **artefacto generado** (como
+`data/items.json`): no se edita a mano, se regenera cada vez que se añade,
+corrige o completa un ítem. Conviene tenerlo abierto en el navegador con
+recarga automática (o simplemente refrescar la pestaña) mientras se va
+ejecutando `npm run build:debug` en la redacción de cada nuevo ítem.
 
 ---
 

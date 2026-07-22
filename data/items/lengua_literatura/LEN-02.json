@@ -1,0 +1,22 @@
+{
+  "id": "LEN-02",
+  "bloque": "lengua_literatura",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Cuál es la obra cumbre de Dante?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "La Divina Comedia",
+  "alias": [
+    "la divina comedia",
+    "divina comedia",
+    "la comedia",
+    "commedia",
+    "divina commedia"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
+}

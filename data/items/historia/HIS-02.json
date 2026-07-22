@@ -1,0 +1,24 @@
+{
+  "id": "HIS-02",
+  "bloque": "historia",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Contra quién lucharon los griegos en las guerras médicas?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "Los persas",
+  "alias": [
+    "persas",
+    "los persas",
+    "persia",
+    "imperio persa",
+    "el imperio persa",
+    "aquemenidas",
+    "imperio aquemenida"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

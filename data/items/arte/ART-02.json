@@ -1,0 +1,22 @@
+{
+  "id": "ART-02",
+  "bloque": "arte",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Quién pintó Las Meninas?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "Velázquez",
+  "alias": [
+    "velazquez",
+    "diego velazquez",
+    "diego de velazquez",
+    "velasquez",
+    "diego rodriguez de silva y velazquez"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
+}

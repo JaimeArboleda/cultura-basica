@@ -1,0 +1,23 @@
+{
+  "id": "MAT-06",
+  "bloque": "matematicas",
+  "dificultad": "medio",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué mide la derivada de una función en un punto?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "La tasa de variación instantánea, es decir, la pendiente de la recta tangente en ese punto",
+    "El área encerrada bajo la curva hasta ese punto",
+    "El valor máximo que alcanza la función en el entorno del punto",
+    "La distancia entre la curva y el eje de abscisas en ese punto",
+    "La curvatura de la gráfica en ese punto",
+    "El valor al que tiende la función cuando la variable se acerca a ese punto"
+  ],
+  "indice_correcto": 0
+}

@@ -1,0 +1,22 @@
+{
+  "id": "FIL-03",
+  "bloque": "filosofia",
+  "dificultad": "medio",
+  "ancla": true,
+  "formato": "abierto",
+  "enunciado": "¿Qué filósofo medieval sintetizó cristianismo y aristotelismo en su Suma Teológica?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "Tomás de Aquino",
+  "alias": [
+    "tomas de aquino",
+    "santo tomas de aquino",
+    "santo tomas",
+    "aquino",
+    "tomas aquino"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
+}

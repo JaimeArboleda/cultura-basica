@@ -1,0 +1,23 @@
+{
+  "id": "HIS-08",
+  "bloque": "historia",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué dinastía reinó en España inmediatamente antes de la llegada de los Borbones?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Los Austrias (Casa de Habsburgo)",
+    "Los Trastámara",
+    "Los Borgoña",
+    "Los Saboya",
+    "Los Braganza",
+    "Los Windsor"
+  ],
+  "indice_correcto": 0
+}

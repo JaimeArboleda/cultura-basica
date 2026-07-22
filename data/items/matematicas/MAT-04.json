@@ -1,0 +1,23 @@
+{
+  "id": "MAT-04",
+  "bloque": "matematicas",
+  "dificultad": "medio",
+  "ancla": true,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué tiene más superficie: la mitad de un metro cuadrado o un cuadrado de medio metro de lado?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "La mitad de un metro cuadrado",
+    "El cuadrado de medio metro de lado",
+    "Las dos superficies son iguales",
+    "Depende de la forma que se dé a la mitad del metro cuadrado",
+    "No se pueden comparar: son magnitudes distintas",
+    "El cuadrado de medio metro de lado, que mide exactamente el doble"
+  ],
+  "indice_correcto": 0
+}

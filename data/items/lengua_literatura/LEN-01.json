@@ -1,0 +1,23 @@
+{
+  "id": "LEN-01",
+  "bloque": "lengua_literatura",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué género literario cultivó Sófocles?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "La tragedia",
+    "La comedia",
+    "La épica",
+    "La lírica",
+    "La sátira",
+    "La novela picaresca"
+  ],
+  "indice_correcto": 0
+}

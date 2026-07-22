@@ -1,0 +1,23 @@
+{
+  "id": "ART-09",
+  "bloque": "arte",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿En qué ciudad está el Partenón?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "En Atenas",
+  "alias": [
+    "atenas",
+    "en atenas",
+    "acropolis de atenas",
+    "la acropolis de atenas",
+    "atenas grecia",
+    "en la acropolis de atenas"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

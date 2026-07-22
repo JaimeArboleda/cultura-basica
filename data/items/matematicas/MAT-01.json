@@ -1,0 +1,23 @@
+{
+  "id": "MAT-01",
+  "bloque": "matematicas",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Cuántos números primos existen?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Infinitos",
+    "Un número finito, aunque todavía no se conoce su valor exacto",
+    "Exactamente los mismos que números compuestos",
+    "Finitos, porque a partir de cierto valor todos los números son compuestos",
+    "Infinitos, pero solo si se admite el 1 como número primo",
+    "Se desconoce: sigue siendo un problema abierto de las matemáticas"
+  ],
+  "indice_correcto": 0
+}

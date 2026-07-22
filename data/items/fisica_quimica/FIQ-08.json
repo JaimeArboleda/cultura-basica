@@ -1,0 +1,23 @@
+{
+  "id": "FIQ-08",
+  "bloque": "fisica_quimica",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿De qué partículas subatómicas está compuesto el núcleo del átomo?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Protones y neutrones",
+    "Electrones y neutrones",
+    "Protones y electrones",
+    "Solo protones",
+    "Solo neutrones",
+    "Quarks y leptones libres"
+  ],
+  "indice_correcto": 0
+}

@@ -1,0 +1,11 @@
+{
+  "name": "cultura-basica",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:items": "node data/build-items.mjs",
+    "build:debug": "node data/build-debug.mjs",
+    "validate:items": "npm run build:items && node data/validate-items.mjs",
+    "test": "npm run validate:items"
+  }
+}

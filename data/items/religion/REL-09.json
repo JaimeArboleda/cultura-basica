@@ -1,0 +1,23 @@
+{
+  "id": "REL-09",
+  "bloque": "religion",
+  "dificultad": "medio",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Qué concilio católico se convocó en respuesta a la reforma luterana?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "El Concilio de Trento",
+  "alias": [
+    "trento",
+    "el concilio de trento",
+    "concilio de trento",
+    "de trento",
+    "tridentino",
+    "concilio tridentino"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

@@ -1,0 +1,21 @@
+{
+  "id": "FIL-08",
+  "bloque": "filosofia",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Quién dijo «los límites de mi lenguaje son los límites de mi mundo»?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "Wittgenstein",
+  "alias": [
+    "wittgenstein",
+    "ludwig wittgenstein",
+    "witgenstein",
+    "wittgestein"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
+}

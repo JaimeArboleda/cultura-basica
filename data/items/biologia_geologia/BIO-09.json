@@ -1,0 +1,23 @@
+{
+  "id": "BIO-09",
+  "bloque": "biologia_geologia",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Cómo se llama el proceso por el cual una placa oceánica se hunde bajo otra placa?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Subducción",
+    "Rifting",
+    "Obducción",
+    "Acreción",
+    "Orogenia",
+    "Expansión del fondo oceánico"
+  ],
+  "indice_correcto": 0
+}

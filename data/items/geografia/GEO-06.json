@@ -1,0 +1,21 @@
+{
+  "id": "GEO-06",
+  "bloque": "geografia",
+  "dificultad": "medio",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Qué estrecho separa la península ibérica del norte de África?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "El estrecho de Gibraltar",
+  "alias": [
+    "estrecho de gibraltar",
+    "el estrecho de gibraltar",
+    "gibraltar",
+    "de gibraltar"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
+}

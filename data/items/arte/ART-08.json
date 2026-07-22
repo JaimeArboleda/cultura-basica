@@ -1,0 +1,21 @@
+{
+  "id": "ART-08",
+  "bloque": "arte",
+  "dificultad": "medio",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Cuál fue el pintor de corte en la época del rey español Carlos IV?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "Goya",
+  "alias": [
+    "goya",
+    "francisco de goya",
+    "francisco goya",
+    "francisco jose de goya"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

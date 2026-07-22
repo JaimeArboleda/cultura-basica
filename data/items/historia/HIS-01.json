@@ -1,0 +1,21 @@
+{
+  "id": "HIS-01",
+  "bloque": "historia",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿En qué año llegó Cristóbal Colón a América?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "1492",
+  "alias": [
+    "1492",
+    "1 492",
+    "1.492",
+    "ano 1492"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 0,
+  "opciones": null,
+  "indice_correcto": null
+}

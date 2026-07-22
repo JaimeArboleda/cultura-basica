@@ -1,0 +1,21 @@
+{
+  "id": "GEO-02",
+  "bloque": "geografia",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿En qué mar está la península de Crimea?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "El mar Negro",
+  "alias": [
+    "mar negro",
+    "el mar negro",
+    "negro",
+    "en el mar negro"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

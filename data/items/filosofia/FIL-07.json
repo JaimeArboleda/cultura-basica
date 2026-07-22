@@ -1,0 +1,23 @@
+{
+  "id": "FIL-07",
+  "bloque": "filosofia",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué representan las sombras en el mito de la caverna?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Las apariencias sensibles que tomamos por realidad",
+    "Las Ideas eternas que solo el filósofo llega a contemplar",
+    "Los recuerdos deformados de una existencia anterior",
+    "Las pasiones que nublan el juicio del alma",
+    "Los dioses tal como los imagina el vulgo",
+    "El conocimiento matemático, intermedio entre la opinión y la ciencia"
+  ],
+  "indice_correcto": 0
+}

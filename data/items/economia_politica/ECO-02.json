@@ -1,0 +1,23 @@
+{
+  "id": "ECO-02",
+  "bloque": "economia_politica",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Cuáles son los tres poderes según Montesquieu?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Legislativo, ejecutivo y judicial",
+    "Civil, militar y religioso",
+    "Monárquico, aristocrático y democrático",
+    "Central, autonómico y local",
+    "Legislativo, judicial y económico",
+    "Ejecutivo, administrativo y constituyente"
+  ],
+  "indice_correcto": 0
+}

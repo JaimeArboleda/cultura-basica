@@ -1,0 +1,23 @@
+{
+  "id": "HIS-04",
+  "bloque": "historia",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Con qué otro nombre se conoce al Imperio Romano de Oriente?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Imperio bizantino",
+    "Sacro Imperio Romano Germánico",
+    "Imperio otomano",
+    "Imperio carolingio",
+    "Imperio latino de Constantinopla",
+    "Imperio romano de Occidente"
+  ],
+  "indice_correcto": 0
+}

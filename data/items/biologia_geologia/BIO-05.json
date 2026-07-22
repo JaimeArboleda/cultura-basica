@@ -1,0 +1,23 @@
+{
+  "id": "BIO-05",
+  "bloque": "biologia_geologia",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Cómo se llama la capa rígida y fragmentada en placas que forma el exterior de la Tierra?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "La litosfera",
+    "La corteza continental únicamente",
+    "El manto superior",
+    "La astenosfera",
+    "El núcleo externo",
+    "El núcleo interno"
+  ],
+  "indice_correcto": 0
+}

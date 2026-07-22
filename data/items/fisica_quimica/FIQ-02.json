@@ -1,0 +1,23 @@
+{
+  "id": "FIQ-02",
+  "bloque": "fisica_quimica",
+  "dificultad": "medio",
+  "ancla": true,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué es la radiactividad?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "La emisión espontánea de partículas o radiación por núcleos atómicos inestables",
+    "La capacidad de un cuerpo caliente de emitir calor por radiación",
+    "La propagación de ondas electromagnéticas a través del vacío",
+    "La ionización del aire producida por una corriente eléctrica intensa",
+    "La reacción en cadena que se produce al fisionar un núcleo de uranio",
+    "La absorción de energía luminosa por los electrones de un metal"
+  ],
+  "indice_correcto": 0
+}

@@ -1,0 +1,23 @@
+{
+  "id": "ECO-01",
+  "bloque": "economia_politica",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué es la inflación?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "El aumento generalizado y sostenido de los precios",
+    "El aumento de la cantidad de dinero en circulación",
+    "La pérdida de valor de la moneda frente a las divisas extranjeras",
+    "El crecimiento del gasto público por encima de los ingresos",
+    "La subida de los tipos de interés fijados por el banco central",
+    "El encarecimiento de los productos importados"
+  ],
+  "indice_correcto": 0
+}

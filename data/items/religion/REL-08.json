@@ -1,0 +1,23 @@
+{
+  "id": "REL-08",
+  "bloque": "religion",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué santo fundó la Orden de los Dominicos?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Santo Domingo de Guzmán",
+    "San Francisco de Asís",
+    "San Ignacio de Loyola",
+    "San Benito de Nursia",
+    "San Bernardo de Claraval",
+    "San Agustín de Hipona"
+  ],
+  "indice_correcto": 0
+}

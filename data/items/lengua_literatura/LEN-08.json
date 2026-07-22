@@ -1,0 +1,21 @@
+{
+  "id": "LEN-08",
+  "bloque": "lengua_literatura",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Cuántos versos tiene un soneto?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "14",
+  "alias": [
+    "14",
+    "catorce",
+    "14 versos",
+    "catorce versos"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 0,
+  "opciones": null,
+  "indice_correcto": null
+}

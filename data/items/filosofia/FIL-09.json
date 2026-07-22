@@ -1,0 +1,19 @@
+{
+  "id": "FIL-09",
+  "bloque": "filosofia",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Qué filósofo propuso el hilemorfismo?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "Aristóteles",
+  "alias": [
+    "aristoteles",
+    "aristotel"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

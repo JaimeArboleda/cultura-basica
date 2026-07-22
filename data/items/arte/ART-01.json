@@ -1,0 +1,30 @@
+{
+  "id": "ART-01",
+  "bloque": "arte",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "ordenar",
+  "enunciado": "Ordena estos compositores de más antiguo a más moderno:",
+  "elementos": [
+    "Beethoven",
+    "Bach",
+    "Brahms",
+    "Haydn",
+    "Mozart",
+    "Schubert"
+  ],
+  "elementos_ordenados": [
+    "Bach",
+    "Haydn",
+    "Mozart",
+    "Beethoven",
+    "Schubert",
+    "Brahms"
+  ],
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": null,
+  "indice_correcto": null
+}

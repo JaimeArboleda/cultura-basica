@@ -1,0 +1,20 @@
+{
+  "id": "REL-06",
+  "bloque": "religion",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Qué dios egipcio con cabeza de chacal pesaba el corazón de los muertos en la balanza de Maat?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "Anubis",
+  "alias": [
+    "anubis",
+    "anubi",
+    "anpu"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

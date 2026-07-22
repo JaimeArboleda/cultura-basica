@@ -1,0 +1,26 @@
+{
+  "id": "HIS-09",
+  "bloque": "historia",
+  "dificultad": "medio",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿A qué guerra puso fin el Tratado de Versalles?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "La Primera Guerra Mundial",
+  "alias": [
+    "primera guerra mundial",
+    "la primera guerra mundial",
+    "i guerra mundial",
+    "1 guerra mundial",
+    "1a guerra mundial",
+    "gran guerra",
+    "la gran guerra",
+    "pgm",
+    "wwi"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
+}

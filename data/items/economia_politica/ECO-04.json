@@ -1,0 +1,23 @@
+{
+  "id": "ECO-04",
+  "bloque": "economia_politica",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué bloques se enfrentaron en la Guerra Fría?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "El bloque occidental capitalista liderado por EE. UU. y el bloque comunista liderado por la URSS",
+    "Los países aliados y las potencias del Eje",
+    "La OTAN y la Unión Europea",
+    "El Reino Unido y sus colonias frente a los Estados Unidos",
+    "China y la Unión Soviética",
+    "Los países industrializados del norte y los países en desarrollo del sur"
+  ],
+  "indice_correcto": 0
+}

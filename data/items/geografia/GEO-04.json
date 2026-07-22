@@ -1,0 +1,21 @@
+{
+  "id": "GEO-04",
+  "bloque": "geografia",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Cuál es el océano más grande del mundo?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "El océano Pacífico",
+  "alias": [
+    "pacifico",
+    "el pacifico",
+    "oceano pacifico",
+    "el oceano pacifico"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

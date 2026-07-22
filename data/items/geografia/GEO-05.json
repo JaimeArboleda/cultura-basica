@@ -1,0 +1,23 @@
+{
+  "id": "GEO-05",
+  "bloque": "geografia",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Cuál es el país más extenso del mundo?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Rusia",
+    "Canadá",
+    "China",
+    "Estados Unidos",
+    "Brasil",
+    "Australia"
+  ],
+  "indice_correcto": 0
+}

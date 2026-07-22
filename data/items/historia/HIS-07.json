@@ -1,0 +1,23 @@
+{
+  "id": "HIS-07",
+  "bloque": "historia",
+  "dificultad": "medio",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué imperio resultó derrotado en la batalla de Lepanto?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "El Imperio otomano",
+    "El Imperio persa",
+    "El Imperio austrohúngaro",
+    "El Imperio bizantino",
+    "El Reino de Francia",
+    "El Imperio mogol"
+  ],
+  "indice_correcto": 0
+}

@@ -1,0 +1,20 @@
+{
+  "id": "REL-05",
+  "bloque": "religion",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Qué dios romano es el equivalente al Zeus griego?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "Júpiter",
+  "alias": [
+    "jupiter",
+    "jove",
+    "iuppiter"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

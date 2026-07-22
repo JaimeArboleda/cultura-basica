@@ -1,0 +1,21 @@
+{
+  "id": "MAT-08",
+  "bloque": "matematicas",
+  "dificultad": "medio",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "Si tiras dos dados y sumas las puntuaciones, ¿cuál es el valor más probable?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "7",
+  "alias": [
+    "7",
+    "siete",
+    "el 7",
+    "el siete"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 0,
+  "opciones": null,
+  "indice_correcto": null
+}

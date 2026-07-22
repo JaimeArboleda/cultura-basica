@@ -1,0 +1,19 @@
+{
+  "id": "GEO-03",
+  "bloque": "geografia",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Cuál es la capital de Francia?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "París",
+  "alias": [
+    "paris",
+    "en paris"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

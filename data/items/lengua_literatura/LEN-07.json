@@ -1,0 +1,23 @@
+{
+  "id": "LEN-07",
+  "bloque": "lengua_literatura",
+  "dificultad": "medio",
+  "ancla": true,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué es un endecasílabo?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Un verso de once sílabas",
+    "Un verso de nueve sílabas",
+    "Una estrofa de once versos",
+    "Un poema compuesto por once estrofas",
+    "Un verso de arte menor acentuado en la penúltima sílaba",
+    "Una rima consonante entre versos alternos"
+  ],
+  "indice_correcto": 0
+}

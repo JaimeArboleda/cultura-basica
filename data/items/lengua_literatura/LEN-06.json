@@ -1,0 +1,20 @@
+{
+  "id": "LEN-06",
+  "bloque": "lengua_literatura",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Qué obra de Homero narra la guerra de Troya?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "La Ilíada",
+  "alias": [
+    "la iliada",
+    "iliada",
+    "ilíada"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

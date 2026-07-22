@@ -1,0 +1,23 @@
+{
+  "id": "LEN-05",
+  "bloque": "lengua_literatura",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué es un verso alejandrino?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Un verso de catorce sílabas",
+    "Un verso de once sílabas",
+    "Una estrofa de catorce versos",
+    "Un verso de doce sílabas",
+    "Un verso de dieciséis sílabas",
+    "Una composición en prosa rítmica sin medida fija"
+  ],
+  "indice_correcto": 0
+}

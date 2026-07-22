@@ -1,0 +1,23 @@
+{
+  "id": "FIQ-01",
+  "bloque": "fisica_quimica",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué se conserva en las reacciones químicas?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "La masa total y el número de átomos de cada elemento",
+    "El volumen total de las sustancias implicadas",
+    "El número total de moléculas",
+    "La temperatura del sistema",
+    "El estado de agregación de las sustancias",
+    "La presión, siempre que el recipiente esté cerrado"
+  ],
+  "indice_correcto": 0
+}

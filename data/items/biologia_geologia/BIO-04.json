@@ -1,0 +1,20 @@
+{
+  "id": "BIO-04",
+  "bloque": "biologia_geologia",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿Qué proceso permite a las plantas producir su propio alimento usando la luz solar?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "Fotosíntesis",
+  "alias": [
+    "fotosintesis",
+    "la fotosintesis",
+    "fotosintesis clorofilica"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
+}

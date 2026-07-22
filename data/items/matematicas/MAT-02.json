@@ -1,0 +1,26 @@
+{
+  "id": "MAT-02",
+  "bloque": "matematicas",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿La raíz cuadrada de dos es un número racional o irracional?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "Irracional",
+  "alias": [
+    "irracional",
+    "un numero irracional",
+    "numero irracional",
+    "es irracional"
+  ],
+  "alias_parcial": [
+    "real",
+    "es real",
+    "numero real",
+    "un numero real"
+  ],
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

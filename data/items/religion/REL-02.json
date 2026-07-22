@@ -1,0 +1,23 @@
+{
+  "id": "REL-02",
+  "bloque": "religion",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "¿A qué religión pertenece el Bhagavad Gita?",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "respuesta_canonica": "El hinduismo",
+  "alias": [
+    "hinduismo",
+    "al hinduismo",
+    "el hinduismo",
+    "hindu",
+    "religion hindu",
+    "brahmanismo"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 2,
+  "opciones": null,
+  "indice_correcto": null
+}
