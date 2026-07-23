@@ -4,15 +4,16 @@
   "dificultad": "facil",
   "ancla": false,
   "formato": "abierto",
-  "enunciado": "¿Cuál es el océano más grande del mundo?",
+  "enunciado": "¿Cuál es la capital de Estados Unidos?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "El océano Pacífico",
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "Washington D. C.",
   "alias": [
-    "pacifico",
-    "el pacifico",
-    "oceano pacifico",
-    "el oceano pacifico"
+    "washington dc",
+    "washington d c",
+    "washington"
   ],
   "alias_parcial": null,
   "tolerancia_edicion": 1,

@@ -4,23 +4,25 @@
   "dificultad": "dificil",
   "ancla": false,
   "formato": "ordenar",
-  "enunciado": "Ordena estos movimientos literarios de más antiguo a más moderno:",
+  "enunciado": "Ordena estos libros de más antiguo a más moderno:",
   "elementos": [
-    "Romanticismo",
-    "Renacimiento",
-    "Modernismo",
-    "Barroco",
-    "Realismo",
-    "Neoclasicismo"
+    "Fausto",
+    "La Ilíada",
+    "Cien años de soledad",
+    "Don Quijote de la Mancha",
+    "Crimen y castigo",
+    "La Divina Comedia"
   ],
   "elementos_ordenados": [
-    "Renacimiento",
-    "Barroco",
-    "Neoclasicismo",
-    "Romanticismo",
-    "Realismo",
-    "Modernismo"
+    "La Ilíada",
+    "La Divina Comedia",
+    "Don Quijote de la Mancha",
+    "Fausto",
+    "Crimen y castigo",
+    "Cien años de soledad"
   ],
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,

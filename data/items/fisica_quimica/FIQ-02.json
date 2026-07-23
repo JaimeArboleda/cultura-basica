@@ -4,20 +4,22 @@
   "dificultad": "facil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿A qué temperatura hierve el agua a nivel del mar?",
+  "enunciado": "¿Qué átomos forman una molécula de sal común (cloruro de sodio)?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "100 °C",
-    "90 °C",
-    "110 °C",
-    "0 °C",
-    "120 °C",
-    "80 °C"
+    "Sodio y cloro",
+    "Sodio y azufre",
+    "Calcio y cloro",
+    "Sodio y oxígeno",
+    "Potasio y cloro",
+    "Cloro y oxígeno"
   ],
   "indice_correcto": 0
 }

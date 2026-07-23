@@ -4,20 +4,22 @@
   "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué diferencia hay entre el déficit fiscal estructural y el déficit fiscal cíclico?",
+  "enunciado": "¿Qué plantea la curva de Laffer?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "El estructural persiste incluso si la economía funciona a pleno rendimiento; el cíclico se debe a las fluctuaciones del ciclo económico",
-    "El estructural es siempre menor que el cíclico",
-    "El cíclico solo ocurre en épocas de guerra",
-    "El estructural depende del tipo de cambio; el cíclico no",
-    "Son la misma magnitud medida en distintas monedas",
-    "El estructural lo mide el FMI y el cíclico el Banco Mundial"
+    "Que, a partir de cierto tipo impositivo, subir aún más los impuestos puede reducir la recaudación total",
+    "Que la inflación y el desempleo mantienen siempre una relación inversa",
+    "Que el gasto público se multiplica más que proporcionalmente sobre la renta nacional",
+    "Que la oferta monetaria determina el nivel de precios a largo plazo",
+    "Que los aranceles elevados siempre aumentan la recaudación del Estado",
+    "Que la desigualdad económica aumenta de forma automática con el crecimiento del PIB"
   ],
   "indice_correcto": 0
 }

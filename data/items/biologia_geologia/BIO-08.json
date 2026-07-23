@@ -7,6 +7,8 @@
   "enunciado": "¿Qué hormona, producida por el páncreas, regula el nivel de glucosa en sangre?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": "Insulina",
   "alias": [
     "insulina"

@@ -3,21 +3,25 @@
   "bloque": "matematicas",
   "dificultad": "medio",
   "ancla": true,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Qué tiene más superficie: la mitad de un metro cuadrado o un cuadrado de medio metro de lado?",
+  "formato": "abierto",
+  "enunciado": "¿Cuál es el área de un cuadrado de medio metro (0,5 m) de lado? Puedes usar decimales.",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "La mitad de un metro cuadrado",
-    "El cuadrado de medio metro de lado",
-    "Las dos superficies son iguales",
-    "Depende de la forma que se dé a la mitad del metro cuadrado",
-    "No se pueden comparar: son magnitudes distintas",
-    "El cuadrado de medio metro de lado, que mide exactamente el doble"
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "0,25 m²",
+  "alias": [
+    "0,25",
+    "0.25",
+    "0,25 m2",
+    "0.25 m2",
+    "0,25m2",
+    "1/4",
+    "0,25 metros cuadrados",
+    "un cuarto de metro cuadrado"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
 }

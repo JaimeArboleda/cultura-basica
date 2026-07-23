@@ -4,20 +4,22 @@
   "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué corriente filosófica del siglo XX sostiene que \"la existencia precede a la esencia\"?",
+  "enunciado": "¿Quién es el autor de La estructura de las revoluciones científicas?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "El existencialismo",
-    "El estructuralismo",
-    "La fenomenología",
-    "El positivismo lógico",
-    "El marxismo",
-    "El pragmatismo"
+    "Thomas Kuhn",
+    "Karl Popper",
+    "Imre Lakatos",
+    "Paul Feyerabend",
+    "Michel Foucault",
+    "Gaston Bachelard"
   ],
   "indice_correcto": 0
 }

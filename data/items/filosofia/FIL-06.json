@@ -2,22 +2,38 @@
   "id": "FIL-06",
   "bloque": "filosofia",
   "dificultad": "medio",
-  "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Qué diferencia fundamental hay entre racionalismo y empirismo?",
-  "elementos": null,
+  "ancla": true,
+  "formato": "clasificar",
+  "enunciado": "Clasifica a cada filósofo según la corriente ética que defendió:",
+  "elementos": [
+    "Kant",
+    "Séneca",
+    "Bentham",
+    "Aristóteles",
+    "Epicteto",
+    "Stuart Mill",
+    "Tomás de Aquino"
+  ],
   "elementos_ordenados": null,
+  "categorias": [
+    "Utilitarismo",
+    "Deontología",
+    "Ética de la virtud",
+    "Estoicismo"
+  ],
+  "clasificacion_correcta": {
+    "Kant": "Deontología",
+    "Séneca": "Estoicismo",
+    "Bentham": "Utilitarismo",
+    "Aristóteles": "Ética de la virtud",
+    "Epicteto": "Estoicismo",
+    "Stuart Mill": "Utilitarismo",
+    "Tomás de Aquino": "Ética de la virtud"
+  },
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,
   "tolerancia_edicion": null,
-  "opciones": [
-    "Para el racionalismo el conocimiento se funda en la razón innata; para el empirismo, en la experiencia sensible",
-    "El racionalismo niega la existencia de Dios; el empirismo la afirma",
-    "El racionalismo es propio de la Antigüedad; el empirismo, de la Edad Media",
-    "El racionalismo defiende el libre albedrío; el empirismo, el determinismo",
-    "El racionalismo se ocupa de la ética; el empirismo, de la política",
-    "El racionalismo confía en los sentidos; el empirismo, en las matemáticas"
-  ],
-  "indice_correcto": 0
+  "opciones": null,
+  "indice_correcto": null
 }

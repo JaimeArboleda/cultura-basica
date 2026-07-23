@@ -7,6 +7,8 @@
   "enunciado": "¿Quién compuso las Variaciones Goldberg?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": "Bach",
   "alias": [
     "bach",

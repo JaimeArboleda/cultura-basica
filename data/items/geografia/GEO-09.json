@@ -4,20 +4,22 @@
   "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué río atraviesa más países que ningún otro en el mundo?",
+  "enunciado": "¿Cómo se llama el fenómeno climático de calentamiento periódico de las aguas superficiales del Pacífico ecuatorial que altera patrones climáticos en todo el mundo?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "El Danubio",
-    "El Nilo",
-    "El Amazonas",
-    "El Rin",
-    "El Misisipi",
-    "El Volga"
+    "El Niño",
+    "La Niña",
+    "El monzón",
+    "La oscilación del Atlántico Norte",
+    "El efecto Foehn",
+    "La corriente del Golfo"
   ],
   "indice_correcto": 0
 }

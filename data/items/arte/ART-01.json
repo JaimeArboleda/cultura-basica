@@ -7,6 +7,8 @@
   "enunciado": "¿Quién pintó Las Meninas?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": "Velázquez",
   "alias": [
     "velazquez",

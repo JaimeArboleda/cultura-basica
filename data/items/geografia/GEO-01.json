@@ -7,6 +7,8 @@
   "enunciado": "¿En qué mar está la península de Crimea?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": "El mar Negro",
   "alias": [
     "mar negro",

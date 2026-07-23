@@ -3,19 +3,23 @@
   "bloque": "matematicas",
   "dificultad": "medio",
   "ancla": false,
-  "formato": "abierto",
+  "formato": "opcion_multiple",
   "enunciado": "Si tiras dos dados y sumas las puntuaciones, ¿cuál es el valor más probable?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "7",
-  "alias": [
-    "7",
-    "siete",
-    "el 7",
-    "el siete"
-  ],
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 0,
-  "opciones": null,
-  "indice_correcto": null
+  "tolerancia_edicion": null,
+  "opciones": [
+    "7",
+    "6",
+    "8",
+    "2",
+    "12",
+    "10"
+  ],
+  "indice_correcto": 0
 }

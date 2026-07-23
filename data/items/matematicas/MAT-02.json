@@ -4,23 +4,19 @@
   "dificultad": "facil",
   "ancla": false,
   "formato": "abierto",
-  "enunciado": "¿La raíz cuadrada de dos es un número racional o irracional?",
+  "enunciado": "Escribe el valor de pi (π) con dos decimales.",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "Irracional",
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "3,14",
   "alias": [
-    "irracional",
-    "un numero irracional",
-    "numero irracional",
-    "es irracional"
+    "3,14",
+    "3.14",
+    "314"
   ],
-  "alias_parcial": [
-    "real",
-    "es real",
-    "numero real",
-    "un numero real"
-  ],
-  "tolerancia_edicion": 1,
+  "alias_parcial": null,
+  "tolerancia_edicion": 0,
   "opciones": null,
   "indice_correcto": null
 }

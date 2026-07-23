@@ -1,12 +1,14 @@
 {
   "id": "REL-08",
   "bloque": "religion",
-  "dificultad": "medio",
+  "dificultad": "facil",
   "ancla": false,
   "formato": "abierto",
   "enunciado": "¿Cuántos son los mandamientos en la tradición judeocristiana?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": "10",
   "alias": [
     "10",

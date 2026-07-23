@@ -4,20 +4,22 @@
   "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Cuál es el punto más bajo de la superficie terrestre sobre tierra firme?",
+  "enunciado": "¿Cómo se llama la capa de la atmósfera donde se concentra la mayor parte del ozono que filtra la radiación ultravioleta?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Las orillas del mar Muerto",
-    "El delta del Nilo",
-    "La cuenca del mar Caspio",
-    "El Valle de la Muerte (Death Valley)",
-    "La depresión de Qattara",
-    "El lago Assal, en Yibuti"
+    "La estratosfera",
+    "La troposfera",
+    "La mesosfera",
+    "La termosfera",
+    "La ionosfera",
+    "La exosfera"
   ],
   "indice_correcto": 0
 }

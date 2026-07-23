@@ -4,9 +4,11 @@
   "dificultad": "facil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Cuál es el país más extenso del mundo?",
+  "enunciado": "¿Qué país tiene mayor extensión de costa sobre el océano Ártico?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,
@@ -14,10 +16,10 @@
   "opciones": [
     "Rusia",
     "Canadá",
-    "China",
     "Estados Unidos",
-    "Brasil",
-    "Australia"
+    "Noruega",
+    "Groenlandia (Dinamarca)",
+    "Islandia"
   ],
   "indice_correcto": 0
 }

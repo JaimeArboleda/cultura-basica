@@ -3,21 +3,28 @@
   "bloque": "historia",
   "dificultad": "dificil",
   "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Qué dinastía reinó en España inmediatamente antes de la llegada de los Borbones?",
-  "elementos": null,
-  "elementos_ordenados": null,
+  "formato": "ordenar",
+  "enunciado": "Ordena estas figuras históricas de más antigua a más moderna:",
+  "elementos": [
+    "Napoleón Bonaparte",
+    "Julio César",
+    "Gengis Kan",
+    "Carlomagno",
+    "Cristóbal Colón"
+  ],
+  "elementos_ordenados": [
+    "Julio César",
+    "Carlomagno",
+    "Gengis Kan",
+    "Cristóbal Colón",
+    "Napoleón Bonaparte"
+  ],
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,
   "tolerancia_edicion": null,
-  "opciones": [
-    "Los Austrias (Casa de Habsburgo)",
-    "Los Trastámara",
-    "Los Borgoña",
-    "Los Saboya",
-    "Los Braganza",
-    "Los Windsor"
-  ],
-  "indice_correcto": 0
+  "opciones": null,
+  "indice_correcto": null
 }

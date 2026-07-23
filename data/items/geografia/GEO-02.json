@@ -3,17 +3,28 @@
   "bloque": "geografia",
   "dificultad": "facil",
   "ancla": false,
-  "formato": "abierto",
-  "enunciado": "¿Cuál es la capital de Francia?",
-  "elementos": null,
-  "elementos_ordenados": null,
-  "respuesta_canonica": "París",
-  "alias": [
-    "paris",
-    "en paris"
+  "formato": "ordenar",
+  "enunciado": "Ordena estos países de mayor a menor extensión territorial:",
+  "elementos": [
+    "China",
+    "Canadá",
+    "Brasil",
+    "Rusia",
+    "Estados Unidos"
   ],
+  "elementos_ordenados": [
+    "Rusia",
+    "Canadá",
+    "Estados Unidos",
+    "China",
+    "Brasil"
+  ],
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 1,
+  "tolerancia_edicion": null,
   "opciones": null,
   "indice_correcto": null
 }

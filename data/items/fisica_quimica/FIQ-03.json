@@ -4,20 +4,22 @@
   "dificultad": "facil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿De qué partículas subatómicas está compuesto el núcleo del átomo?",
+  "enunciado": "¿Qué principio físico explica que un barco de metal, más denso que el agua, pueda flotar?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Protones y neutrones",
-    "Electrones y neutrones",
-    "Protones y electrones",
-    "Solo protones",
-    "Solo neutrones",
-    "Quarks y leptones libres"
+    "El principio de Arquímedes",
+    "La ley de la gravitación universal",
+    "El principio de Pascal",
+    "La tercera ley de Newton",
+    "El principio de Bernoulli",
+    "La ley de conservación de la masa"
   ],
   "indice_correcto": 0
 }

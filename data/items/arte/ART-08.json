@@ -4,14 +4,15 @@
   "dificultad": "medio",
   "ancla": false,
   "formato": "abierto",
-  "enunciado": "¿Qué pintor postimpresionista se cortó una parte de la oreja?",
+  "enunciado": "¿Qué pintor postimpresionista se trasladó a vivir a Tahití en busca de un mundo no corrompido por la civilización occidental?",
   "elementos": null,
   "elementos_ordenados": null,
-  "respuesta_canonica": "Vincent van Gogh",
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "Paul Gauguin",
   "alias": [
-    "van gogh",
-    "vincent van gogh",
-    "gogh"
+    "gauguin",
+    "paul gauguin"
   ],
   "alias_parcial": null,
   "tolerancia_edicion": 1,

@@ -212,6 +212,21 @@ ul.ordenar li.dragging { opacity: 0.4; }
 ul.ordenar li .handle { color: var(--muted); font-size: 12px; }
 ul.ordenar li .mover { margin-left: auto; display: flex; gap: 4px; }
 ul.ordenar li .mover button { padding: 2px 7px; font-size: 12px; }
+.clasificar { display: flex; flex-direction: column; gap: 12px; }
+.clasificar .bandeja {
+  list-style: none; margin: 0; padding: 8px; display: flex; flex-wrap: wrap; gap: 8px;
+  border: 1px dashed var(--border); border-radius: 8px; min-height: 44px;
+}
+.clasificar .bandeja.pool { background: var(--chip-bg); }
+.clasificar .cajas { display: flex; flex-wrap: wrap; gap: 10px; }
+.clasificar .caja { flex: 1 1 200px; min-width: 180px; }
+.clasificar .caja h4 { margin: 0 0 6px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.clasificar .ficha {
+  border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px;
+  background: var(--panel); font-size: 13.5px; cursor: grab; user-select: none;
+}
+.clasificar .ficha.dragging { opacity: 0.4; }
+.clasificar .bandeja.dragover { border-color: var(--accent); }
 .resultado {
   margin-top: 10px; font-size: 13px; border-radius: 8px; padding: 8px 10px; display: none;
 }
@@ -367,6 +382,26 @@ function corregirOrdenar(item, ordenActual) {
   };
 }
 
+function corregirClasificar(item, asignacionActual) {
+  if (!asignacionActual || Object.keys(asignacionActual).length !== item.elementos.length) {
+    return { estado: "pending", acierto: null, detalle: { motivo: "sin responder / incompleto" } };
+  }
+  const acierto = item.elementos.every(
+    (el) => asignacionActual[el] === item.clasificacion_correcta[el]
+  )
+    ? 1
+    : 0;
+  return {
+    estado: acierto ? "ok" : "fail",
+    acierto,
+    detalle: {
+      estado_correccion: "auto",
+      asignacion_enviada: item.elementos.map((el) => \`\${el} → \${asignacionActual[el]}\`).join(", "),
+      asignacion_correcta: item.elementos.map((el) => \`\${el} → \${item.clasificacion_correcta[el]}\`).join(", "),
+    },
+  };
+}
+
 // --- Render ---
 const $bloques = document.getElementById("bloques");
 const $toc = document.getElementById("toc");
@@ -461,6 +496,18 @@ function renderItem(item) {
     cuerpo = \`<ul class="ordenar" data-role="ordenar">\${item.elementos
       .map((el) => \`<li draggable="true"><span class="handle">⠿</span><span class="texto">\${el}</span><span class="mover"><button type="button" data-mover="up">↑</button><button type="button" data-mover="down">↓</button></span></li>\`)
       .join("")}</ul>\`;
+  } else if (item.formato === "clasificar") {
+    cuerpo = \`<div class="clasificar" data-role="clasificar">
+      <ul class="bandeja pool" data-caja="__pool__">\${item.elementos
+        .map((el) => \`<li class="ficha" draggable="true" data-elemento="\${el}">\${el}</li>\`)
+        .join("")}</ul>
+      <div class="cajas">\${item.categorias
+        .map(
+          (cat) =>
+            \`<div class="caja"><h4>\${cat}</h4><ul class="bandeja" data-caja="\${cat}"></ul></div>\`
+        )
+        .join("")}</div>
+    </div>\`;
   }
 
   div.innerHTML = \`
@@ -472,6 +519,8 @@ function renderItem(item) {
 
   if (item.formato === "ordenar") {
     activarOrdenar(div.querySelector("ul.ordenar"));
+  } else if (item.formato === "clasificar") {
+    activarClasificar(div.querySelector('[data-role="clasificar"]'));
   }
 
   return div;
@@ -504,6 +553,38 @@ function activarOrdenar(ul) {
   });
 }
 
+function activarClasificar(root) {
+  let dragEl = null;
+  root.addEventListener("dragstart", (e) => {
+    dragEl = e.target.closest(".ficha");
+    if (dragEl) dragEl.classList.add("dragging");
+  });
+  root.addEventListener("dragend", () => {
+    if (dragEl) dragEl.classList.remove("dragging");
+    root.querySelectorAll(".bandeja.dragover").forEach((b) => b.classList.remove("dragover"));
+  });
+  root.querySelectorAll("ul.bandeja").forEach((bandeja) => {
+    bandeja.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      bandeja.classList.add("dragover");
+    });
+    bandeja.addEventListener("dragleave", () => bandeja.classList.remove("dragover"));
+    bandeja.addEventListener("drop", (e) => {
+      e.preventDefault();
+      bandeja.classList.remove("dragover");
+      if (dragEl) bandeja.appendChild(dragEl);
+    });
+  });
+}
+
+function leerClasificacion(root) {
+  const asignacion = {};
+  root.querySelectorAll('ul.bandeja[data-caja]:not([data-caja="__pool__"]) .ficha').forEach((li) => {
+    asignacion[li.dataset.elemento] = li.closest("ul.bandeja").dataset.caja;
+  });
+  return asignacion;
+}
+
 function itemPorId(id) {
   for (const b of BLOQUES) {
     const it = b.items.find((i) => i.id === id);
@@ -528,6 +609,9 @@ function corregirTarjeta(div) {
     const sinTocar = JSON.stringify(li) === JSON.stringify(item.elementos);
     resultado = corregirOrdenar(item, li.length ? li : null);
     if (sinTocar) resultado.detalle.aviso = "orden de presentación sin modificar";
+  } else if (item.formato === "clasificar") {
+    const asignacion = leerClasificacion(div.querySelector('[data-role="clasificar"]'));
+    resultado = corregirClasificar(item, asignacion);
   }
 
   $res.className = "resultado show " + resultado.estado;
@@ -562,6 +646,10 @@ function limpiarTodo() {
     const original = [...ul.querySelectorAll("li")];
     const porTexto = new Map(original.map((li) => [li.querySelector(".texto").textContent, li]));
     for (const el of item.elementos) ul.appendChild(porTexto.get(el));
+  });
+  bloque.querySelectorAll('[data-role="clasificar"]').forEach((root) => {
+    const pool = root.querySelector('ul.bandeja[data-caja="__pool__"]');
+    root.querySelectorAll(".ficha").forEach((li) => pool.appendChild(li));
   });
 }
 

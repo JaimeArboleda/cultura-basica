@@ -7,6 +7,8 @@
   "enunciado": "¿Qué dios romano es el equivalente al Zeus griego?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": "Júpiter",
   "alias": [
     "jupiter",

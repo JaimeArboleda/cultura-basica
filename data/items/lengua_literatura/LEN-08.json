@@ -4,20 +4,22 @@
   "dificultad": "medio",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Cómo se llama la figura retórica que consiste en atribuir cualidades humanas a seres inanimados o animales?",
+  "enunciado": "¿Cómo se llama la figura retórica que consiste en alterar el orden habitual de las palabras en la oración?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "La personificación (o prosopopeya)",
-    "La metáfora",
+    "El hipérbaton",
+    "El asíndeton",
+    "El quiasmo",
+    "La anáfora",
     "La hipérbole",
-    "La sinécdoque",
-    "La metonimia",
-    "El símil"
+    "El zeugma"
   ],
   "indice_correcto": 0
 }

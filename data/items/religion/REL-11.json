@@ -4,20 +4,22 @@
   "dificultad": "dificil",
   "ancla": false,
   "formato": "opcion_multiple",
-  "enunciado": "¿Qué santo fundó la Orden de los Dominicos?",
+  "enunciado": "¿Qué líder condujo al pueblo de Israel a la conquista de Canaán tras la muerte de Moisés?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Santo Domingo de Guzmán",
-    "San Francisco de Asís",
-    "San Ignacio de Loyola",
-    "San Benito de Nursia",
-    "San Bernardo de Claraval",
-    "San Agustín de Hipona"
+    "Josué",
+    "Saúl",
+    "David",
+    "Salomón",
+    "Elías",
+    "Aarón"
   ],
   "indice_correcto": 0
 }

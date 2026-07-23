@@ -7,6 +7,8 @@
   "enunciado": "¿Qué astrónomo formuló el modelo heliocéntrico, según el cual la Tierra gira alrededor del Sol y no al revés?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": "Copérnico",
   "alias": [
     "copernico",

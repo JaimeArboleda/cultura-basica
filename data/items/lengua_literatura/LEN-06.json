@@ -7,6 +7,8 @@
   "enunciado": "¿Qué es un endecasílabo?",
   "elementos": null,
   "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,
@@ -14,8 +16,8 @@
   "opciones": [
     "Un verso de once sílabas",
     "Un verso de nueve sílabas",
-    "Una estrofa de once versos",
-    "Un poema compuesto por once estrofas",
+    "Un verso de trece sílabas",
+    "Una estrofa compuesta por dos cuartetos y dos tercetos",
     "Un verso de arte menor acentuado en la penúltima sílaba",
     "Una rima consonante entre versos alternos"
   ],

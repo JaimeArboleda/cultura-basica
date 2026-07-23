@@ -4,19 +4,21 @@
   "dificultad": "dificil",
   "ancla": false,
   "formato": "ordenar",
-  "enunciado": "Ordena estos ríos de más largo a más corto:",
+  "enunciado": "Ordena estos biomas de mayor a menor precipitación media anual:",
   "elementos": [
-    "Misisipi",
-    "Nilo",
-    "Yangtsé",
-    "Amazonas"
+    "Estepa",
+    "Selva tropical",
+    "Desierto",
+    "Bosque templado"
   ],
   "elementos_ordenados": [
-    "Nilo",
-    "Amazonas",
-    "Yangtsé",
-    "Misisipi"
+    "Selva tropical",
+    "Bosque templado",
+    "Estepa",
+    "Desierto"
   ],
+  "categorias": null,
+  "clasificacion_correcta": null,
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,

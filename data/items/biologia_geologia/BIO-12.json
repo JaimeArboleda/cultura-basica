@@ -3,21 +3,44 @@
   "bloque": "biologia_geologia",
   "dificultad": "dificil",
   "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Cómo se llama el proceso geológico por el que el choque entre placas tectónicas da lugar a la formación de cordilleras?",
-  "elementos": null,
+  "formato": "clasificar",
+  "enunciado": "Clasifica cada animal según su clase de vertebrado:",
+  "elementos": [
+    "Delfín",
+    "Avestruz",
+    "Cocodrilo",
+    "Rana",
+    "Atún",
+    "Murciélago",
+    "Pingüino",
+    "Camaleón",
+    "Salamandra",
+    "Tiburón"
+  ],
   "elementos_ordenados": null,
+  "categorias": [
+    "Mamíferos",
+    "Aves",
+    "Reptiles",
+    "Anfibios",
+    "Peces"
+  ],
+  "clasificacion_correcta": {
+    "Delfín": "Mamíferos",
+    "Avestruz": "Aves",
+    "Cocodrilo": "Reptiles",
+    "Rana": "Anfibios",
+    "Atún": "Peces",
+    "Murciélago": "Mamíferos",
+    "Pingüino": "Aves",
+    "Camaleón": "Reptiles",
+    "Salamandra": "Anfibios",
+    "Tiburón": "Peces"
+  },
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,
   "tolerancia_edicion": null,
-  "opciones": [
-    "La orogenia",
-    "La subducción",
-    "La sedimentación",
-    "El vulcanismo",
-    "La meteorización",
-    "La erosión"
-  ],
-  "indice_correcto": 0
+  "opciones": null,
+  "indice_correcto": null
 }

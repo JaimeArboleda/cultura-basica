@@ -26,7 +26,7 @@ for (const it of items) {
   if (!["facil", "medio", "dificil"].includes(it.dificultad)) {
     err(`${ctx} dificultad inválida: ${it.dificultad}`);
   }
-  if (!["abierto", "opcion_multiple", "ordenar"].includes(it.formato)) {
+  if (!["abierto", "opcion_multiple", "ordenar", "clasificar"].includes(it.formato)) {
     err(`${ctx} formato inválido: ${it.formato}`);
   }
 
@@ -85,6 +85,40 @@ for (const it of items) {
     }
   }
 
+  if (it.formato === "clasificar") {
+    if (!Array.isArray(it.categorias) || it.categorias.length < 2) {
+      err(`${ctx} clasificar debe tener al menos 2 categorías`);
+    } else if (new Set(it.categorias).size !== it.categorias.length) {
+      err(`${ctx} clasificar tiene categorías duplicadas`);
+    }
+    if (!Array.isArray(it.elementos) || it.elementos.length < 4) {
+      err(`${ctx} clasificar debe tener al menos 4 elementos`);
+    } else if (new Set(it.elementos).size !== it.elementos.length) {
+      err(`${ctx} clasificar tiene elementos duplicados`);
+    }
+    if (
+      typeof it.clasificacion_correcta !== "object" ||
+      it.clasificacion_correcta === null ||
+      Array.isArray(it.clasificacion_correcta)
+    ) {
+      err(`${ctx} clasificar debe tener clasificacion_correcta (objeto elemento → categoría)`);
+    } else if (Array.isArray(it.elementos) && Array.isArray(it.categorias)) {
+      const claves = Object.keys(it.clasificacion_correcta);
+      if (JSON.stringify([...claves].sort()) !== JSON.stringify([...it.elementos].sort())) {
+        err(`${ctx} clasificacion_correcta debe tener exactamente una entrada por cada elemento`);
+      }
+      for (const [el, cat] of Object.entries(it.clasificacion_correcta)) {
+        if (!it.categorias.includes(cat)) {
+          err(`${ctx} clasificacion_correcta asigna "${el}" a una categoría inexistente: ${cat}`);
+        }
+      }
+      const categoriasUsadas = new Set(Object.values(it.clasificacion_correcta));
+      if (it.categorias.some((c) => !categoriasUsadas.has(c))) {
+        err(`${ctx} clasificar tiene alguna categoría sin ningún elemento asignado`);
+      }
+    }
+  }
+
   if (it.ancla && it.dificultad !== "medio") {
     err(`${ctx} ancla debe tener dificultad 'medio'`);
   }
@@ -97,7 +131,8 @@ for (const it of items) {
     (it.alias ?? []).includes("TODO") ||
     (it.opciones ?? []).some((o) => o.startsWith("TODO")) ||
     (it.elementos ?? []).some((e) => e.startsWith("TODO")) ||
-    (it.elementos_ordenados ?? []).some((e) => e.startsWith("TODO"))
+    (it.elementos_ordenados ?? []).some((e) => e.startsWith("TODO")) ||
+    (it.categorias ?? []).some((c) => c.startsWith("TODO"))
   ) {
     warn(`${ctx} contenido de placeholder pendiente de completar`);
   }
