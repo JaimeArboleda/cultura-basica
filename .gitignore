@@ -2,7 +2,6 @@ node_modules/
 .wrangler/
 *.log
 
-# worker/.dev.vars SÍ se versiona a propósito (repo privado, ver commit): contiene
-# el EXPORT_TOKEN de producción para no perderlo. Si este repo se hace público
-# alguna vez, rotar el token (wrangler secret put EXPORT_TOKEN) antes de publicarlo
-# y sacar este fichero del historial.
+# worker/.dev.vars contiene secretos reales (EXPORT_TOKEN, CLOUDFLARE_API_TOKEN)
+# y ya no se versiona. Sigue en el historial de git anterior a este commit.
+worker/.dev.vars
