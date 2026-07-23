@@ -538,6 +538,16 @@ npx wrangler secret put EXPORT_TOKEN                    # token de GET /api/expo
 npx wrangler deploy                                     # publica el Worker
 ```
 
+En entornos no interactivos (sin `wrangler login`, p.ej. este agente) hay un
+`CLOUDFLARE_API_TOKEN` ya generado en `worker/.dev.vars` para poder desplegar sin
+navegador:
+
+```bash
+cd worker
+export CLOUDFLARE_API_TOKEN=$(grep CLOUDFLARE_API_TOKEN .dev.vars | tail -1 | cut -d= -f2)
+npx wrangler deploy
+```
+
 Front-end (Cloudflare Pages), desde la raíz del repo:
 
 ```bash

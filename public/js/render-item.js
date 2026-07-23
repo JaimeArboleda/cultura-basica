@@ -31,7 +31,8 @@ export function html(item) {
             .map(
               (el, i) => `
             <li data-elemento="${escapar(el)}">
-              <span>${escapar(el)}</span>
+              <span class="asa-arrastre" aria-hidden="true">⠿</span>
+              <span class="texto-elemento">${escapar(el)}</span>
               <span class="controles-orden">
                 <button type="button" data-mover="arriba" ${i === 0 ? "disabled" : ""} aria-label="Subir">▲</button>
                 <button type="button" data-mover="abajo" ${i === item.elementos.length - 1 ? "disabled" : ""} aria-label="Bajar">▼</button>
@@ -108,8 +109,84 @@ export function attachListeners(root, item, onResponder) {
       }
       actualizarBotones();
     });
+
+    // Arrastre con Pointer Events (funciona con ratón y con dedo, a diferencia
+    // del drag-and-drop nativo de HTML5, que no es fiable en móvil). El elemento
+    // arrastrado se saca del flujo (position: fixed) y un "hueco" marca el punto
+    // de inserción mientras se mueve.
+    let arrastrando = null;
+    let hueco = null;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    const siguienteTrasHueco = (y) => {
+      const candidatos = [...lista.querySelectorAll("li")].filter((li) => li !== arrastrando && li !== hueco);
+      return candidatos.reduce(
+        (cercania, li) => {
+          const rect = li.getBoundingClientRect();
+          const desplazamiento = y - rect.top - rect.height / 2;
+          if (desplazamiento < 0 && desplazamiento > cercania.desplazamiento) {
+            return { desplazamiento, elemento: li };
+          }
+          return cercania;
+        },
+        { desplazamiento: Number.NEGATIVE_INFINITY, elemento: null }
+      ).elemento;
+    };
+
+    lista.querySelectorAll("li").forEach((li) => {
+      li.addEventListener("pointerdown", (ev) => {
+        if (ev.target.closest("[data-mover]")) return;
+        arrastrando = li;
+        const rect = li.getBoundingClientRect();
+        offsetX = ev.clientX - rect.left;
+        offsetY = ev.clientY - rect.top;
+
+        hueco = document.createElement("li");
+        hueco.className = "hueco-arrastre";
+        hueco.style.height = `${rect.height}px`;
+        lista.insertBefore(hueco, li);
+
+        li.style.position = "fixed";
+        li.style.left = `${rect.left}px`;
+        li.style.top = `${rect.top}px`;
+        li.style.width = `${rect.width}px`;
+        li.classList.add("arrastrando");
+        li.setPointerCapture(ev.pointerId);
+      });
+
+      li.addEventListener("pointermove", (ev) => {
+        if (arrastrando !== li) return;
+        li.style.left = `${ev.clientX - offsetX}px`;
+        li.style.top = `${ev.clientY - offsetY}px`;
+        const siguiente = siguienteTrasHueco(ev.clientY);
+        if (siguiente == null) {
+          lista.appendChild(hueco);
+        } else if (siguiente !== hueco.nextSibling) {
+          lista.insertBefore(hueco, siguiente);
+        }
+      });
+
+      const soltar = (ev) => {
+        if (arrastrando !== li) return;
+        li.releasePointerCapture(ev.pointerId);
+        li.classList.remove("arrastrando");
+        li.style.position = "";
+        li.style.left = "";
+        li.style.top = "";
+        li.style.width = "";
+        lista.insertBefore(li, hueco);
+        hueco.remove();
+        hueco = null;
+        arrastrando = null;
+        actualizarBotones();
+      };
+      li.addEventListener("pointerup", soltar);
+      li.addEventListener("pointercancel", soltar);
+    });
+
     boton.addEventListener("click", () => {
-      const orden = [...lista.children].map((li) => li.dataset.elemento);
+      const orden = [...lista.querySelectorAll("li")].map((li) => li.dataset.elemento);
       onResponder(orden);
     });
     return;
@@ -131,16 +208,6 @@ export function attachListeners(root, item, onResponder) {
       boton.disabled = Object.keys(asignacion).length !== total;
     };
 
-    root.querySelectorAll(".ficha").forEach((ficha) => {
-      ficha.addEventListener("click", () => {
-        if (seleccionado === ficha) {
-          marcarSeleccion(null);
-        } else {
-          marcarSeleccion(ficha);
-        }
-      });
-    });
-
     root.querySelectorAll(".caja").forEach((caja) => {
       caja.addEventListener("click", () => {
         if (!seleccionado) return;
@@ -154,8 +221,85 @@ export function attachListeners(root, item, onResponder) {
       });
     });
 
-    // Devolver una ficha ya asignada a la bandeja, para poder reasignarla.
-    bandeja.addEventListener("click", () => {}); // la bandeja en sí no hace nada; las fichas ya tienen su listener
+    // Arrastre con Pointer Events, igual que en "ordenar". Se distingue de un
+    // toque/clic normal por umbral de distancia: si el puntero no se mueve más
+    // de 6px, se deja que el "click" de siempre gestione la selección por toque.
+    let arrastrando = null;
+    let arrastroRealizado = false;
+    let inicioX = 0;
+    let inicioY = 0;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    root.querySelectorAll(".ficha").forEach((ficha) => {
+      ficha.addEventListener("pointerdown", (ev) => {
+        arrastrando = ficha;
+        arrastroRealizado = false;
+        inicioX = ev.clientX;
+        inicioY = ev.clientY;
+        const rect = ficha.getBoundingClientRect();
+        offsetX = ev.clientX - rect.left;
+        offsetY = ev.clientY - rect.top;
+        ficha.setPointerCapture(ev.pointerId);
+      });
+
+      ficha.addEventListener("pointermove", (ev) => {
+        if (arrastrando !== ficha) return;
+        if (!arrastroRealizado) {
+          if (Math.hypot(ev.clientX - inicioX, ev.clientY - inicioY) < 6) return;
+          arrastroRealizado = true;
+          const rect = ficha.getBoundingClientRect();
+          ficha.classList.add("ficha-arrastrando");
+          ficha.style.position = "fixed";
+          ficha.style.width = `${rect.width}px`;
+          ficha.style.pointerEvents = "none";
+        }
+        ficha.style.left = `${ev.clientX - offsetX}px`;
+        ficha.style.top = `${ev.clientY - offsetY}px`;
+      });
+
+      const soltar = (ev) => {
+        if (arrastrando !== ficha) return;
+        ficha.releasePointerCapture(ev.pointerId);
+        arrastrando = null;
+        if (!arrastroRealizado) return; // deja que "click" gestione la selección por toque
+
+        ficha.classList.remove("ficha-arrastrando");
+        ficha.style.position = "";
+        ficha.style.left = "";
+        ficha.style.top = "";
+        ficha.style.width = "";
+        ficha.style.pointerEvents = "";
+
+        const destino = document.elementFromPoint(ev.clientX, ev.clientY);
+        const caja = destino ? destino.closest(".caja") : null;
+        const vuelveABandeja = destino ? destino.closest("#bandeja-elementos") : null;
+
+        if (caja) {
+          caja.querySelector(".caja-contenido").appendChild(ficha);
+          asignacion[ficha.dataset.elemento] = caja.dataset.categoria;
+        } else if (vuelveABandeja) {
+          bandeja.appendChild(ficha);
+          delete asignacion[ficha.dataset.elemento];
+        }
+        marcarSeleccion(null);
+        actualizarBotonResponder();
+      };
+      ficha.addEventListener("pointerup", soltar);
+      ficha.addEventListener("pointercancel", soltar);
+
+      ficha.addEventListener("click", () => {
+        if (arrastroRealizado) {
+          arrastroRealizado = false;
+          return;
+        }
+        if (seleccionado === ficha) {
+          marcarSeleccion(null);
+        } else {
+          marcarSeleccion(ficha);
+        }
+      });
+    });
 
     boton.addEventListener("click", () => onResponder({ ...asignacion }));
     return;

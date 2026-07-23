@@ -31,14 +31,14 @@ export interface AsignacionItem {
 }
 
 // 30 ítems: por cada uno de los 10 bloques, el ancla (dificultad medio, fijo) + 1
-// fácil aleatorio + 1 difícil aleatorio (README §1.4). Orden de bloques y orden dentro
-// del trío, aleatorios.
+// fácil aleatorio + 1 difícil aleatorio (README §1.4). La selección se hace bloque a
+// bloque, pero el orden de presentación se sortea sobre el conjunto completo de los 30,
+// para que no queden agrupados por tema.
 export function sortearCorto(banco: Item[], rng: Rng = rngCriptografico): AsignacionItem[] {
   const bloques = [...new Set(banco.map((i) => i.bloque))];
-  const bloquesEnOrden = shuffle(bloques, rng);
 
-  const asignaciones: AsignacionItem[] = [];
-  for (const bloque of bloquesEnOrden) {
+  const seleccionados: Omit<AsignacionItem, "orden_presentacion">[] = [];
+  for (const bloque of bloques) {
     const itemsBloque = banco.filter((i) => i.bloque === bloque);
     const ancla = itemsBloque.find((i) => i.ancla);
     if (!ancla) {
@@ -52,13 +52,12 @@ export function sortearCorto(banco: Item[], rng: Rng = rngCriptografico): Asigna
       itemsBloque.filter((i) => i.dificultad === "dificil"),
       rng
     );
-    const trio = shuffle([ancla, facil, dificil], rng);
-    for (const item of trio) {
-      asignaciones.push({ item_id: item.id, fase: "corto", orden_presentacion: 0 });
+    for (const item of [ancla, facil, dificil]) {
+      seleccionados.push({ item_id: item.id, fase: "corto" });
     }
   }
 
-  return asignaciones.map((a, i) => ({ ...a, orden_presentacion: i }));
+  return shuffle(seleccionados, rng).map((a, i) => ({ ...a, orden_presentacion: i }));
 }
 
 // Los 90 ítems restantes del banco (todo lo no sorteado en el modo corto), en orden

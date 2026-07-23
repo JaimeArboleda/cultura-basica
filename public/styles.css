@@ -28,6 +28,13 @@
   box-sizing: border-box;
 }
 
+/* .campo (display:flex) tiene la misma especificidad que la regla nativa
+   [hidden] (display:none); sin esto, los estilos de autor ganan y "hidden"
+   deja de ocultar el elemento. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -171,6 +178,27 @@ h2 {
   background: var(--color-superficie);
   border: 1px solid var(--color-borde);
   border-radius: var(--radio);
+  cursor: grab;
+  touch-action: none;
+}
+.lista-ordenar li.arrastrando {
+  cursor: grabbing;
+  z-index: 50;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  background: var(--color-superficie);
+}
+.lista-ordenar .texto-elemento {
+  flex: 1;
+}
+.asa-arrastre {
+  opacity: 0.5;
+  margin-right: 0.6rem;
+  font-size: 1.1rem;
+}
+.hueco-arrastre {
+  border: 2px dashed var(--color-primario);
+  border-radius: var(--radio);
+  background: transparent;
 }
 .controles-orden button {
   padding: 0.35rem 0.6rem;
@@ -200,12 +228,19 @@ h2 {
   border: 1px solid var(--color-borde);
   background: var(--color-superficie);
   color: var(--color-texto);
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
 }
 .ficha-seleccionada {
   border-color: var(--color-primario);
   background: var(--color-primario);
   color: var(--color-primario-texto);
+}
+.ficha-arrastrando {
+  cursor: grabbing;
+  z-index: 50;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  opacity: 0.95;
 }
 
 .cajas-clasificar {
