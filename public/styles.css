@@ -1,1 +1,251 @@
-/* Fase 2: estilos del test. Móvil primero (README §8). */
+/* Móvil primero (README §8): la mayoría de las respuestas llegarán desde el teléfono. */
+
+:root {
+  --color-fondo: #ffffff;
+  --color-texto: #1a1a1a;
+  --color-primario: #1d4ed8;
+  --color-primario-texto: #ffffff;
+  --color-secundario: #e5e7eb;
+  --color-borde: #d1d5db;
+  --color-superficie: #f9fafb;
+  --espaciado: 1rem;
+  --radio: 0.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-fondo: #111318;
+    --color-texto: #e7e9ee;
+    --color-primario: #5b8def;
+    --color-primario-texto: #0b1020;
+    --color-secundario: #262b36;
+    --color-borde: #3a4150;
+    --color-superficie: #1a1d24;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-fondo);
+  color: var(--color-texto);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+
+#app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--espaciado);
+  min-height: 100vh;
+}
+
+.pantalla {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaciado);
+  padding-top: 1.5rem;
+}
+
+h1 {
+  font-size: 1.4rem;
+}
+h2 {
+  font-size: 1.15rem;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.campo select,
+.campo input[type="text"],
+.campo input[type="number"] {
+  padding: 0.6rem;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font-size: 1rem;
+}
+
+.campo-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.boton-principal,
+.boton-secundario,
+.boton-opcion {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radio);
+  border: 1px solid var(--color-borde);
+  font-size: 1rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.boton-principal {
+  background: var(--color-primario);
+  color: var(--color-primario-texto);
+  border-color: var(--color-primario);
+  text-align: center;
+  width: 100%;
+}
+.boton-principal:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.boton-secundario {
+  background: var(--color-secundario);
+  color: var(--color-texto);
+  width: 100%;
+  text-align: center;
+}
+
+.opciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.boton-opcion {
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  width: 100%;
+}
+.boton-opcion:hover {
+  border-color: var(--color-primario);
+}
+
+#respuesta-abierta {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.barra-progreso {
+  height: 8px;
+  background: var(--color-secundario);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.barra-progreso-relleno {
+  height: 100%;
+  background: var(--color-primario);
+  transition: width 0.2s ease;
+}
+.contador {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  margin: 0;
+}
+
+.lista-ordenar {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.lista-ordenar li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.8rem;
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+}
+.controles-orden button {
+  padding: 0.35rem 0.6rem;
+  margin-left: 0.3rem;
+  border-radius: var(--radio);
+  border: 1px solid var(--color-borde);
+  background: var(--color-secundario);
+  cursor: pointer;
+}
+.controles-orden button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.bandeja {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--color-borde);
+  border-radius: var(--radio);
+  min-height: 3rem;
+}
+.ficha {
+  padding: 0.5rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-borde);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  cursor: pointer;
+}
+.ficha-seleccionada {
+  border-color: var(--color-primario);
+  background: var(--color-primario);
+  color: var(--color-primario-texto);
+}
+
+.cajas-clasificar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.caja {
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  padding: 0.5rem;
+}
+.caja h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.95rem;
+}
+.caja-contenido {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-height: 2.5rem;
+}
+
+.tabla-resultado {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75rem;
+}
+.tabla-resultado caption {
+  text-align: left;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+.tabla-resultado td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--color-borde);
+}
+
+@media (min-width: 700px) {
+  .lista-ordenar li:hover {
+    border-color: var(--color-primario);
+  }
+}

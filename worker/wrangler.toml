@@ -2,7 +2,20 @@ name = "cultura-basica"
 main = "src/index.ts"
 compatibility_date = "2026-01-01"
 
+[vars]
+# Origen exacto (scheme+host, sin barra final) desde el que Cloudflare Pages sirve
+# public/. Solo hace falta si Pages y el Worker NO están bajo el mismo dominio via
+# una route /api/*; en ese caso same-origin no necesita CORS. Ajustar tras desplegar.
+ALLOWED_ORIGIN = "https://cultura-basica.pages.dev"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "cultura-basica"
-database_id = "REEMPLAZAR_TRAS_CREAR_LA_BD"
+database_id = "7df34f15-cc38-4268-af72-8e5d9930a93b"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "81f103c6a7e344b0bce4b449bdafb5c2"
+
+# EXPORT_TOKEN se define como secret, no aquí:
+#   wrangler secret put EXPORT_TOKEN

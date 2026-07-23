@@ -103,18 +103,26 @@ casi toda la muestra.
   cajitas en vez de elegir entre listas completas ya ordenadas como opciones de MC —
   evita el problema de legibilidad en móvil de leer 6 permutaciones enteras. La
   corrección es una igualdad exacta de secuencia (sin Levenshtein ni alias).
+- **Clasificar (drag-and-drop en cajas)** para ítems de categorización (p.ej.
+  clasificar filósofos según la corriente ética que defendieron, o libros según su
+  género literario). El usuario arrastra cada elemento de una bandeja común hasta la
+  caja de la categoría a la que pertenece, en vez de resolver varias preguntas de
+  opción múltiple independientes sobre el mismo elemento. La corrección es una
+  igualdad exacta elemento a elemento contra `clasificacion_correcta` (sin tolerancia).
 
 Restricciones:
 - **Máximo ~40% de ítems `abierto`**, repartidos a lo largo del test (no agrupados).
-  Escribir en el móvil tiene coste y aumenta el abandono. Los ítems `ordenar` **no
-  cuentan para este tope**: no hay tecleo, el coste de fricción es más parecido al de
-  MC.
+  Escribir en el móvil tiene coste y aumenta el abandono. Los ítems `ordenar` y
+  `clasificar` **no cuentan para este tope**: no hay tecleo, el coste de fricción es
+  más parecido al de MC.
 - **No sumar formatos en una misma puntuación bruta.** Un ítem `opcion_multiple` tiene
   suelo de azar (16,7% con 6 opciones); un ítem `abierto` no tiene suelo; un ítem
   `ordenar` tampoco (el azar de acertar una permutación completa de 6 al azar es
-  ~0,14%), así que a efectos de TRI se trata junto con `abierto` (sin parámetro de
-  pseudo-azar) en vez de junto con `opcion_multiple`. Para calibrarse todos juntos se
-  usa TRI 3PL, que absorbe el suelo de MC en el parámetro de pseudo-azar.
+  ~0,14%), ni un ítem `clasificar` (el azar de acertar una asignación completa de
+  varios elementos a varias categorías es igual de despreciable), así que a efectos de
+  TRI se tratan junto con `abierto` (sin parámetro de pseudo-azar) en vez de junto con
+  `opcion_multiple`. Para calibrarse todos juntos se usa TRI 3PL, que absorbe el suelo
+  de MC en el parámetro de pseudo-azar.
 - Los distractores de los ítems de opción múltiple deben ser **plausibles**. Seis
   opciones donde cinco son absurdas equivalen a una pregunta de dos opciones. 
 
@@ -259,7 +267,7 @@ CREATE TABLE sesiones (
   compromiso_honestidad INTEGER NOT NULL,
   completo_corto    INTEGER DEFAULT 0,       -- terminó los 30
   acepto_extension  INTEGER,                 -- NULL si no llegó a la oferta
-  completo_largo    INTEGER DEFAULT 0,       -- terminó los 120
+  completo_largo    INTEGER DEFAULT 0,       -- terminó los 120 (30 + 90)
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
   -- demografía
   anio_nacimiento   INTEGER,
@@ -282,8 +290,11 @@ CREATE TABLE respuestas (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   sesion_id         TEXT NOT NULL REFERENCES sesiones(id),
   item_id           TEXT NOT NULL,
-  respuesta_cruda   TEXT,                    -- SIEMPRE se guarda el texto original
-  opcion_elegida    INTEGER,                 -- índice 0-5, NULL si abierta
+  -- SIEMPRE se guarda el dato crudo tal cual lo envió el cliente, serializado con
+  -- JSON.stringify(): un string para 'abierto', un índice para 'opcion_multiple',
+  -- un array para 'ordenar', un objeto elemento->categoría para 'clasificar'.
+  respuesta_cruda   TEXT,
+  opcion_elegida    INTEGER,                 -- índice 0-5, NULL si no es opcion_multiple
   acierto           INTEGER,                 -- 0/1
   estado_correccion TEXT DEFAULT 'auto',     -- 'auto'|'parcial'|'pendiente_revision'|'manual'
   t_ms              INTEGER,
@@ -294,6 +305,29 @@ CREATE TABLE respuestas (
 
 CREATE INDEX idx_respuestas_sesion ON respuestas(sesion_id);
 CREATE INDEX idx_respuestas_item   ON respuestas(item_id);
+
+-- Idempotencia real de POST /api/respuesta (§4.3): el Worker hace
+-- INSERT ... ON CONFLICT(sesion_id, item_id) DO UPDATE, así que un reintento de
+-- red tras un timeout nunca duplica la respuesta a un mismo ítem.
+CREATE UNIQUE INDEX idx_respuestas_sesion_item ON respuestas(sesion_id, item_id);
+
+-- Persiste el sorteo de ítems hecho en el servidor: "el sorteo de ítems se hace
+-- en el servidor y se persiste, para que recargar la página no cambie el set"
+-- (§4.3). No contiene contenido de ítems, solo el id: el contenido vive
+-- únicamente en data/items.json, que el Worker importa como módulo estático
+-- (§4.2) — D1 nunca se usa como copia del banco de ítems, así que editar un
+-- ítem y regenerar data/items.json no requiere ninguna migración de datos.
+CREATE TABLE sesion_items (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  sesion_id           TEXT NOT NULL REFERENCES sesiones(id),
+  item_id             TEXT NOT NULL,
+  fase                TEXT NOT NULL CHECK (fase IN ('corto','extension')),
+  orden_presentacion  INTEGER NOT NULL,
+  UNIQUE (sesion_id, item_id),
+  UNIQUE (sesion_id, fase, orden_presentacion)
+);
+
+CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
 ```
 
 ### 4.2 Formato del banco de ítems (`data/items.json`)
@@ -305,7 +339,7 @@ CREATE INDEX idx_respuestas_item   ON respuestas(item_id);
     "bloque": "historia",
     "dificultad": "facil",          // facil | medio | dificil
     "ancla": false,                  // true en los 10 ítems fijos (uno por bloque, medio)
-    "formato": "abierto",            // abierto | opcion_multiple | ordenar
+    "formato": "abierto",            // abierto | opcion_multiple | ordenar | clasificar
     "enunciado": "¿En qué año llegó Cristóbal Colón a América?",
     "respuesta_canonica": "1492",
     "alias": ["1492", "año 1492", "1.492"],
@@ -342,6 +376,29 @@ CREATE INDEX idx_respuestas_item   ON respuestas(item_id);
     "alias": null,
     "opciones": null,
     "indice_correcto": null
+  },
+  {
+    "id": "FIL-06",
+    "bloque": "filosofia",
+    "dificultad": "medio",
+    "ancla": true,
+    "formato": "clasificar",
+    "enunciado": "Clasifica a cada filósofo según la corriente ética que defendió:",
+    "categorias": ["Utilitarismo", "Deontología", "Ética de la virtud", "Estoicismo"],
+    "elementos": ["Kant", "Séneca", "Bentham", "Aristóteles", "Epicteto", "Stuart Mill", "Tomás de Aquino"],
+    "clasificacion_correcta": {
+      "Kant": "Deontología",
+      "Séneca": "Estoicismo",
+      "Bentham": "Utilitarismo",
+      "Aristóteles": "Ética de la virtud",
+      "Epicteto": "Estoicismo",
+      "Stuart Mill": "Utilitarismo",
+      "Tomás de Aquino": "Ética de la virtud"
+    },
+    "respuesta_canonica": null,
+    "alias": null,
+    "opciones": null,
+    "indice_correcto": null
   }
 ]
 ```
@@ -353,6 +410,14 @@ redactar el ítem, fijo para todos los usuarios — igual que la posición de
 `respuesta_canonica`). La respuesta enviada se compara por igualdad exacta de array
 contra `elementos_ordenados`.
 
+Para `clasificar`, `categorias` son las cajas que se muestran (orden de presentación
+fijo), `elementos` es la bandeja de fichas a repartir (orden de presentación fijo) y
+`clasificacion_correcta` es un objeto que mapea cada elemento a su categoría correcta
+(fuente de verdad, hace el papel de `respuesta_canonica`). La respuesta enviada
+(qué elemento quedó en qué caja) se compara elemento a elemento contra
+`clasificacion_correcta`; hace falta acertar la asignación completa para contar como
+acierto.
+
 **Invariantes que el código debe validar al arrancar:**
 - Exactamente 10 bloques × 12 ítems.
 - Exactamente 1 ítem con `ancla: true` por bloque, y su `dificultad` debe ser `medio`.
@@ -363,7 +428,12 @@ contra `elementos_ordenados`.
 - Todo ítem `ordenar` tiene `elementos` (≥4, sin duplicados, orden de presentación) y
   `elementos_ordenados` (la misma lista permutada a su orden correcto, distinto de
   `elementos`).
-- Ítems `abierto` ≤ 50% del total por bloque (`ordenar` no cuenta para este tope, ver §1.5).
+- Todo ítem `clasificar` tiene `categorias` (≥2, sin duplicados), `elementos` (≥4, sin
+  duplicados) y `clasificacion_correcta` con exactamente una entrada por elemento, cada
+  una apuntando a una categoría existente, y con las `categorias` usadas al menos una
+  vez cada una.
+- Ítems `abierto` ≤ 50% del total por bloque (`ordenar` y `clasificar` no cuentan para
+  este tope, ver §1.5).
 - 4 fáciles, 4 medias y 4 difíciles.
 
 ### 4.3 Endpoints del Worker
@@ -377,12 +447,24 @@ GET  /api/export?token=…    → volcado CSV/JSON (protegido con secreto en env
 ```
 
 Notas de implementación:
-- El sorteo de ítems se hace **en el servidor** y se persiste, para que recargar la
-  página no cambie el set y no se pueda "rerodar" hasta obtener preguntas fáciles.
+- El sorteo de ítems se hace **en el servidor** y se persiste (tabla `sesion_items`,
+  §4.1), para que recargar la página no cambie el set y no se pueda "rerodar" hasta
+  obtener preguntas fáciles. `POST /api/sesion` y `POST /api/extender` son idempotentes
+  respecto al sorteo: si la sesión ya tiene un sorteo persistido para esa fase, se
+  devuelve el mismo en vez de generar uno nuevo.
+- `GET /api/resultado/:id` tiene dos formas de respuesta según el estado de la sesión:
+  si `completo_corto=0` (test en curso, típicamente tras recargar la página o volver
+  más tarde), devuelve `{ estado: 'en_progreso', fase_actual, items_pendientes }` en
+  vez de un resultado, para que el cliente pueda **reanudar sin volver a sortear nada
+  en el propio front-end** — el `localStorage` del cliente solo necesita guardar el
+  `sesion_id` (§8), nunca qué ítems tocan ni en qué orden. Si la sesión está completa
+  (o al menos completó el modo corto), devuelve los agregados de resultado.
 - **Las respuestas correctas nunca se envían al cliente** antes de que el ítem se
   conteste. La corrección ocurre en el Worker. Para ítems `ordenar`, esto significa que
   `elementos_ordenados` no se envía al cliente hasta contestar; solo se envía
-  `elementos` (el orden de presentación, ya desordenado en los datos).
+  `elementos` (el orden de presentación, ya desordenado en los datos). Análogamente,
+  para ítems `clasificar` no se envía `clasificacion_correcta` hasta contestar; solo se
+  envían `categorias` y `elementos`.
 - Rate limiting básico por IP para evitar envíos automatizados; la IP **no se almacena**.
 
 ### 4.4 Web de debug de ítems (`data/debug.html`)
@@ -399,7 +481,8 @@ en cualquier navegador, sin servidor.
 
 Qué muestra, por bloque y por ítem:
 - Las preguntas agrupadas por bloque y renderizadas como en la web definitiva
-  (texto libre, opción múltiple de 6 opciones, ordenar por arrastre).
+  (texto libre, opción múltiple de 6 opciones, ordenar por arrastre, clasificar en
+  cajas por arrastre).
 - Metadatos que la web de usuario **nunca** mostrará: id del ítem, dificultad,
   formato y si es el ítem `ancla` del bloque.
 - Estadísticas por bloque: nº de ítems por dificultad y por formato, y cuál es
@@ -426,6 +509,64 @@ Este comando lee de nuevo todos los JSON de `data/items/<bloque>/` y sobrescribe
 corrige o completa un ítem. Conviene tenerlo abierto en el navegador con
 recarga automática (o simplemente refrescar la pestaña) mientras se va
 ejecutando `npm run build:debug` en la redacción de cada nuevo ítem.
+
+### 4.5 Despliegue manual a Cloudflare
+
+Nada de esto lo ejecuta Claude Code de forma autónoma: requiere una cuenta de
+Cloudflare real y credenciales que no viven en este entorno. Pasos, en orden, desde
+la raíz del repo:
+
+```bash
+cd worker
+npx wrangler login                                   # abre el navegador para autenticar
+
+npx wrangler d1 create cultura-basica                 # crea la base D1
+# copiar el database_id que devuelve en worker/wrangler.toml (sustituye
+# REEMPLAZAR_TRAS_CREAR_LA_BD)
+
+npx wrangler d1 execute cultura-basica --remote \
+  --file=../schema/schema.sql                         # aplica el esquema (§4.1)
+
+npx wrangler kv namespace create RATE_LIMIT            # crea el KV del rate limiting
+# copiar el id que devuelve en worker/wrangler.toml (sustituye
+# REEMPLAZAR_TRAS_CREAR_EL_KV)
+
+npx wrangler secret put EXPORT_TOKEN                    # token de GET /api/export;
+                                                          # pide el valor por stdin, nunca
+                                                          # va en wrangler.toml ni en git
+
+npx wrangler deploy                                     # publica el Worker
+```
+
+Front-end (Cloudflare Pages), desde la raíz del repo:
+
+```bash
+npx wrangler pages deploy public/ --project-name=cultura-basica
+```
+
+Para que el front-end pueda llamar al Worker sin CORS, se recomienda enrutar
+`/api/*` de ese mismo dominio de Pages hacia el Worker (Cloudflare Dashboard →
+Pages → el proyecto → Settings → Functions/Routes, o un dominio propio con una
+route en `wrangler.toml`). Si en vez de eso Pages y el Worker quedan en dominios
+distintos, hay que ajustar `ALLOWED_ORIGIN` en `worker/wrangler.toml` al dominio
+real de Pages y volver a desplegar el Worker.
+
+**Actualizar el banco de ítems ya en producción**, tras editar algo en
+`data/items/<bloque>/*.json` (§4.2, §8):
+
+```bash
+npm run build:items   # regenera data/items.json desde las fuentes
+npm test               # valida invariantes + corre los tests del Worker
+cd worker && npx wrangler deploy   # el Worker importa data/items.json como módulo
+                                    # estático (worker/src/items.ts), así que este
+                                    # deploy es todo lo que hace falta
+```
+
+Ningún paso de aquí toca D1: el banco de ítems nunca se replica en la base de
+datos (`schema/schema.sql`, tabla `sesion_items`), así que editar un ítem no
+implica ninguna migración de datos. El front-end (`public/`) no necesita
+redeploy salvo que se toquen sus propios ficheros, porque nunca contiene
+enunciados ni respuestas hardcodeadas.
 
 ---
 

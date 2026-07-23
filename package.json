@@ -6,6 +6,7 @@
     "build:items": "node data/build-items.mjs",
     "build:debug": "node data/build-debug.mjs",
     "validate:items": "npm run build:items && node data/validate-items.mjs",
-    "test": "npm run validate:items"
+    "test:worker": "cd worker && npm test",
+    "test": "npm run validate:items && npm run test:worker"
   }
 }
