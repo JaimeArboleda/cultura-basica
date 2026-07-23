@@ -44,6 +44,19 @@ const NOMBRE_BLOQUE = {
   religion: "Religión",
 };
 
+// Orden de depuración: fácil, luego medio (ancla primero), luego difícil.
+// Dentro de cada grupo, por id. Así se ve de un vistazo la progresión de
+// dificultad del bloque, sin saltos, en vez del orden alfabético de ficheros.
+const RANGO_DIFICULTAD = { facil: 0, medio: 1, dificil: 2 };
+
+function ordenDebug(a, b) {
+  const da = RANGO_DIFICULTAD[a.dificultad] ?? 99;
+  const db = RANGO_DIFICULTAD[b.dificultad] ?? 99;
+  if (da !== db) return da - db;
+  if (a.ancla !== b.ancla) return a.ancla ? -1 : 1;
+  return a.id.localeCompare(b.id);
+}
+
 function cargarBloque(bloque) {
   const dir = join(ITEMS_DIR, bloque);
   let ficheros;
@@ -54,7 +67,7 @@ function cargarBloque(bloque) {
   }
   return ficheros
     .map((f) => JSON.parse(readFileSync(join(dir, f), "utf8")))
-    .sort((a, b) => a.id.localeCompare(b.id));
+    .sort(ordenDebug);
 }
 
 const bloques = ORDEN_BLOQUES.map((bloque) => ({
