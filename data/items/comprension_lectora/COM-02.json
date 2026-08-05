@@ -14,12 +14,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Pintar un cuadro con hábiles pinceladas, que pase a la historia",
-    "Escribir obras literarias que alcancen fama mundial",
-    "Acumular riquezas para que las disfruten las generaciones futuras",
-    "Vivir con ejemplaridad para legar una imagen perdurable",
     "Vivir el mayor número posible de años",
-    "Tener descendencia abundante que te recuerde tras la muerte"
+    "Tener descendencia abundante que te recuerde tras la muerte",
+    "Escribir obras literarias que alcancen fama mundial",
+    "Pintar un cuadro con hábiles pinceladas, que pase a la historia",
+    "Acumular riquezas para que las disfruten las generaciones futuras",
+    "Vivir con ejemplaridad para legar una imagen perdurable"
   ],
-  "indice_correcto": 3
+  "indice_correcto": 5
 }

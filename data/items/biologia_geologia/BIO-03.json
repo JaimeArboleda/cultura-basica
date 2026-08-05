@@ -14,12 +14,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
+    "El movimiento de las corrientes oceánicas y las mareas",
     "El movimiento de grandes fragmentos de la litosfera terrestre sobre el manto",
+    "La erosión de las montañas causada por el agua y el hielo",
     "El proceso por el que se forman las nubes y la lluvia",
     "La capa más interna y sólida del núcleo de la Tierra",
-    "El estudio de los terremotos y los volcanes",
-    "El movimiento de las corrientes oceánicas y las mareas",
-    "La erosión de las montañas causada por el agua y el hielo"
+    "El estudio de los terremotos y los volcanes"
   ],
-  "indice_correcto": 0
+  "indice_correcto": 1
 }

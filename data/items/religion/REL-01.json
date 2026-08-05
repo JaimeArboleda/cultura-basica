@@ -14,12 +14,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "El ateo niega la existencia de Dios; el agnóstico sostiene que no puede saberse",
-    "El ateo duda de la existencia de Dios; el agnóstico la niega",
     "El ateo rechaza toda religión; el agnóstico solo las religiones reveladas",
-    "El ateo no practica ninguna religión; el agnóstico practica varias",
+    "El ateo duda de la existencia de Dios; el agnóstico la niega",
+    "No hay diferencia real: son dos formas de designar la incredulidad",
     "El ateo cree en la ciencia; el agnóstico, en una fuerza espiritual indefinida",
-    "No hay diferencia real: son dos formas de designar la incredulidad"
+    "El ateo niega la existencia de Dios; el agnóstico sostiene que no puede saberse",
+    "El ateo no practica ninguna religión; el agnóstico practica varias"
   ],
-  "indice_correcto": 0
+  "indice_correcto": 4
 }

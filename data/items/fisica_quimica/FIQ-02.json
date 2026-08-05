@@ -14,12 +14,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "La emisión espontánea de partículas subatómicas por núcleos atómicos inestables",
+    "La absorción de energía luminosa por los electrones de un metal",
+    "La reacción en cadena que se produce al fisionar un núcleo de uranio",
     "La capacidad de un cuerpo caliente de emitir calor por radiación",
     "La propagación de ondas electromagnéticas a través del vacío",
-    "La ionización del aire producida por una corriente eléctrica intensa",
-    "La reacción en cadena que se produce al fisionar un núcleo de uranio",
-    "La absorción de energía luminosa por los electrones de un metal"
+    "La emisión espontánea de partículas subatómicas por núcleos atómicos inestables",
+    "La ionización del aire producida por una corriente eléctrica intensa"
   ],
-  "indice_correcto": 0
+  "indice_correcto": 4
 }

@@ -14,12 +14,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Una sucesión de respuestas y soluciones que llegan gracias a la paciencia y la espera",
     "El movimiento constante de las agujas de un reloj",
-    "La rapidez con la que transcurren los días",
-    "La capacidad de evitar cualquier problema antes de que ocurra",
+    "Una sucesión de respuestas y soluciones que llegan gracias a la paciencia y la espera",
+    "La duración de las cosas sujetas a mudanza",
     "La cantidad de cambios que experimenta una persona a lo largo de su vida",
-    "La duración de las cosas sujetas a mudanza"
+    "La capacidad de evitar cualquier problema antes de que ocurra",
+    "La rapidez con la que transcurren los días"
   ],
-  "indice_correcto": 0
+  "indice_correcto": 1
 }

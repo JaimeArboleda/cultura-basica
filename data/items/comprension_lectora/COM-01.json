@@ -14,12 +14,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
+    "La percepción de la realidad depende del lugar geográfico desde el que se observa",
+    "La realidad depende únicamente de la imaginación de quien la observa",
     "Existe una única forma correcta de interpretar la realidad",
     "Si dos personas saben ser fieles a su punto de vista, coincidirán en su visión de las cosas",
-    "La realidad depende únicamente de la imaginación de quien la observa",
-    "Dos personas que contemplan el mismo objeto deberían llegar a las mismas conclusiones",
     "Cada persona percibe un aspecto distinto de la realidad según su punto de vista",
-    "La percepción de la realidad depende del lugar geográfico desde el que se observa"
+    "Dos personas que contemplan el mismo objeto deberían llegar a las mismas conclusiones"
   ],
   "indice_correcto": 4
 }

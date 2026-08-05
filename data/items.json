@@ -58,14 +58,14 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "Las apariencias sensibles que tomamos por realidad",
-      "Las Ideas eternas que solo el filósofo llega a contemplar",
       "Los recuerdos deformados de una existencia anterior",
+      "Las Ideas eternas que solo el filósofo llega a contemplar",
       "Las pasiones que nublan el juicio del alma",
       "Los dioses tal como los imagina el vulgo",
-      "El conocimiento matemático, intermedio entre la opinión y la ciencia"
+      "El conocimiento matemático, intermedio entre la opinión y la ciencia",
+      "Las apariencias sensibles que tomamos por realidad"
     ],
-    "indice_correcto": 0
+    "indice_correcto": 5
   },
   {
     "id": "HIS-01",
@@ -189,9 +189,9 @@
     "opciones": [
       "El que admite complemento directo",
       "El que expresa una acción que recae sobre el propio sujeto",
-      "El que no lleva sujeto expreso ni tácito",
       "El que forma los tiempos compuestos con el auxiliar haber",
       "El que indica movimiento o desplazamiento",
+      "El que no lleva sujeto expreso ni tácito",
       "El que puede sustituirse por un adjetivo sin alterar el sentido"
     ],
     "indice_correcto": 0
@@ -244,14 +244,14 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "La masa total y el número de átomos de cada elemento",
-      "El volumen total de las sustancias implicadas",
       "El número total de moléculas",
+      "La presión, siempre que el recipiente esté cerrado",
       "La temperatura del sistema",
       "El estado de agregación de las sustancias",
-      "La presión, siempre que el recipiente esté cerrado"
+      "La masa total y el número de átomos de cada elemento",
+      "El volumen total de las sustancias implicadas"
     ],
-    "indice_correcto": 0
+    "indice_correcto": 4
   },
   {
     "id": "FIQ-02",
@@ -269,14 +269,14 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "La emisión espontánea de partículas subatómicas por núcleos atómicos inestables",
+      "La absorción de energía luminosa por los electrones de un metal",
+      "La reacción en cadena que se produce al fisionar un núcleo de uranio",
       "La capacidad de un cuerpo caliente de emitir calor por radiación",
       "La propagación de ondas electromagnéticas a través del vacío",
-      "La ionización del aire producida por una corriente eléctrica intensa",
-      "La reacción en cadena que se produce al fisionar un núcleo de uranio",
-      "La absorción de energía luminosa por los electrones de un metal"
+      "La emisión espontánea de partículas subatómicas por núcleos atómicos inestables",
+      "La ionización del aire producida por una corriente eléctrica intensa"
     ],
-    "indice_correcto": 0
+    "indice_correcto": 4
   },
   {
     "id": "FIQ-03",
@@ -294,14 +294,14 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "No se pueden conocer simultáneamente con precisión arbitraria la posición y el momento de una partícula",
       "El resultado de una medida cuántica solo puede predecirse en términos de probabilidad",
-      "Ninguna señal puede propagarse a mayor velocidad que la luz",
       "Dos electrones de un mismo átomo no pueden tener iguales sus cuatro números cuánticos",
-      "El acto de observar un sistema cuántico siempre lo destruye",
-      "La energía de un sistema cuántico solo puede tomar valores continuos"
+      "No se pueden conocer simultáneamente con precisión arbitraria la posición y el momento de una partícula",
+      "Ninguna señal puede propagarse a mayor velocidad que la luz",
+      "La energía de un sistema cuántico solo puede tomar valores continuos",
+      "El acto de observar un sistema cuántico siempre lo destruye"
     ],
-    "indice_correcto": 0
+    "indice_correcto": 2
   },
   {
     "id": "BIO-01",
@@ -362,14 +362,14 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
+      "El movimiento de las corrientes oceánicas y las mareas",
       "El movimiento de grandes fragmentos de la litosfera terrestre sobre el manto",
+      "La erosión de las montañas causada por el agua y el hielo",
       "El proceso por el que se forman las nubes y la lluvia",
       "La capa más interna y sólida del núcleo de la Tierra",
-      "El estudio de los terremotos y los volcanes",
-      "El movimiento de las corrientes oceánicas y las mareas",
-      "La erosión de las montañas causada por el agua y el hielo"
+      "El estudio de los terremotos y los volcanes"
     ],
-    "indice_correcto": 0
+    "indice_correcto": 1
   },
   {
     "id": "ECO-01",
@@ -387,14 +387,14 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "El aumento generalizado y sostenido de los precios",
-      "El aumento de la cantidad de dinero en circulación",
-      "La pérdida de valor de la moneda frente a las divisas extranjeras",
       "El crecimiento del gasto público por encima de los ingresos",
+      "La pérdida de valor de la moneda frente a las divisas extranjeras",
+      "El encarecimiento de los productos importados",
+      "El aumento generalizado y sostenido de los precios",
       "La subida de los tipos de interés fijados por el banco central",
-      "El encarecimiento de los productos importados"
+      "El aumento de la cantidad de dinero en circulación"
     ],
-    "indice_correcto": 0
+    "indice_correcto": 3
   },
   {
     "id": "ECO-02",
@@ -412,14 +412,14 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "Legislativo, ejecutivo y judicial",
       "Civil, militar y religioso",
+      "Legislativo, ejecutivo y judicial",
       "Monárquico, aristocrático y democrático",
-      "Central, autonómico y local",
       "Legislativo, judicial y económico",
+      "Central, autonómico y local",
       "Ejecutivo, administrativo y constituyente"
     ],
-    "indice_correcto": 0
+    "indice_correcto": 1
   },
   {
     "id": "ECO-03",
@@ -437,14 +437,14 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "La clase social que carece de medios de producción y vive de vender su fuerza de trabajo",
-      "El conjunto de los trabajadores del campo, frente a los de la ciudad",
-      "La clase social más pobre, sin trabajo ni ingresos estables",
+      "Los ciudadanos sin derecho a voto en el Antiguo Régimen",
       "El conjunto de los funcionarios y empleados del Estado",
+      "La clase social más pobre, sin trabajo ni ingresos estables",
+      "El conjunto de los trabajadores del campo, frente a los de la ciudad",
       "La clase media urbana surgida de la Revolución Industrial",
-      "Los ciudadanos sin derecho a voto en el Antiguo Régimen"
+      "La clase social que carece de medios de producción y vive de vender su fuerza de trabajo"
     ],
-    "indice_correcto": 0
+    "indice_correcto": 5
   },
   {
     "id": "GEO-01",
@@ -531,12 +531,12 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
+      "Bélgica",
       "Francia",
       "Polonia",
       "Austria",
-      "Dinamarca",
       "Italia",
-      "Bélgica"
+      "Dinamarca"
     ],
     "indice_correcto": 4
   },
@@ -556,14 +556,14 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "Infinitos",
-      "Un número finito, aunque todavía no se conoce su valor exacto",
-      "Exactamente los mismos que números compuestos",
       "Finitos, porque a partir de cierto valor todos los números son compuestos",
+      "Infinitos",
+      "Se desconoce: sigue siendo un problema abierto de las matemáticas",
+      "Exactamente los mismos que números compuestos",
       "Infinitos, pero solo si se admite el 1 como número primo",
-      "Se desconoce: sigue siendo un problema abierto de las matemáticas"
+      "Un número finito, aunque todavía no se conoce su valor exacto"
     ],
-    "indice_correcto": 0
+    "indice_correcto": 1
   },
   {
     "id": "MAT-02",
@@ -603,11 +603,11 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "Todos por igual",
       "2",
+      "Todos por igual",
       "12",
-      "5",
       "6",
+      "5",
       "7"
     ],
     "indice_correcto": 5
@@ -704,14 +704,14 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "El ateo niega la existencia de Dios; el agnóstico sostiene que no puede saberse",
-      "El ateo duda de la existencia de Dios; el agnóstico la niega",
       "El ateo rechaza toda religión; el agnóstico solo las religiones reveladas",
-      "El ateo no practica ninguna religión; el agnóstico practica varias",
+      "El ateo duda de la existencia de Dios; el agnóstico la niega",
+      "No hay diferencia real: son dos formas de designar la incredulidad",
       "El ateo cree en la ciencia; el agnóstico, en una fuerza espiritual indefinida",
-      "No hay diferencia real: son dos formas de designar la incredulidad"
+      "El ateo niega la existencia de Dios; el agnóstico sostiene que no puede saberse",
+      "El ateo no practica ninguna religión; el agnóstico practica varias"
     ],
-    "indice_correcto": 0
+    "indice_correcto": 4
   },
   {
     "id": "REL-02",
@@ -753,14 +753,14 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "Un solo Dios en tres personas",
-      "Los tres reyes que gobernaron Israel tras el rey David",
       "El conjunto de los tres primeros evangelistas del Nuevo Testamento",
       "Los tres sacramentos más importantes de la Iglesia",
-      "Las tres religiones de Jerusalén",
-      "Las tres naturalezas de Jesús: cuerpo, alma y espíritu"
+      "Un solo Dios en tres personas",
+      "Las tres naturalezas de Jesús: cuerpo, alma y espíritu",
+      "Los tres reyes que gobernaron Israel tras el rey David",
+      "Las tres religiones de Jerusalén"
     ],
-    "indice_correcto": 0
+    "indice_correcto": 2
   },
   {
     "id": "RAZ-01",
@@ -820,14 +820,14 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "La A y la 7",
       "La A y la 4",
-      "Solo la A",
-      "La A, la 4 y la 7",
+      "Las cuatro tarjetas",
       "La B y la 4",
-      "Las cuatro tarjetas"
+      "La A y la 7",
+      "La A, la 4 y la 7",
+      "Solo la A"
     ],
-    "indice_correcto": 0
+    "indice_correcto": 3
   },
   {
     "id": "COM-01",
@@ -845,12 +845,12 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
+      "La percepción de la realidad depende del lugar geográfico desde el que se observa",
+      "La realidad depende únicamente de la imaginación de quien la observa",
       "Existe una única forma correcta de interpretar la realidad",
       "Si dos personas saben ser fieles a su punto de vista, coincidirán en su visión de las cosas",
-      "La realidad depende únicamente de la imaginación de quien la observa",
-      "Dos personas que contemplan el mismo objeto deberían llegar a las mismas conclusiones",
       "Cada persona percibe un aspecto distinto de la realidad según su punto de vista",
-      "La percepción de la realidad depende del lugar geográfico desde el que se observa"
+      "Dos personas que contemplan el mismo objeto deberían llegar a las mismas conclusiones"
     ],
     "indice_correcto": 4
   },
@@ -870,14 +870,14 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "Pintar un cuadro con hábiles pinceladas, que pase a la historia",
-      "Escribir obras literarias que alcancen fama mundial",
-      "Acumular riquezas para que las disfruten las generaciones futuras",
-      "Vivir con ejemplaridad para legar una imagen perdurable",
       "Vivir el mayor número posible de años",
-      "Tener descendencia abundante que te recuerde tras la muerte"
+      "Tener descendencia abundante que te recuerde tras la muerte",
+      "Escribir obras literarias que alcancen fama mundial",
+      "Pintar un cuadro con hábiles pinceladas, que pase a la historia",
+      "Acumular riquezas para que las disfruten las generaciones futuras",
+      "Vivir con ejemplaridad para legar una imagen perdurable"
     ],
-    "indice_correcto": 3
+    "indice_correcto": 5
   },
   {
     "id": "COM-03",
@@ -895,13 +895,13 @@
     "alias_parcial": null,
     "tolerancia_edicion": null,
     "opciones": [
-      "Una sucesión de respuestas y soluciones que llegan gracias a la paciencia y la espera",
       "El movimiento constante de las agujas de un reloj",
-      "La rapidez con la que transcurren los días",
-      "La capacidad de evitar cualquier problema antes de que ocurra",
+      "Una sucesión de respuestas y soluciones que llegan gracias a la paciencia y la espera",
+      "La duración de las cosas sujetas a mudanza",
       "La cantidad de cambios que experimenta una persona a lo largo de su vida",
-      "La duración de las cosas sujetas a mudanza"
+      "La capacidad de evitar cualquier problema antes de que ocurra",
+      "La rapidez con la que transcurren los días"
     ],
-    "indice_correcto": 0
+    "indice_correcto": 1
   }
 ]

@@ -14,12 +14,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Las apariencias sensibles que tomamos por realidad",
-    "Las Ideas eternas que solo el filósofo llega a contemplar",
     "Los recuerdos deformados de una existencia anterior",
+    "Las Ideas eternas que solo el filósofo llega a contemplar",
     "Las pasiones que nublan el juicio del alma",
     "Los dioses tal como los imagina el vulgo",
-    "El conocimiento matemático, intermedio entre la opinión y la ciencia"
+    "El conocimiento matemático, intermedio entre la opinión y la ciencia",
+    "Las apariencias sensibles que tomamos por realidad"
   ],
-  "indice_correcto": 0
+  "indice_correcto": 5
 }

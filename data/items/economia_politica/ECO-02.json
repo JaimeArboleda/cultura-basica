@@ -14,12 +14,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Legislativo, ejecutivo y judicial",
     "Civil, militar y religioso",
+    "Legislativo, ejecutivo y judicial",
     "Monárquico, aristocrático y democrático",
-    "Central, autonómico y local",
     "Legislativo, judicial y económico",
+    "Central, autonómico y local",
     "Ejecutivo, administrativo y constituyente"
   ],
-  "indice_correcto": 0
+  "indice_correcto": 1
 }

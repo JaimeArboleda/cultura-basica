@@ -14,12 +14,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Infinitos",
-    "Un número finito, aunque todavía no se conoce su valor exacto",
-    "Exactamente los mismos que números compuestos",
     "Finitos, porque a partir de cierto valor todos los números son compuestos",
+    "Infinitos",
+    "Se desconoce: sigue siendo un problema abierto de las matemáticas",
+    "Exactamente los mismos que números compuestos",
     "Infinitos, pero solo si se admite el 1 como número primo",
-    "Se desconoce: sigue siendo un problema abierto de las matemáticas"
+    "Un número finito, aunque todavía no se conoce su valor exacto"
   ],
-  "indice_correcto": 0
+  "indice_correcto": 1
 }

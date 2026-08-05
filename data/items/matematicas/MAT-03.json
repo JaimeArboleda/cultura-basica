@@ -14,11 +14,11 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Todos por igual",
     "2",
+    "Todos por igual",
     "12",
-    "5",
     "6",
+    "5",
     "7"
   ],
   "indice_correcto": 5

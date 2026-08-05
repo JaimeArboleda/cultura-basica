@@ -14,12 +14,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "Un solo Dios en tres personas",
-    "Los tres reyes que gobernaron Israel tras el rey David",
     "El conjunto de los tres primeros evangelistas del Nuevo Testamento",
     "Los tres sacramentos más importantes de la Iglesia",
-    "Las tres religiones de Jerusalén",
-    "Las tres naturalezas de Jesús: cuerpo, alma y espíritu"
+    "Un solo Dios en tres personas",
+    "Las tres naturalezas de Jesús: cuerpo, alma y espíritu",
+    "Los tres reyes que gobernaron Israel tras el rey David",
+    "Las tres religiones de Jerusalén"
   ],
-  "indice_correcto": 0
+  "indice_correcto": 2
 }
