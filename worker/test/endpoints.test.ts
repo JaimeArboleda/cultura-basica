@@ -1,34 +1,16 @@
 import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { bancoItems } from "../src/items";
-import {
-  AREA_ESTUDIOS,
-  CCAA,
-  CONSUMO_INFORMATIVOS,
-  FRECUENCIA_LECTURA,
-  HORAS_REDES_DIA,
-  LIBROS_EN_CASA,
-  NIVEL_ESTUDIOS,
-  PROFESION,
-  SEXO,
-} from "../src/tipos";
+import { AREA_ESTUDIOS, CCAA, LIBROS_EN_CASA, NIVEL_ESTUDIOS } from "../src/tipos";
 
 function demografiaValida() {
   return {
     anio_nacimiento: 1990,
-    sexo: SEXO[0],
-    pais_nacimiento: "España",
-    ccaa_nacimiento: CCAA[0],
-    ccaa_residencia: CCAA[0],
+    ccaa_educacion_secundaria: CCAA[0],
     nivel_estudios: NIVEL_ESTUDIOS[4],
     area_estudios: AREA_ESTUDIOS[2],
-    profesion: PROFESION[1],
-    estudios_padre: NIVEL_ESTUDIOS[3],
-    estudios_madre: NIVEL_ESTUDIOS[3],
+    estudios_mayor_progenitor: NIVEL_ESTUDIOS[3],
     libros_en_casa: LIBROS_EN_CASA[2],
-    frecuencia_lectura: FRECUENCIA_LECTURA[3],
-    consumo_informativos: CONSUMO_INFORMATIVOS[2],
-    horas_redes_dia: HORAS_REDES_DIA[1],
   };
 }
 
@@ -79,7 +61,7 @@ describe("POST /api/sesion", () => {
       consentimiento: true,
       compromiso_honestidad: true,
       user_agent_clase: "escritorio",
-      demografia: { ...demografiaValida(), sexo: "invalido" },
+      demografia: { ...demografiaValida(), nivel_estudios: "invalido" },
     });
     expect(res.status).toBe(400);
   });

@@ -2,6 +2,7 @@ import {
   contarRespuestas,
   marcarCompleto,
   obtenerAsignacion,
+  obtenerAsignaciones,
   obtenerSesion,
   upsertRespuesta,
 } from "../db";
@@ -30,8 +31,6 @@ function corregir(item: Item, respuesta: unknown): ResultadoCorreccion | null {
         : null;
   }
 }
-
-const TOTAL_ITEMS = 36;
 
 export async function postRespuesta(request: Request, env: Env): Promise<Response> {
   let body: unknown;
@@ -79,9 +78,12 @@ export async function postRespuesta(request: Request, env: Env): Promise<Respons
     enviadaEn: new Date().toISOString(),
   });
 
-  const totalRespondidas = await contarRespuestas(env, sesionId);
-  if (totalRespondidas >= TOTAL_ITEMS && sesion.completo === 0) {
-    await marcarCompleto(env, sesionId);
+  if (sesion.completo === 0) {
+    const totalAsignados = (await obtenerAsignaciones(env, sesionId)).length;
+    const totalRespondidas = await contarRespuestas(env, sesionId);
+    if (totalRespondidas >= totalAsignados) {
+      await marcarCompleto(env, sesionId);
+    }
   }
 
   return json(env, resultado);

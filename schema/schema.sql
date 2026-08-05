@@ -10,19 +10,11 @@ CREATE TABLE sesiones (
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
   -- demografía
   anio_nacimiento   INTEGER,
-  sexo              TEXT,
-  pais_nacimiento   TEXT,
-  ccaa_nacimiento   TEXT,
-  ccaa_residencia   TEXT,
+  ccaa_educacion_secundaria TEXT,
   nivel_estudios    TEXT,
   area_estudios     TEXT,
-  profesion         TEXT,
-  estudios_padre    TEXT,
-  estudios_madre    TEXT,
-  libros_en_casa    TEXT,
-  frecuencia_lectura TEXT,
-  consumo_informativos TEXT,
-  horas_redes_dia   TEXT
+  estudios_mayor_progenitor TEXT,
+  libros_en_casa    TEXT
 );
 
 CREATE TABLE respuestas (

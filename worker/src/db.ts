@@ -26,28 +26,19 @@ export async function crearSesion(
   const insertSesion = env.DB.prepare(
     `INSERT INTO sesiones (
        id, creada_en, consentimiento, compromiso_honestidad, user_agent_clase,
-       anio_nacimiento, sexo, pais_nacimiento, ccaa_nacimiento, ccaa_residencia,
-       nivel_estudios, area_estudios, profesion, estudios_padre, estudios_madre,
-       libros_en_casa, frecuencia_lectura, consumo_informativos, horas_redes_dia
-     ) VALUES (?,?,1,1,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?)`
+       anio_nacimiento, ccaa_educacion_secundaria,
+       nivel_estudios, area_estudios, estudios_mayor_progenitor, libros_en_casa
+     ) VALUES (?,?,1,1,?, ?,?, ?,?,?,?)`
   ).bind(
     id,
     creadaEn,
     userAgentClase,
     d.anio_nacimiento,
-    d.sexo,
-    d.pais_nacimiento,
-    d.ccaa_nacimiento,
-    d.ccaa_residencia,
+    d.ccaa_educacion_secundaria,
     d.nivel_estudios,
     d.area_estudios,
-    d.profesion,
-    d.estudios_padre,
-    d.estudios_madre,
-    d.libros_en_casa,
-    d.frecuencia_lectura,
-    d.consumo_informativos,
-    d.horas_redes_dia
+    d.estudios_mayor_progenitor,
+    d.libros_en_casa
   );
 
   const insertsItems = asignaciones.map((a) =>

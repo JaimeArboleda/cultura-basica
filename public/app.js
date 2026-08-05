@@ -175,8 +175,27 @@ async function onTestCompleto(sesionId) {
   mostrarSegunEstado(sesionId, resultado);
 }
 
-function mostrarSegunEstado(sesionId, resultado) {
+function mostrarSegunEstado(sesionId, resultado, intento = 0) {
   if (resultado.estado === "en_progreso") {
+    if (resultado.items_pendientes.length === 0) {
+      // El servidor aún no ha marcado la sesión como completa (posible pequeño
+      // retraso de consistencia tras la última respuesta). Reintentamos con
+      // espera en vez de entrar en un bucle inmediato que deja la pantalla
+      // colgada en "Calculando resultado…".
+      if (intento >= 10) {
+        pantallaError("No se ha podido calcular el resultado. Vuelve a intentarlo en unos segundos.");
+        return;
+      }
+      setTimeout(async () => {
+        try {
+          const siguiente = await api.obtenerResultado(sesionId);
+          mostrarSegunEstado(sesionId, siguiente, intento + 1);
+        } catch (e) {
+          pantallaError(e.message);
+        }
+      }, 500);
+      return;
+    }
     ejecutarTest(sesionId, resultado.items_pendientes);
     return;
   }

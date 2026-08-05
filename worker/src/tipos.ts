@@ -51,20 +51,8 @@ export interface Env {
 // --- Catálogos demográficos cerrados (README §2) ---
 //
 // El README fija las categorías de nivel_estudios, area_estudios y libros_en_casa
-// (deben ser compatibles con INE/CINE/PISA) y exige que ccaa_* sean las 19
-// comunidades/ciudades autónomas. Para profesion fija "CNO-11 a 1 dígito" (9 grandes
-// grupos + estudiante/desempleado/jubilado). Para frecuencia_lectura,
-// consumo_informativos y horas_redes_dia el README solo dice "Cerrado" sin enumerar
-// las opciones: se fijan aquí catálogos concretos y razonables, documentados como tal
-// para que se puedan ajustar sin tocar el resto del código.
-//
-// pais_nacimiento es "Cerrado + otros" (README): en vez de mantener un listado ISO de
-// países que inevitablemente quedaría incompleto o desincronizado, se valida solo como
-// texto no vacío (el front-end ofrece un <select> con los países más frecuentes en la
-// muestra esperada + opción "Otro" de texto libre); el Worker no impone una lista
-// cerrada aquí a propósito.
-
-export const SEXO = ["Hombre", "Mujer", "Otro", "Prefiero no decirlo"] as const;
+// (deben ser compatibles con INE/CINE/PISA) y exige que ccaa_educacion_secundaria sea
+// una de las 19 comunidades/ciudades autónomas (el estudio se limita a España).
 
 export const CCAA = [
   "Andalucía",
@@ -109,53 +97,13 @@ export const AREA_ESTUDIOS = [
   "No aplica",
 ] as const;
 
-export const PROFESION = [
-  "Directores y gerentes",
-  "Técnicos y profesionales científicos e intelectuales",
-  "Técnicos y profesionales de apoyo",
-  "Empleados contables, administrativos y otros empleados de oficina",
-  "Trabajadores de los servicios de restauración, personales, protección y vendedores",
-  "Trabajadores cualificados en el sector agrícola, ganadero, forestal y pesquero",
-  "Artesanos y trabajadores cualificados de las industrias manufactureras y la construcción",
-  "Operadores de instalaciones y maquinaria, y montadores",
-  "Ocupaciones elementales",
-  "Estudiante",
-  "Desempleado/a",
-  "Jubilado/a",
-] as const;
-
 export const LIBROS_EN_CASA = ["0-10", "11-25", "26-100", "101-200", "+200"] as const;
-
-export const FRECUENCIA_LECTURA = [
-  "Nunca",
-  "Rara vez",
-  "Algunas veces al mes",
-  "Varias veces por semana",
-  "A diario",
-] as const;
-
-export const CONSUMO_INFORMATIVOS = [
-  "Nunca",
-  "Rara vez",
-  "Varias veces por semana",
-  "A diario",
-] as const;
-
-export const HORAS_REDES_DIA = ["0", "Menos de 1", "1-2", "2-4", "Más de 4"] as const;
 
 export interface Demografia {
   anio_nacimiento: number;
-  sexo: (typeof SEXO)[number];
-  pais_nacimiento: string;
-  ccaa_nacimiento: (typeof CCAA)[number] | null;
-  ccaa_residencia: (typeof CCAA)[number];
+  ccaa_educacion_secundaria: (typeof CCAA)[number];
   nivel_estudios: (typeof NIVEL_ESTUDIOS)[number];
   area_estudios: (typeof AREA_ESTUDIOS)[number];
-  profesion: (typeof PROFESION)[number];
-  estudios_padre: (typeof NIVEL_ESTUDIOS)[number];
-  estudios_madre: (typeof NIVEL_ESTUDIOS)[number];
+  estudios_mayor_progenitor: (typeof NIVEL_ESTUDIOS)[number];
   libros_en_casa: (typeof LIBROS_EN_CASA)[number];
-  frecuencia_lectura: (typeof FRECUENCIA_LECTURA)[number];
-  consumo_informativos: (typeof CONSUMO_INFORMATIVOS)[number];
-  horas_redes_dia: (typeof HORAS_REDES_DIA)[number];
 }

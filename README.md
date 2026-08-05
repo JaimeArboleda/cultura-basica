@@ -1,7 +1,7 @@
 # Test de Cultura General — Estudio sobre la transmisión de la cultura básica occidental
 
 Estudio observacional sobre el nivel de cultura general básica en la población española, 
-segmentado por edad, sexo, nivel de estudios y profesión.
+segmentado por edad, nivel de estudios y área de estudios.
 
 **Pregunta de investigación principal:** ¿en qué medida se ha dejado de transmitir el 
 canon cultural occidental con las sucesivas reformas educativas? 
@@ -185,19 +185,11 @@ las del INE** para permitir post-estratificación.
 | Campo | Tipo | Notas |
 |---|---|---|
 | `anio_nacimiento` | Entero | **No pedir "edad".** Permite separar edad de cohorte. |
-| `sexo` | Cerrado | Hombre / Mujer / Otro / Prefiero no decirlo |
-| `pais_nacimiento` | Cerrado + otros | Imprescindible: la inmigración distorsiona todo lo canónico |
-| `ccaa_nacimiento` | Cerrado (19) | Solo si nació en España |
-| `ccaa_residencia` | Cerrado (19) | Puede diferir de la anterior |
+| `ccaa_educacion_secundaria` | Cerrado (19) | Comunidad/ciudad autónoma donde se cursó la educación secundaria. El estudio se limita a España. |
 | `nivel_estudios` | Cerrado | **Categorías CINE/ISCED del INE**: sin estudios / primaria / ESO / bachillerato / FP grado medio / FP grado superior / grado o licenciatura / máster / doctorado |
 | `area_estudios` | Cerrado (~6) | Artes y humanidades / Ciencias sociales y jurídicas / Ciencias / Ingeniería y arquitectura / Ciencias de la salud / No aplica. **No texto libre.** |
-| `profesion` | Cerrado (~10) | **CNO-11 a 1 dígito** (9 grandes grupos + estudiante/desempleado/jubilado). Texto libre condenaría a codificar miles de respuestas a mano. |
-| `estudios_padre` | Cerrado | Mismas categorías que `nivel_estudios` |
-| `estudios_madre` | Cerrado | Ídem |
+| `estudios_mayor_progenitor` | Cerrado | Mayor nivel de estudios entre padre y madre; mismas categorías que `nivel_estudios` |
 | `libros_en_casa` | Cerrado (5) | Nº aproximado de libros en casa a los 15 años (0-10 / 11-25 / 26-100 / 101-200 / +200). **Indicador estándar de PISA**, muy predictivo y bien recordado. |
-| `frecuencia_lectura` | Cerrado | |
-| `consumo_informativos` | Cerrado | |
-| `horas_redes_dia` | Cerrado | |
 
 ---
 
@@ -266,19 +258,11 @@ CREATE TABLE sesiones (
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
   -- demografía
   anio_nacimiento   INTEGER,
-  sexo              TEXT,
-  pais_nacimiento   TEXT,
-  ccaa_nacimiento   TEXT,
-  ccaa_residencia   TEXT,
+  ccaa_educacion_secundaria TEXT,
   nivel_estudios    TEXT,
   area_estudios     TEXT,
-  profesion         TEXT,
-  estudios_padre    TEXT,
-  estudios_madre    TEXT,
-  libros_en_casa    TEXT,
-  frecuencia_lectura TEXT,
-  consumo_informativos TEXT,
-  horas_redes_dia   TEXT
+  estudios_mayor_progenitor TEXT,
+  libros_en_casa    TEXT
 );
 
 CREATE TABLE respuestas (
@@ -600,7 +584,7 @@ cuestionarios online son un subconjunto muy atípico de su cohorte.
 1. **Honestidad + análisis relativo.** No reportar medias absolutas ("los españoles
    sacan un 6,2") sino **comparaciones internas condicionadas**: diferencias por edad
    *dentro del mismo nivel educativo*. Mucho más defendible y sigue siendo interesante.
-2. **Post-estratificación.** Ponderar (raking / MRP) contra los marginales de edad, sexo,
+2. **Post-estratificación.** Ponderar (raking / MRP) contra los marginales de edad,
    nivel de estudios y CCAA del padrón y la EPA. No corrige el sesgo de selección dentro
    de cada celda, pero sí el grosero. **Esto exige que las categorías demográficas sean
    compatibles con el INE desde el primer día — es la decisión que no se puede corregir
@@ -615,7 +599,7 @@ cuestionarios online son un subconjunto muy atípico de su cohorte.
   distintos, que es exactamente lo que requiere el muestreo aleatorizado. Usar **3PL**
   si se calibran juntos abiertos y opción múltiple, para absorber el pseudo-azar.
 - **Fiabilidad:** alfa de Cronbach por bloque.
-- **DIF (funcionamiento diferencial del ítem)** por sexo y por cohorte: si un ítem
+- **DIF (funcionamiento diferencial del ítem)** por cohorte: si un ítem
   funciona distinto en mayores y jóvenes a igual nivel general, **eso es el efecto
   cohorte hecho visible**, y es material central para el paper.
 - **Análisis de abandono:** quién abandona y en qué posición del test. Es un dato
