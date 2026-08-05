@@ -1,0 +1,26 @@
+{
+  "id": "COM-02",
+  "bloque": "comprension_lectora",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Cuál es la idea principal del texto?",
+  "texto": "Muchas personas creen que el chocolate negro con alto porcentaje de cacao aporta beneficios para la salud cardiovascular, gracias a unos compuestos llamados flavonoides. Sin embargo, los nutricionistas insisten en que estos beneficios solo aparecen con un consumo moderado: unos pocos gramos al día.\n\nEl problema es que buena parte del chocolate que se vende comercialmente contiene también grandes cantidades de azúcar y grasa, lo que anula cualquier ventaja si se consume en exceso. Por eso, el chocolate con mayor porcentaje de cacao y menos azúcar añadido es preferible al chocolate con leche.",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "El chocolate negro puede tener beneficios para la salud, pero solo si se consume con moderación y con poco azúcar añadido",
+    "El chocolate es perjudicial para la salud en cualquier cantidad",
+    "Todo el chocolate comercial contiene flavonoides beneficiosos",
+    "El chocolate con leche es más sano que el chocolate negro",
+    "Los nutricionistas recomiendan comer chocolate a diario sin límite",
+    "Los flavonoides solo se encuentran en el chocolate con leche"
+  ],
+  "indice_correcto": 0
+}

@@ -1,0 +1,26 @@
+{
+  "id": "CMP-04",
+  "bloque": "competencias_basicas",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "Una camiseta cuesta 20 € sin impuestos. Si se le añade un IVA del 21%, ¿cuánto se paga en total?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "24,20 €",
+  "alias": [
+    "24,20",
+    "24,20€",
+    "24,20 €",
+    "24.20",
+    "24.2",
+    "24,2"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 0,
+  "opciones": null,
+  "indice_correcto": null
+}

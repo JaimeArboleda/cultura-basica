@@ -1,0 +1,26 @@
+{
+  "id": "CMP-06",
+  "bloque": "competencias_basicas",
+  "dificultad": "medio",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "En una factura de la luz aparecen estos conceptos antes de impuestos: consumo 45 €, término de potencia 12 €, alquiler de equipo 1,50 € e impuesto eléctrico 4,50 €. Sobre esa suma se aplica un IVA del 21%. ¿Cuál es el importe total a pagar?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "76,23 €",
+    "63,00 €",
+    "84,00 €",
+    "58,50 €",
+    "67,50 €",
+    "70,73 €"
+  ],
+  "indice_correcto": 0
+}

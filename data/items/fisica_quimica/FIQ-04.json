@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué gas es el principal responsable del efecto invernadero de origen humano?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

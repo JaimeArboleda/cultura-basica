@@ -30,6 +30,10 @@ for (const it of items) {
     err(`${ctx} formato inválido: ${it.formato}`);
   }
 
+  if (it.texto != null && (typeof it.texto !== "string" || it.texto.trim() === "")) {
+    err(`${ctx} texto debe ser una cadena no vacía si está presente`);
+  }
+
   if (it.formato === "opcion_multiple") {
     if (!Array.isArray(it.opciones) || it.opciones.length !== 6) {
       err(`${ctx} opcion_multiple debe tener exactamente 6 opciones`);
@@ -138,7 +142,7 @@ for (const it of items) {
   }
 }
 
-// --- Checks por bloque (solo si el bloque ya tiene 10 ítems) ---
+// --- Checks por bloque (solo si el bloque ya tiene 12 ítems) ---
 const porBloque = new Map();
 for (const it of items) {
   if (!porBloque.has(it.bloque)) porBloque.set(it.bloque, []);
@@ -169,16 +173,19 @@ for (const [bloque, its] of porBloque) {
 }
 
 // --- Checks globales (solo si el banco está completo) ---
-if (items.length === 120) {
-  if (porBloque.size !== 10) {
-    err(`Se esperaban 10 bloques, hay ${porBloque.size}`);
+const TOTAL_BLOQUES = 13;
+const TOTAL_ITEMS = TOTAL_BLOQUES * 12; // 156
+
+if (items.length === TOTAL_ITEMS) {
+  if (porBloque.size !== TOTAL_BLOQUES) {
+    err(`Se esperaban ${TOTAL_BLOQUES} bloques, hay ${porBloque.size}`);
   }
   const abiertosGlobal = items.filter((i) => i.formato === "abierto").length;
-  if (abiertosGlobal > 48) {
+  if (abiertosGlobal > TOTAL_ITEMS * 0.4) {
     err(`Ítems abiertos globales (${abiertosGlobal}) supera el máximo del 40% (§1.5)`);
   }
 } else {
-  warn(`Banco incompleto: ${items.length}/120 ítems`);
+  warn(`Banco incompleto: ${items.length}/${TOTAL_ITEMS} ítems`);
 }
 
 for (const a of avisos) console.warn("AVISO:", a);

@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "Si tiras dos dados y sumas las puntuaciones, ¿cuál es el valor más probable?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

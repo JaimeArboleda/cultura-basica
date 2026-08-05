@@ -1,0 +1,23 @@
+{
+  "id": "COM-01",
+  "bloque": "comprension_lectora",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "Según el texto, ¿quién de los tres astronautas no llegó a pisar la superficie de la Luna?",
+  "texto": "En 1969, la misión Apolo 11 de la NASA logró que el ser humano pisara la Luna por primera vez. El módulo de mando, llamado Columbia, permaneció en órbita lunar mientras el módulo lunar Eagle descendía a la superficie con dos de los tres astronautas a bordo.\n\nNeil Armstrong fue el primero en poner el pie en el suelo lunar, seguido minutos después por Buzz Aldrin. El tercer astronauta, Michael Collins, se quedó pilotando el módulo de mando en órbita y no llegó a caminar sobre la Luna.",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "Michael Collins",
+  "alias": [
+    "michael collins",
+    "collins",
+    "michael"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

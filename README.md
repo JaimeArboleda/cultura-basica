@@ -23,7 +23,9 @@ El test mide **cultura clásica / canon occidental** de forma deliberada. La aus
 El objetivo declarado es medir la existencia de analfabetismo funcional, razón por la que el test es fácil a propósito. 
 
 
-### 1.2 Bloques temáticos (10)
+### 1.2 Bloques temáticos (13)
+
+**Bloques de cultura clásica / canon (10):**
 
 1. Filosofía
 2. Historia
@@ -36,14 +38,33 @@ El objetivo declarado es medir la existencia de analfabetismo funcional, razón 
 9. Arte
 10. Religión
 
-**12 ítems/preguntas por bloque = 120 ítems en el banco.**
-
 Dentro de los bloques anteriores se incluyen también, en el hueco que mejor
 encaja temáticamente, algunos ítems de disciplinas que de otro modo quedarían
 sin ningún ítem propio: **Derecho** (en Economía y Política), **Psicología**
 (en Filosofía), **Medicina** (en Biología y Geología) y **Tecnología** (en
 Física y Química). No constituyen bloques nuevos ni cambian el reparto por
 bloque; son ítems más dentro del bloque que mejor los acoge.
+
+**Bloques de habilidades transversales (3):**
+
+11. **Razonamiento** — lógica, sentido común, detección de falacias argumentales,
+    inferencia, sesgos de razonamiento habituales (falacia del jugador, tasa base,
+    correlación/causalidad). No mide conocimiento memorizado, sino la capacidad de
+    razonar correctamente con la información dada.
+12. **Comprensión lectora** — un texto de 2-3 párrafos (campo `texto`, ver §4.2) seguido
+    de una pregunta que exige haber entendido el texto (idea principal, inferencia,
+    detalle, propósito del autor), no conocimiento externo sobre el tema del texto.
+13. **Competencias básicas** — el equivalente funcional de la cultura general para la
+    vida cotidiana: aritmética de descuentos y porcentajes, lectura de una factura o
+    una etiqueta, interés simple, proporciones, unidades. Su ausencia genera problemas
+    prácticos concretos (ejemplo canónico: no saber que un 50% de descuento es mejor
+    que un "3x2").
+
+Estos 3 bloques se tratan exactamente igual que los 10 de canon a efectos de
+estructura del ítem, dificultad, formato y sorteo (§1.3-§1.5, §4.2); la única
+diferencia es de contenido, no de mecánica del test.
+
+**12 ítems/preguntas por bloque × 13 bloques = 156 ítems en el banco.**
 
 ### 1.3 Niveles de dificultad
 
@@ -66,17 +87,17 @@ redacta un test estima mal la dificultad de sus propios ítems. Tras el piloto s
 
 ### 1.4 Modo corto y modo completo
 
-**Todo el mundo hace primero el modo corto de 30 ítems.** Al terminar, se muestra el
-resultado y se ofrece continuar con los 90 restantes.
+**Todo el mundo hace primero el modo corto de 39 ítems.** Al terminar, se muestra el
+resultado y se ofrece continuar con los 117 restantes.
 
-> **No se ofrece la elección al principio.** Si el usuario elige entre "30" y "120" al
+> **No se ofrece la elección al principio.** Si el usuario elige entre "39" y "156" al
 > entrar, la elección está correlacionada con conocimiento y motivación, y las dos
 > submuestras dejan de ser comparables. Ofrecer la continuación *después* de terminar los
-> 30 resuelve esto: se obtienen datos del núcleo de todos los participantes, sube la tasa
+> 39 resuelve esto: se obtienen datos del núcleo de todos los participantes, sube la tasa
 > de entrada, y la decisión de continuar se convierte en un **dato observado** en lugar de
 > un sesgo invisible.
 
-**Composición del modo corto (30 ítems, 3 por bloque):**
+**Composición del modo corto (39 ítems, 3 por bloque):**
 
 | Por cada bloque | Cantidad | Selección |
 |---|---|---|
@@ -84,8 +105,8 @@ resultado y se ofrece continuar con los 90 restantes.
 | Ítem de dificultad **fácil** | 1 | Aleatorio |
 | Ítem de dificultad **difícil** | 1 | Aleatorio |
 
-Los **10 ítems fijos son el conjunto de anclaje**: permiten poner en la misma escala a
-quien contestó 30 y a quien contestó 100. Se eligen de dificultad **media** a propósito:
+Los **13 ítems fijos son el conjunto de anclaje**: permiten poner en la misma escala a
+quien contestó 39 y a quien contestó 156. Se eligen de dificultad **media** a propósito:
 un ítem que acierta el 95% no ancla nada porque no discrimina en el rango donde está
 casi toda la muestra.
 
@@ -265,9 +286,9 @@ CREATE TABLE sesiones (
   actualizada_en    TEXT,
   consentimiento    INTEGER NOT NULL,        -- 0/1
   compromiso_honestidad INTEGER NOT NULL,
-  completo_corto    INTEGER DEFAULT 0,       -- terminó los 30
+  completo_corto    INTEGER DEFAULT 0,       -- terminó los 39
   acepto_extension  INTEGER,                 -- NULL si no llegó a la oferta
-  completo_largo    INTEGER DEFAULT 0,       -- terminó los 120 (30 + 90)
+  completo_largo    INTEGER DEFAULT 0,       -- terminó los 156 (39 + 117)
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
   -- demografía
   anio_nacimiento   INTEGER,
@@ -338,9 +359,10 @@ CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
     "id": "HIS-01",
     "bloque": "historia",
     "dificultad": "facil",          // facil | medio | dificil
-    "ancla": false,                  // true en los 10 ítems fijos (uno por bloque, medio)
+    "ancla": false,                  // true en los 13 ítems fijos (uno por bloque, medio)
     "formato": "abierto",            // abierto | opcion_multiple | ordenar | clasificar
     "enunciado": "¿En qué año llegó Cristóbal Colón a América?",
+    "texto": null,                   // opcional: pasaje de 2-3 párrafos (bloque comprensión lectora, ver más abajo)
     "respuesta_canonica": "1492",
     "alias": ["1492", "año 1492", "1.492"],
     "alias_parcial": null,           // opcional: respuestas de conocimiento parcial (§1.6)
@@ -399,9 +421,32 @@ CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
     "alias": null,
     "opciones": null,
     "indice_correcto": null
+  },
+  {
+    "id": "COM-01",
+    "bloque": "comprension_lectora",
+    "dificultad": "facil",
+    "ancla": false,
+    "formato": "opcion_multiple",
+    "enunciado": "¿Cuál es la idea principal del texto?",
+    "texto": "Primer párrafo del pasaje…\n\nSegundo párrafo del pasaje…",
+    "opciones": ["…", "…", "…", "…", "…", "…"],
+    "indice_correcto": 0,
+    "respuesta_canonica": null,
+    "alias": null
   }
 ]
 ```
+
+El campo **`texto`** (opcional, `null` salvo que se indique lo contrario) es el pasaje
+que precede a la pregunta. Solo se usa en el bloque `comprension_lectora`, donde es
+obligatorio en los 12 ítems; en el resto de bloques va siempre a `null`. Se admite
+`\n\n` para separar párrafos; el front-end lo muestra en un bloque de texto aparte,
+antes del enunciado (`item.texto`, ver `worker/src/tipos.ts` e `ItemPublico`). Nunca
+cuenta para el límite de ítems `abierto` ni cambia la mecánica de corrección: el
+formato del ítem (`opcion_multiple` casi siempre, dado que la respuesta depende de un
+texto concreto y no admite alias razonables en `abierto`) se corrige igual que
+cualquier otro ítem de ese formato.
 
 Para `ordenar`, `elementos` es el orden **de presentación** (ya desordenado a mano al
 redactar el ítem, fijo para todos los usuarios — igual que la posición de
@@ -419,8 +464,10 @@ fijo), `elementos` es la bandeja de fichas a repartir (orden de presentación fi
 acierto.
 
 **Invariantes que el código debe validar al arrancar:**
-- Exactamente 10 bloques × 12 ítems.
+- Exactamente 13 bloques × 12 ítems.
 - Exactamente 1 ítem con `ancla: true` por bloque, y su `dificultad` debe ser `medio`.
+- `texto`, si está presente, es una cadena no vacía. Solo se espera en el bloque
+  `comprension_lectora`.
 - Todo ítem `opcion_multiple` tiene exactamente 6 opciones e `indice_correcto` válido.
 - Todo ítem `abierto` tiene `respuesta_canonica`, al menos un alias y
   `tolerancia_edicion` (distancia de Levenshtein admitida). `alias_parcial`, si existe,
@@ -441,7 +488,7 @@ acierto.
 ```
 POST /api/sesion            → crea sesión, devuelve id + set de ítems sorteado
 POST /api/respuesta         → guarda una respuesta (idempotente por sesion_id+item_id)
-POST /api/extender          → registra aceptación/rechazo y devuelve los 90 restantes
+POST /api/extender          → registra aceptación/rechazo y devuelve los 117 restantes
 GET  /api/resultado/:id     → devuelve el resultado de esa sesión
 GET  /api/export?token=…    → volcado CSV/JSON (protegido con secreto en env)
 ```
@@ -596,7 +643,7 @@ enunciados ni respuestas hardcodeadas.
 ## 6. Fases del proyecto
 
 ### Fase 1 — Banco de ítems
-Redactar los 120 ítems con: bloque, dificultad a priori, formato, enunciado,
+Redactar los 156 ítems con: bloque, dificultad a priori, formato, enunciado,
 respuesta canónica + alias (abiertos) o 6 opciones con distractores plausibles.
 Empezar por Filosofía e Historia y validar el estilo antes de continuar.
 
@@ -612,7 +659,7 @@ Objetivos:
 - Medir tiempo real de cumplimentación y tasa de abandono por posición.
 
 ### Fase 4 — Lanzamiento
-Objetivo: **≥300-400 sesiones**. Con 10 bloques × 3 niveles y sorteo aleatorio, cada
+Objetivo: **≥300-400 sesiones**. Con 13 bloques × 3 niveles y sorteo aleatorio, cada
 ítem no fijo aparece en ~1/4 de las sesiones del modo corto; se necesitan ≥100 respuestas
 por ítem para calibrarlo.
 
@@ -653,7 +700,7 @@ cuestionarios online son un subconjunto muy atípico de su cohorte.
   funciona distinto en mayores y jóvenes a igual nivel general, **eso es el efecto
   cohorte hecho visible**, y es material central para el paper.
 - **Análisis de abandono:** quién abandona, en qué posición, y quién acepta la extensión
-  a 120 ítems. Es un dato observado, no ruido.
+  a 156 ítems. Es un dato observado, no ruido.
 
 ---
 
@@ -661,7 +708,7 @@ cuestionarios online son un subconjunto muy atípico de su cohorte.
 
 - `data/items.json` es la **fuente de verdad**. El front-end no debe contener enunciados
   ni respuestas hardcodeadas.
-- Escribir el validador de invariantes (§4.2) como test que corre en CI. Con 120 ítems
+- Escribir el validador de invariantes (§4.2) como test que corre en CI. Con 156 ítems
   redactados a mano, los errores de estructura son inevitables.
 - La corrección de respuestas abiertas debe vivir en el Worker y ser **testeable de forma
   aislada**, con una batería de casos por ítem (variantes con y sin acentos, erratas,

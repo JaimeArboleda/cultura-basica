@@ -52,10 +52,10 @@ async function crearSesionDeTest() {
 }
 
 describe("POST /api/sesion", () => {
-  it("crea una sesión y devuelve 30 ítems sin respuestas correctas", async () => {
+  it("crea una sesión y devuelve 39 ítems sin respuestas correctas", async () => {
     const { sesion_id, items } = await crearSesionDeTest();
     expect(sesion_id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(items.length).toBe(30);
+    expect(items.length).toBe(39);
     for (const item of items) {
       expect(item).not.toHaveProperty("respuesta_canonica");
       expect(item).not.toHaveProperty("indice_correcto");
@@ -202,17 +202,17 @@ describe("POST /api/extender", () => {
     expect((await res.json())).toEqual({ items: [] });
   });
 
-  it("acepta=true crea exactamente 90 ítems y es idempotente ante llamadas repetidas", async () => {
+  it("acepta=true crea exactamente 117 ítems y es idempotente ante llamadas repetidas", async () => {
     const { sesion_id, items } = await crearSesionDeTest();
     await completarModoCorto(sesion_id, items);
 
     const res1 = await postJson("/api/extender", { sesion_id, acepta: true });
     const body1 = (await res1.json()) as { items: unknown[] };
-    expect(body1.items.length).toBe(90);
+    expect(body1.items.length).toBe(117);
 
     const res2 = await postJson("/api/extender", { sesion_id, acepta: true });
     const body2 = (await res2.json()) as { items: { id: string }[] };
-    expect(body2.items.length).toBe(90);
+    expect(body2.items.length).toBe(117);
     expect(body2.items.map((i) => i.id)).toEqual(
       (body1.items as { id: string }[]).map((i) => i.id)
     );
@@ -230,7 +230,7 @@ describe("GET /api/resultado/:id", () => {
     const res = await SELF.fetch(`http://worker.test/api/resultado/${sesion_id}`);
     const body = (await res.json()) as { estado: string; items_pendientes: unknown[] };
     expect(body.estado).toBe("en_progreso");
-    expect(body.items_pendientes.length).toBe(30);
+    expect(body.items_pendientes.length).toBe(39);
   });
 });
 

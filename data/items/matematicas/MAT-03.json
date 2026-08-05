@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué dice el teorema de Pitágoras?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

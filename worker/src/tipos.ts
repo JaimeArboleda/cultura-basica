@@ -13,6 +13,7 @@ export interface Item {
   ancla: boolean;
   formato: Formato;
   enunciado: string;
+  texto: string | null;
   respuesta_canonica: string | null;
   alias: string[] | null;
   alias_parcial: string[] | null;
@@ -32,6 +33,7 @@ export interface ItemPublico {
   bloque: string;
   formato: Formato;
   enunciado: string;
+  texto: string | null;
   opciones: string[] | null;
   elementos: string[] | null;
   categorias: string[] | null;

@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Quién escribió la primera gramática de la lengua castellana, publicada en 1492?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

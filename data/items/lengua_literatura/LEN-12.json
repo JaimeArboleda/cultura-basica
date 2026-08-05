@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "ordenar",
   "enunciado": "Ordena estos libros de más antiguo a más moderno:",
+  "texto": null,
   "elementos": [
     "Fausto",
     "La Ilíada",

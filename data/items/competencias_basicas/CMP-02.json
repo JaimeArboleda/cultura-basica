@@ -1,0 +1,24 @@
+{
+  "id": "CMP-02",
+  "bloque": "competencias_basicas",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "Un pantalón cuesta 40 € y tiene un descuento del 25%. ¿Cuánto cuesta tras aplicar el descuento?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "30 €",
+  "alias": [
+    "30",
+    "30€",
+    "30 €",
+    "30 euros"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 0,
+  "opciones": null,
+  "indice_correcto": null
+}

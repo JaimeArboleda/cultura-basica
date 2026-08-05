@@ -1,0 +1,26 @@
+{
+  "id": "COM-03",
+  "bloque": "comprension_lectora",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "Según el texto, ¿qué le ocurre al coral durante el blanqueamiento?",
+  "texto": "La Gran Barrera de Coral, situada frente a la costa noreste de Australia, es el mayor sistema de arrecifes de coral del mundo. Se extiende a lo largo de más de 2.300 kilómetros y puede verse incluso desde el espacio.\n\nEn las últimas décadas, el aumento de la temperatura del mar ha provocado episodios repetidos de blanqueamiento del coral, un proceso en el que los corales expulsan las algas que les dan color y alimento, y que puede acabar matándolos si se prolonga demasiado tiempo.",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Expulsa las algas que le dan color y alimento",
+    "Absorbe más algas de las que necesita",
+    "Se vuelve más resistente al calor",
+    "Se traslada a aguas más frías",
+    "Aumenta su producción de oxígeno",
+    "Se reproduce con mayor rapidez"
+  ],
+  "indice_correcto": 0
+}

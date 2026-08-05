@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "Según Epicuro, ¿cuál es el objetivo del hombre?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

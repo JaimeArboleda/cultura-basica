@@ -1,0 +1,19 @@
+{
+  "id": "RAZ-01",
+  "bloque": "razonamiento",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "Si hoy es martes, ¿qué día de la semana será dentro de 3 días?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "Viernes",
+  "alias": ["viernes", "el viernes"],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

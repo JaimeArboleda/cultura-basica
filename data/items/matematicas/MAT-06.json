@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué mide la derivada de una función en un punto?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

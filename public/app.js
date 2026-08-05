@@ -97,11 +97,11 @@ function pantallaDemografia() {
   });
 }
 
-// --- Ejecución de una fase (30 ítems del modo corto, o 90 de la extensión) ---
+// --- Ejecución de una fase (39 ítems del modo corto, o 117 de la extensión) ---
 
 function ejecutarFase(sesionId, fase, itemsPendientes) {
   const cola = [...itemsPendientes];
-  const total = fase === "corto" ? 30 : 90;
+  const total = fase === "corto" ? 39 : 117;
 
   function siguiente() {
     if (cola.length === 0) {
@@ -122,6 +122,7 @@ function renderItemActual(sesionId, item, posicion, total, onSiguiente) {
         <div class="barra-progreso-relleno" style="width:${(posicion / total) * 100}%"></div>
       </div>
       <p class="contador">${posicion} / ${total}</p>
+      ${item.texto ? `<p class="texto-lectura">${escaparHtml(item.texto)}</p>` : ""}
       <h2>${escaparHtml(item.enunciado)}</h2>
       <div id="zona-respuesta">${renderItem.html(item)}</div>
     </section>`);
@@ -217,15 +218,15 @@ function pantallaResultado(resultado, { ofrecerExtension, sesionId, final }) {
   montar(`
     <section class="pantalla">
       <h1>${final ? "Resultado final" : "Resultado del modo corto"}</h1>
-      ${tablaAgregados("Modo corto (30 ítems)", resultado.corto)}
-      ${resultado.extension ? tablaAgregados("Extensión (90 ítems)", resultado.extension) : ""}
+      ${tablaAgregados("Modo corto (39 ítems)", resultado.corto)}
+      ${resultado.extension ? tablaAgregados("Extensión (117 ítems)", resultado.extension) : ""}
       <div id="zona-extension"></div>
     </section>`);
 
   if (ofrecerExtension) {
     const zona = document.getElementById("zona-extension");
     zona.innerHTML = `
-      <p>¿Quieres continuar con los 90 ítems restantes del test completo?</p>
+      <p>¿Quieres continuar con los 117 ítems restantes del test completo?</p>
       <button class="boton-principal" id="boton-si">Sí, continuar</button>
       <button class="boton-secundario" id="boton-no">No, terminar aquí</button>`;
     document.getElementById("boton-si").addEventListener("click", () => aceptarExtension(sesionId, true));

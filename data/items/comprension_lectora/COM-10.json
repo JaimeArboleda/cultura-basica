@@ -1,0 +1,26 @@
+{
+  "id": "COM-10",
+  "bloque": "comprension_lectora",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "A partir de los datos del texto, ¿qué se puede inferir sobre lo ocurrido?",
+  "texto": "El informe policial señalaba que la puerta principal de la vivienda no presentaba signos de forzamiento y que la alarma no se había activado en ningún momento de la noche. Los vecinos afirmaron no haber escuchado ningún ruido extraño. Sin embargo, faltaban varios objetos de valor guardados en un cajón del dormitorio, un lugar que solo conocían los propios dueños y la persona que limpiaba la casa dos veces por semana.\n\nLos dueños de la vivienda insistieron en que no habían invitado a nadie esos días y que la empleada del hogar llevaba con ellos más de ocho años de confianza.",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Es probable que la persona responsable conociera bien la casa y tuviera forma de entrar sin forzar la puerta ni activar la alarma",
+    "Los dueños de la casa mienten sobre lo sucedido",
+    "La alarma estaba estropeada desde hacía tiempo",
+    "Los vecinos participaron en el robo",
+    "No se robó nada de valor en realidad",
+    "El robo ocurrió durante el día, no por la noche"
+  ],
+  "indice_correcto": 0
+}

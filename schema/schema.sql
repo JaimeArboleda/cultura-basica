@@ -6,9 +6,9 @@ CREATE TABLE sesiones (
   actualizada_en    TEXT,
   consentimiento    INTEGER NOT NULL,        -- 0/1
   compromiso_honestidad INTEGER NOT NULL,
-  completo_corto    INTEGER DEFAULT 0,       -- terminó los 30
+  completo_corto    INTEGER DEFAULT 0,       -- terminó los 39
   acepto_extension  INTEGER,                 -- NULL si no llegó a la oferta
-  completo_largo    INTEGER DEFAULT 0,       -- terminó los 120
+  completo_largo    INTEGER DEFAULT 0,       -- terminó los 156
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
   -- demografía
   anio_nacimiento   INTEGER,

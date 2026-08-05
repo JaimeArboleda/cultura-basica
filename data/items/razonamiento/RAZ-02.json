@@ -1,0 +1,19 @@
+{
+  "id": "RAZ-02",
+  "bloque": "razonamiento",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "abierto",
+  "enunciado": "Completa la serie numérica: 3, 6, 9, 12, ¿qué número sigue?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "15",
+  "alias": ["15", "quince"],
+  "alias_parcial": null,
+  "tolerancia_edicion": 0,
+  "opciones": null,
+  "indice_correcto": null
+}

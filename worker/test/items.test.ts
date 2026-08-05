@@ -6,6 +6,7 @@ const CLAVES_PERMITIDAS = new Set([
   "bloque",
   "formato",
   "enunciado",
+  "texto",
   "opciones",
   "elementos",
   "categorias",
@@ -22,8 +23,8 @@ const CLAVES_PROHIBIDAS = [
 ];
 
 describe("banco de ítems", () => {
-  it("carga los 120 ítems desde data/items.json", () => {
-    expect(bancoItems.length).toBe(120);
+  it("carga los 156 ítems desde data/items.json", () => {
+    expect(bancoItems.length).toBe(156);
   });
 
   it("obtenerItem encuentra un ítem real por id", () => {

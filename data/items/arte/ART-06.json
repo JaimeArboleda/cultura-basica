@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué tipo de pintura hacía Jackson Pollock?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

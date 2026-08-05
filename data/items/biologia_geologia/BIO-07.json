@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué es la mitosis?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Cómo se conoce a los teoremas de Gödel?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

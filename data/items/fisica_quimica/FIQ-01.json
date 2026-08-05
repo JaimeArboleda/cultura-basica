@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué se conserva en las reacciones químicas?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

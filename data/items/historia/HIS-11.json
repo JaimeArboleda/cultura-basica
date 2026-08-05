@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿En qué siglo empezó la expansión islámica?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

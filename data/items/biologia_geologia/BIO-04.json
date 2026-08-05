@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué tipo de roca se forma por el enfriamiento y solidificación del magma?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

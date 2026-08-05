@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Cuál es la función de los telómeros en los cromosomas?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿A qué se dedicó Le Corbusier?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Cómo decae la fuerza gravitatoria en función de la distancia?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

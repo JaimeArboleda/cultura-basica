@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué dice la segunda ley de la termodinámica?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

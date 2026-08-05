@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Cómo termina El Quijote?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

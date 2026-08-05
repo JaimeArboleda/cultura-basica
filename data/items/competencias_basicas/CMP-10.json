@@ -1,0 +1,26 @@
+{
+  "id": "CMP-10",
+  "bloque": "competencias_basicas",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "Una tienda anuncia \"financiación a coste cero: 0% de interés\". En la letra pequeña se indica una comisión de apertura del 8% sobre el importe financiado, que se cobra una sola vez al firmar. Si financias 1.000 € en 10 plazos sin intereses, ¿cuánto habrás pagado en total realmente?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "1.080 €",
+    "1.000 €, porque el 0% de interés significa que no se paga nada más",
+    "1.008 €",
+    "1.100 €",
+    "800 €",
+    "1.080 € solo si se paga todo en el primer plazo"
+  ],
+  "indice_correcto": 0
+}

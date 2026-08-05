@@ -1,0 +1,26 @@
+{
+  "id": "RAZ-04",
+  "bloque": "razonamiento",
+  "dificultad": "facil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿En qué consiste la falacia conocida como \"ad hominem\"?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Atacar el carácter de quien argumenta en vez de rebatir su argumento",
+    "Generalizar una conclusión a partir de un solo caso",
+    "Afirmar que algo es cierto porque mucha gente lo cree",
+    "Confundir una coincidencia temporal con una relación de causa y efecto",
+    "Presentar solo dos opciones cuando en realidad hay más posibles",
+    "Apelar al miedo en vez de dar razones"
+  ],
+  "indice_correcto": 0
+}

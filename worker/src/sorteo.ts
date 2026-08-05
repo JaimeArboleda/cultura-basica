@@ -30,9 +30,9 @@ export interface AsignacionItem {
   orden_presentacion: number;
 }
 
-// 30 ítems: por cada uno de los 10 bloques, el ancla (dificultad medio, fijo) + 1
+// 39 ítems: por cada uno de los 13 bloques, el ancla (dificultad medio, fijo) + 1
 // fácil aleatorio + 1 difícil aleatorio (README §1.4). La selección se hace bloque a
-// bloque, pero el orden de presentación se sortea sobre el conjunto completo de los 30,
+// bloque, pero el orden de presentación se sortea sobre el conjunto completo de los 39,
 // para que no queden agrupados por tema.
 export function sortearCorto(banco: Item[], rng: Rng = rngCriptografico): AsignacionItem[] {
   const bloques = [...new Set(banco.map((i) => i.bloque))];
@@ -60,7 +60,7 @@ export function sortearCorto(banco: Item[], rng: Rng = rngCriptografico): Asigna
   return shuffle(seleccionados, rng).map((a, i) => ({ ...a, orden_presentacion: i }));
 }
 
-// Los 90 ítems restantes del banco (todo lo no sorteado en el modo corto), en orden
+// Los 117 ítems restantes del banco (todo lo no sorteado en el modo corto), en orden
 // aleatorio. El README solo define estructura por bloque/dificultad para el modo
 // corto (§1.4); la extensión no tiene esa restricción.
 export function sortearExtension(

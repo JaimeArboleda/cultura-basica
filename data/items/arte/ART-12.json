@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿A qué movimiento artístico perteneció Salvador Dalí?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

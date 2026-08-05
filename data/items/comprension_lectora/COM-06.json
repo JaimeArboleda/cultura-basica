@@ -1,0 +1,26 @@
+{
+  "id": "COM-06",
+  "bloque": "comprension_lectora",
+  "dificultad": "medio",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "En el contexto del texto, ¿qué significa que la decisión fue calificada de \"flagrante contradicción\"?",
+  "texto": "El nuevo alcalde prometió durante la campaña una gestión austera de las cuentas municipales, pero apenas seis meses después de tomar posesión encargó la construcción de una rotonda monumental que costó más de dos millones de euros. Varios concejales de la oposición calificaron la decisión de flagrante contradicción con lo prometido.\n\nEl propio alcalde, sin embargo, defendió la obra como una inversión necesaria para la imagen de la ciudad.",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Que resultaba evidente y notorio que la obra iba en contra de lo prometido en campaña",
+    "Que la obra fue aprobada sin ningún debate en el ayuntamiento",
+    "Que el coste de la rotonda fue mayor de lo previsto inicialmente",
+    "Que la oposición apoyó la construcción de la rotonda",
+    "Que el alcalde negó haber prometido austeridad en algún momento",
+    "Que la rotonda se construyó en un lugar distinto al anunciado"
+  ],
+  "indice_correcto": 0
+}

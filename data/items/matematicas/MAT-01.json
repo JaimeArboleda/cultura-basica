@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Cuántos números primos existen?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué imperio resultó derrotado en la batalla de Lepanto?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

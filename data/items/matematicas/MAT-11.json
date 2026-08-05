@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "Entre todos los rectángulos posibles de área 1, ¿cuál es el de perímetro máximo?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

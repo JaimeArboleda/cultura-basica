@@ -5,6 +5,7 @@
   "ancla": true,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué es el proletariado?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

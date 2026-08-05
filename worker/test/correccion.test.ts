@@ -18,6 +18,7 @@ function itemAbierto(overrides: Partial<Item> = {}): Item {
     ancla: false,
     formato: "abierto",
     enunciado: "¿?",
+    texto: null,
     respuesta_canonica: "Platón",
     alias: ["platon", "plato", "platon de atenas"],
     alias_parcial: null,

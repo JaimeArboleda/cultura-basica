@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Cuáles son los tres poderes según Montesquieu?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

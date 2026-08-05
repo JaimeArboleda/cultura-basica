@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué país tiene mayor extensión de costa sobre el océano Ártico?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

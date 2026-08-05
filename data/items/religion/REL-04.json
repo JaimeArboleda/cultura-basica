@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Cuál es la rama del islam predominante en Irán?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

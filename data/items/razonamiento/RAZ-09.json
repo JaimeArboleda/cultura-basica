@@ -1,0 +1,26 @@
+{
+  "id": "RAZ-09",
+  "bloque": "razonamiento",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "Se afirma la regla: \"Si una tarjeta tiene una vocal en una cara, tiene un número par en la otra\". Tienes 4 tarjetas sobre la mesa mostrando, respectivamente: A, B, 4 y 7. ¿Qué tarjetas hay que girar como mínimo para comprobar si la regla se cumple?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "La A y la 7",
+    "La A y la 4",
+    "Solo la A",
+    "La A, la 4 y la 7",
+    "La B y la 4",
+    "Las cuatro tarjetas"
+  ],
+  "indice_correcto": 0
+}

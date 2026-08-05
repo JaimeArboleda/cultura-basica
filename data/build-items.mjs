@@ -17,6 +17,9 @@ const ORDEN_BLOQUES = [
   "matematicas",
   "arte",
   "religion",
+  "razonamiento",
+  "comprension_lectora",
+  "competencias_basicas",
 ];
 
 function cargarBloque(bloque) {

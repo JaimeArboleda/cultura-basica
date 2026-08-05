@@ -1,0 +1,26 @@
+{
+  "id": "RAZ-10",
+  "bloque": "razonamiento",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "En una isla, los \"caballeros\" siempre dicen la verdad y los \"embusteros\" siempre mienten. Un habitante de la isla afirma: \"Soy un embustero\". ¿Qué se puede concluir?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Ningún habitante de la isla podría decir esa frase: un caballero mentiría al decirla y un embustero diría la verdad al decirla",
+    "Es un embustero",
+    "Es un caballero",
+    "Puede ser cualquiera de los dos con la misma probabilidad",
+    "Es un caballero que se ha equivocado al hablar",
+    "Depende de en qué día de la semana lo diga"
+  ],
+  "indice_correcto": 0
+}

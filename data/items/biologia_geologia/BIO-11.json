@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué enzima es la principal responsable de copiar el ADN durante la replicación?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

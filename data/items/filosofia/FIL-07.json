@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué quiso decir Nietzsche con la frase «Dios ha muerto»?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

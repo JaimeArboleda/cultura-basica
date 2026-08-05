@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué diferencia hay entre renta fija y renta variable?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

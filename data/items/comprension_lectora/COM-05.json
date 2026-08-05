@@ -1,0 +1,26 @@
+{
+  "id": "COM-05",
+  "bloque": "comprension_lectora",
+  "dificultad": "medio",
+  "ancla": true,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué se puede inferir de la situación descrita en el texto?",
+  "texto": "Cuando Elena llegó a la reunión, todos guardaron silencio de golpe y varios apartaron la vista de la pantalla del ordenador. Sobre la mesa había un pastel con velas ya colocadas, aunque nadie las había encendido todavía. Marcos se apresuró a cerrar de un manotazo la ventana del navegador.\n\nElena sonrió, dejó su bolso en la silla y dijo: \"Voy a por un café, ahora vuelvo\", y salió de la sala tan tranquila.",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Los compañeros de Elena le estaban preparando una fiesta sorpresa",
+    "Elena acababa de ser despedida",
+    "Marcos estaba enfadado con Elena",
+    "La reunión había terminado antes de que llegara Elena",
+    "Elena llegaba tarde y sus compañeros estaban molestos",
+    "El ordenador de Marcos se había averiado"
+  ],
+  "indice_correcto": 0
+}

@@ -1,0 +1,26 @@
+{
+  "id": "RAZ-12",
+  "bloque": "razonamiento",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "En una bolsa hay 3 bolas rojas y 2 azules. Se sacan dos bolas al azar, sin devolver la primera a la bolsa. ¿Cuál es la probabilidad de que las dos sean rojas?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "3/10 (30%)",
+    "3/5 (60%)",
+    "1/2 (50%)",
+    "9/25 (36%)",
+    "2/5 (40%)",
+    "3/8 (37,5%)"
+  ],
+  "indice_correcto": 0
+}

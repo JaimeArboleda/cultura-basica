@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué principio físico explica que un barco de metal, más denso que el agua, pueda flotar?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

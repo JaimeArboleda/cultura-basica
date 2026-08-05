@@ -1,0 +1,29 @@
+{
+  "id": "COM-07",
+  "bloque": "comprension_lectora",
+  "dificultad": "medio",
+  "ancla": false,
+  "formato": "ordenar",
+  "enunciado": "Ordena estos sucesos del texto según el orden en que ocurrieron:",
+  "texto": "Aquella mañana, Sara se despertó tarde porque se le había estropeado el despertador. Salió corriendo de casa sin desayunar y llegó a la estación justo quince segundos después de que el tren cerrara las puertas. Como no quería llegar tarde al trabajo, decidió coger un taxi, pero se topó con un atasco enorme en la avenida principal. Finalmente, entró en la oficina con media hora de retraso y se disculpó con su jefe.",
+  "elementos": [
+    "Se quedó atrapada en un atasco",
+    "Perdió el tren por quince segundos",
+    "Se disculpó con su jefe",
+    "Se despertó tarde"
+  ],
+  "elementos_ordenados": [
+    "Se despertó tarde",
+    "Perdió el tren por quince segundos",
+    "Se quedó atrapada en un atasco",
+    "Se disculpó con su jefe"
+  ],
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": null,
+  "indice_correcto": null
+}

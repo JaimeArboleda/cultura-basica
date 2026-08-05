@@ -29,6 +29,9 @@ const ORDEN_BLOQUES = [
   "matematicas",
   "arte",
   "religion",
+  "razonamiento",
+  "comprension_lectora",
+  "competencias_basicas",
 ];
 
 const NOMBRE_BLOQUE = {
@@ -42,6 +45,9 @@ const NOMBRE_BLOQUE = {
   matematicas: "Matemáticas",
   arte: "Arte",
   religion: "Religión",
+  razonamiento: "Razonamiento",
+  comprension_lectora: "Comprensión lectora",
+  competencias_basicas: "Competencias básicas",
 };
 
 // Orden de depuración: fácil, luego medio (ancla primero), luego difícil.
@@ -204,7 +210,8 @@ section.bloque.oculto { display: none !important; }
 .badge.dif-medio { color: var(--parcial); }
 .badge.dif-dificil { color: var(--fail); }
 .badge.ancla { color: var(--accent); border-color: var(--accent); }
-.enunciado { font-size: 15.5px; margin: 0 0 10px; }
+.enunciado { font-size: 15.5px; margin: 0 0 10px; font-weight: 600; }
+.texto-lectura { font-size: 14px; white-space: pre-line; background: var(--chip-bg); color: var(--ink); padding: 10px 12px; border-radius: 6px; margin: 0 0 10px; border: 1px solid var(--border); }
 .opciones { display: flex; flex-direction: column; gap: 6px; }
 .opciones label {
   display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px;
@@ -525,6 +532,7 @@ function renderItem(item) {
 
   div.innerHTML = \`
     <div class="item-debug">\${debugBadges}</div>
+    \${item.texto ? \`<p class="texto-lectura">\${item.texto}</p>\` : ""}
     <p class="enunciado">\${item.enunciado}</p>
     \${cuerpo}
     <div class="resultado" data-role="resultado"></div>

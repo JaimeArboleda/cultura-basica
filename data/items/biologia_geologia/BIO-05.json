@@ -5,6 +5,7 @@
   "ancla": true,
   "formato": "opcion_multiple",
   "enunciado": "¿Cuál es la principal función de las mitocondrias?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

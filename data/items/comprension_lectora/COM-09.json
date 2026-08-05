@@ -1,0 +1,26 @@
+{
+  "id": "COM-09",
+  "bloque": "comprension_lectora",
+  "dificultad": "dificil",
+  "ancla": false,
+  "formato": "opcion_multiple",
+  "enunciado": "¿Cuál es la actitud del autor del texto hacia el proyecto del centro comercial?",
+  "texto": "Es maravilloso comprobar, una vez más, que basta con talar unas cuantas hectáreas de bosque centenario para construir un espléndido centro comercial con aparcamiento para dos mil vehículos. Sin duda, las generaciones futuras nos lo agradecerán profundamente cuando disfruten de sus rebajas de temporada bajo un cielo cada vez más gris.\n\nLas autoridades locales, por su parte, han calificado el proyecto de \"apuesta decidida por el progreso y el empleo\", sin mencionar en ningún momento el informe de impacto ambiental que ellas mismas encargaron y que recomendaba justo lo contrario.",
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Crítica e irónica: usa el sarcasmo para mostrar su desacuerdo con la decisión",
+    "Neutral y objetiva, se limita a describir los hechos sin opinar",
+    "Entusiasta, apoya sinceramente la construcción del centro comercial",
+    "Indiferente, no tiene ninguna postura sobre el tema",
+    "Favorable a las autoridades locales y su gestión",
+    "Se centra únicamente en datos técnicos sin ninguna valoración"
+  ],
+  "indice_correcto": 0
+}

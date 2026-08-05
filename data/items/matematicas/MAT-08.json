@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "abierto",
   "enunciado": "¿Cuánto es el factorial de 5 (5!)?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

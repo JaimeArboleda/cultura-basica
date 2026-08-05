@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿De qué siglo es Delacroix?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Quién es el autor de La estructura de las revoluciones científicas?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

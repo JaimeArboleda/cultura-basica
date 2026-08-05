@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué plantea la curva de Laffer?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,

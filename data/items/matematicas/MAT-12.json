@@ -5,6 +5,7 @@
   "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Cómo se conoce a la paradoja que surge al considerar el conjunto de todos los conjuntos que no se contienen a sí mismos?",
+  "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,
