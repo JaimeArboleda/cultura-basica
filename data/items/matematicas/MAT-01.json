@@ -2,7 +2,6 @@
   "id": "MAT-01",
   "bloque": "matematicas",
   "dificultad": "facil",
-  "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Cuántos números primos existen?",
   "texto": null,

@@ -1,6 +1,5 @@
 // Worker de Cloudflare (API). Endpoints según README §4.3. El sorteo de ítems y la
 // corrección de respuestas ocurren aquí, nunca en el cliente.
-import { postExtender } from "./endpoints/extender";
 import { getExport } from "./endpoints/export";
 import { postRespuesta } from "./endpoints/respuesta";
 import { getResultado } from "./endpoints/resultado";
@@ -24,9 +23,6 @@ export default {
       }
       if (request.method === "POST" && url.pathname === "/api/respuesta") {
         return await postRespuesta(request, env);
-      }
-      if (request.method === "POST" && url.pathname === "/api/extender") {
-        return await postExtender(request, env);
       }
       if (request.method === "GET" && url.pathname.startsWith("/api/resultado/")) {
         const id = url.pathname.slice("/api/resultado/".length);

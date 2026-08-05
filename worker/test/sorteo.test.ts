@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { sortearCorto, sortearExtension, type Rng } from "../src/sorteo";
-import { bancoItems, itemsPorId } from "../src/items";
+import { ordenarTest, type Rng } from "../src/sorteo";
+import { bancoItems } from "../src/items";
 
 // RNG determinista basado en semilla, para tests reproducibles (mulberry32).
 function rngConSemilla(semilla: number): Rng {
@@ -14,68 +14,30 @@ function rngConSemilla(semilla: number): Rng {
   };
 }
 
-describe("sortearCorto", () => {
-  it("devuelve exactamente 39 ítems: 1 ancla + 1 fácil + 1 difícil por cada uno de los 13 bloques", () => {
-    const asignaciones = sortearCorto(bancoItems, rngConSemilla(1));
-    expect(asignaciones.length).toBe(39);
-
-    const porBloque = new Map<string, string[]>();
-    for (const a of asignaciones) {
-      const item = itemsPorId.get(a.item_id)!;
-      const lista = porBloque.get(item.bloque) ?? [];
-      lista.push(item.id);
-      porBloque.set(item.bloque, lista);
-    }
-    expect(porBloque.size).toBe(13);
-
-    for (const [, ids] of porBloque) {
-      expect(ids.length).toBe(3);
-      const items = ids.map((id) => itemsPorId.get(id)!);
-      expect(items.filter((i) => i.ancla).length).toBe(1);
-      expect(items.filter((i) => i.dificultad === "facil").length).toBe(1);
-      expect(items.filter((i) => i.dificultad === "dificil").length).toBe(1);
-    }
-  });
-
-  it("no repite ítems", () => {
-    const asignaciones = sortearCorto(bancoItems, rngConSemilla(2));
+describe("ordenarTest", () => {
+  it("devuelve exactamente los 36 ítems del banco", () => {
+    const asignaciones = ordenarTest(bancoItems, rngConSemilla(1));
+    expect(asignaciones.length).toBe(36);
     const ids = asignaciones.map((a) => a.item_id);
-    expect(new Set(ids).size).toBe(ids.length);
+    expect(new Set(ids).size).toBe(36);
+    for (const item of bancoItems) {
+      expect(ids).toContain(item.id);
+    }
   });
 
-  it("orden_presentacion es una permutación de 0..38", () => {
-    const asignaciones = sortearCorto(bancoItems, rngConSemilla(3));
+  it("orden_presentacion es una permutación de 0..35", () => {
+    const asignaciones = ordenarTest(bancoItems, rngConSemilla(3));
     const ordenes = asignaciones.map((a) => a.orden_presentacion).sort((a, b) => a - b);
-    expect(ordenes).toEqual(Array.from({ length: 39 }, (_, i) => i));
+    expect(ordenes).toEqual(Array.from({ length: 36 }, (_, i) => i));
   });
 
-  it("el fácil/difícil elegido varía entre sorteos con distinta semilla", () => {
-    const facilesVistos = new Set<string>();
-    for (let semilla = 0; semilla < 30; semilla++) {
-      const asignaciones = sortearCorto(bancoItems, rngConSemilla(semilla));
-      const primerFacilFilosofia = asignaciones
-        .map((a) => itemsPorId.get(a.item_id)!)
-        .find((i) => i.bloque === "filosofia" && i.dificultad === "facil");
-      if (primerFacilFilosofia) facilesVistos.add(primerFacilFilosofia.id);
+  it("el orden de presentación varía entre sorteos con distinta semilla", () => {
+    const primerosVistos = new Set<string>();
+    for (let semilla = 0; semilla < 10; semilla++) {
+      const asignaciones = ordenarTest(bancoItems, rngConSemilla(semilla));
+      const primero = asignaciones.find((a) => a.orden_presentacion === 0)!;
+      primerosVistos.add(primero.item_id);
     }
-    expect(facilesVistos.size).toBeGreaterThan(1);
-  });
-});
-
-describe("sortearExtension", () => {
-  it("devuelve exactamente los 117 ítems restantes tras el sorteo corto", () => {
-    const corto = sortearCorto(bancoItems, rngConSemilla(4));
-    const idsUsados = new Set(corto.map((a) => a.item_id));
-    const extension = sortearExtension(bancoItems, idsUsados, rngConSemilla(5));
-
-    expect(extension.length).toBe(117);
-    const idsExtension = new Set(extension.map((a) => a.item_id));
-    expect(idsExtension.size).toBe(117);
-    for (const id of idsExtension) {
-      expect(idsUsados.has(id)).toBe(false);
-    }
-
-    const ordenes = extension.map((a) => a.orden_presentacion).sort((a, b) => a - b);
-    expect(ordenes).toEqual(Array.from({ length: 117 }, (_, i) => i));
+    expect(primerosVistos.size).toBeGreaterThan(1);
   });
 });

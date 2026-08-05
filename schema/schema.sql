@@ -6,9 +6,7 @@ CREATE TABLE sesiones (
   actualizada_en    TEXT,
   consentimiento    INTEGER NOT NULL,        -- 0/1
   compromiso_honestidad INTEGER NOT NULL,
-  completo_corto    INTEGER DEFAULT 0,       -- terminó los 39
-  acepto_extension  INTEGER,                 -- NULL si no llegó a la oferta
-  completo_largo    INTEGER DEFAULT 0,       -- terminó los 156
+  completo          INTEGER DEFAULT 0,       -- terminó los 36 ítems
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
   -- demografía
   anio_nacimiento   INTEGER,
@@ -52,18 +50,17 @@ CREATE INDEX idx_respuestas_item   ON respuestas(item_id);
 -- red tras un timeout nunca duplica la respuesta a un mismo ítem.
 CREATE UNIQUE INDEX idx_respuestas_sesion_item ON respuestas(sesion_id, item_id);
 
--- Persiste el sorteo de ítems hecho en el servidor (README §4.3: "el sorteo de
--- ítems se hace en el servidor y se persiste, para que recargar la página no
--- cambie el set"). No contiene contenido de ítems, solo el id: el contenido vive
+-- Persiste el orden de presentación del test hecho en el servidor (README §4.3: "el
+-- orden se decide en el servidor y se persiste, para que recargar la página no cambie
+-- el orden"). No contiene contenido de ítems, solo el id: el contenido vive
 -- únicamente en data/items.json, importado por el Worker (README §4.2).
 CREATE TABLE sesion_items (
   id                  INTEGER PRIMARY KEY AUTOINCREMENT,
   sesion_id           TEXT NOT NULL REFERENCES sesiones(id),
   item_id             TEXT NOT NULL,
-  fase                TEXT NOT NULL CHECK (fase IN ('corto','extension')),
   orden_presentacion  INTEGER NOT NULL,
   UNIQUE (sesion_id, item_id),
-  UNIQUE (sesion_id, fase, orden_presentacion)
+  UNIQUE (sesion_id, orden_presentacion)
 );
 
 CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);

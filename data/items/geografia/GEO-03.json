@@ -1,23 +1,25 @@
 {
   "id": "GEO-03",
   "bloque": "geografia",
-  "dificultad": "facil",
-  "ancla": false,
-  "formato": "abierto",
-  "enunciado": "¿Cuál es la capital de Estados Unidos?",
+  "dificultad": "dificil",
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué país no tiene frontera con Alemania?",
   "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,
   "clasificacion_correcta": null,
-  "respuesta_canonica": "Washington D. C.",
-  "alias": [
-    "washington dc",
-    "washington d c",
-    "washington"
-  ],
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 1,
-  "opciones": null,
-  "indice_correcto": null
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Francia",
+    "Polonia",
+    "Austria",
+    "Dinamarca",
+    "Italia",
+    "Bélgica"
+  ],
+  "indice_correcto": 4
 }

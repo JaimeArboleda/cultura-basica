@@ -1,27 +1,32 @@
 {
   "id": "HIS-02",
   "bloque": "historia",
-  "dificultad": "facil",
-  "ancla": false,
-  "formato": "abierto",
-  "enunciado": "¿Contra quién lucharon los griegos en las guerras médicas?",
+  "dificultad": "medio",
+  "formato": "ordenar",
+  "enunciado": "Ordena estas figuras históricas de más antigua a más moderna:",
   "texto": null,
-  "elementos": null,
-  "elementos_ordenados": null,
+  "elementos": [
+    "Napoleón",
+    "Julio César",
+    "Alejandro Magno",
+    "Isaac Newton",
+    "Leonardo Da Vinci",
+    "Mahoma"
+  ],
+  "elementos_ordenados": [
+    "Alejandro Magno",
+    "Julio César",
+    "Mahoma",
+    "Leonardo Da Vinci",
+    "Isaac Newton",
+    "Napoleón"
+  ],
   "categorias": null,
   "clasificacion_correcta": null,
-  "respuesta_canonica": "Los persas",
-  "alias": [
-    "persas",
-    "los persas",
-    "persia",
-    "imperio persa",
-    "el imperio persa",
-    "aquemenidas",
-    "imperio aquemenida"
-  ],
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 1,
+  "tolerancia_edicion": null,
   "opciones": null,
   "indice_correcto": null
 }

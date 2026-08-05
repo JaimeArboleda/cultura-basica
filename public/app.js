@@ -90,22 +90,24 @@ function pantallaDemografia() {
         user_agent_clase: claseDispositivo(),
       });
       localStorage.setItem(CLAVE_SESION, sesion_id);
-      ejecutarFase(sesion_id, "corto", items);
+      ejecutarTest(sesion_id, items);
     } catch (e) {
       pantallaError(e.message);
     }
   });
 }
 
-// --- Ejecución de una fase (39 ítems del modo corto, o 117 de la extensión) ---
+// --- Ejecución del test (36 ítems fijos) ---
 
-function ejecutarFase(sesionId, fase, itemsPendientes) {
+const TOTAL_ITEMS = 36;
+
+function ejecutarTest(sesionId, itemsPendientes) {
   const cola = [...itemsPendientes];
-  const total = fase === "corto" ? 39 : 117;
+  const total = TOTAL_ITEMS;
 
   function siguiente() {
     if (cola.length === 0) {
-      onFaseCompleta(sesionId);
+      onTestCompleto(sesionId);
       return;
     }
     const item = cola.shift();
@@ -159,9 +161,9 @@ function escaparHtml(s) {
   return div.innerHTML;
 }
 
-// --- Fin de fase: pedir resultado al servidor y decidir qué mostrar ---
+// --- Fin del test: pedir resultado al servidor y decidir qué mostrar ---
 
-async function onFaseCompleta(sesionId) {
+async function onTestCompleto(sesionId) {
   montar(`<section class="pantalla"><p>Calculando resultado…</p></section>`);
   let resultado;
   try {
@@ -175,20 +177,10 @@ async function onFaseCompleta(sesionId) {
 
 function mostrarSegunEstado(sesionId, resultado) {
   if (resultado.estado === "en_progreso") {
-    ejecutarFase(sesionId, resultado.fase_actual, resultado.items_pendientes);
+    ejecutarTest(sesionId, resultado.items_pendientes);
     return;
   }
-  if (resultado.estado === "completo_corto") {
-    if (resultado.acepto_extension === null || resultado.acepto_extension === undefined) {
-      pantallaResultado(resultado.resultado, { ofrecerExtension: true, sesionId });
-    } else {
-      pantallaResultado(resultado.resultado, { ofrecerExtension: false, sesionId, final: true });
-    }
-    return;
-  }
-  if (resultado.estado === "completo_largo") {
-    pantallaResultado(resultado.resultado, { ofrecerExtension: false, sesionId, final: true });
-  }
+  pantallaResultado(resultado.resultado);
 }
 
 function tablaAgregados(titulo, agregado) {
@@ -214,39 +206,12 @@ function tablaAgregados(titulo, agregado) {
     </table>`;
 }
 
-function pantallaResultado(resultado, { ofrecerExtension, sesionId, final }) {
+function pantallaResultado(resultado) {
   montar(`
     <section class="pantalla">
-      <h1>${final ? "Resultado final" : "Resultado del modo corto"}</h1>
-      ${tablaAgregados("Modo corto (39 ítems)", resultado.corto)}
-      ${resultado.extension ? tablaAgregados("Extensión (117 ítems)", resultado.extension) : ""}
-      <div id="zona-extension"></div>
+      <h1>Resultado</h1>
+      ${tablaAgregados("Resultado del test", resultado)}
     </section>`);
-
-  if (ofrecerExtension) {
-    const zona = document.getElementById("zona-extension");
-    zona.innerHTML = `
-      <p>¿Quieres continuar con los 117 ítems restantes del test completo?</p>
-      <button class="boton-principal" id="boton-si">Sí, continuar</button>
-      <button class="boton-secundario" id="boton-no">No, terminar aquí</button>`;
-    document.getElementById("boton-si").addEventListener("click", () => aceptarExtension(sesionId, true));
-    document.getElementById("boton-no").addEventListener("click", () => aceptarExtension(sesionId, false));
-  }
-}
-
-async function aceptarExtension(sesionId, acepta) {
-  montar(`<section class="pantalla"><p>Un momento…</p></section>`);
-  try {
-    const { items } = await api.extender({ sesion_id: sesionId, acepta });
-    if (acepta && items.length > 0) {
-      ejecutarFase(sesionId, "extension", items);
-    } else {
-      const resultado = await api.obtenerResultado(sesionId);
-      mostrarSegunEstado(sesionId, resultado);
-    }
-  } catch (e) {
-    pantallaError(e.message);
-  }
 }
 
 // --- Arranque: reanudar sesión si existe, si no, empezar de cero ---

@@ -1,23 +1,30 @@
 {
   "id": "LEN-03",
   "bloque": "lengua_literatura",
-  "dificultad": "facil",
-  "ancla": false,
-  "formato": "abierto",
-  "enunciado": "¿Qué obra de Homero narra la guerra de Troya?",
+  "dificultad": "dificil",
+  "formato": "ordenar",
+  "enunciado": "Ordena estas obras de más antigua a más moderna:",
   "texto": null,
-  "elementos": null,
-  "elementos_ordenados": null,
+  "elementos": [
+    "La Ilíada",
+    "Cien años de soledad",
+    "Don Quijote de la Mancha",
+    "Crimen y Castigo",
+    "El Cantar del Mío Cid"
+  ],
+  "elementos_ordenados": [
+    "La Ilíada",
+    "El Cantar del Mío Cid",
+    "Don Quijote de la Mancha",
+    "Crimen y Castigo",
+    "Cien años de soledad"
+  ],
   "categorias": null,
   "clasificacion_correcta": null,
-  "respuesta_canonica": "La Ilíada",
-  "alias": [
-    "la iliada",
-    "iliada",
-    "ilíada"
-  ],
+  "respuesta_canonica": null,
+  "alias": null,
   "alias_parcial": null,
-  "tolerancia_edicion": 1,
+  "tolerancia_edicion": null,
   "opciones": null,
   "indice_correcto": null
 }

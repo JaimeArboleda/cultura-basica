@@ -1,27 +1,41 @@
 {
   "id": "GEO-02",
   "bloque": "geografia",
-  "dificultad": "facil",
-  "ancla": false,
-  "formato": "ordenar",
-  "enunciado": "Ordena estos países de mayor a menor extensión territorial:",
+  "dificultad": "medio",
+  "formato": "clasificar",
+  "enunciado": "Clasifica estos ríos según su continente:",
   "texto": null,
   "elementos": [
-    "China",
-    "Canadá",
-    "Brasil",
-    "Rusia",
-    "Estados Unidos"
+    "Amazonas",
+    "Nilo",
+    "Yangtsé",
+    "Misisipi",
+    "Ganges",
+    "Danubio",
+    "Congo",
+    "Mekong",
+    "Rin",
+    "Tigris"
   ],
-  "elementos_ordenados": [
-    "Rusia",
-    "Canadá",
-    "Estados Unidos",
-    "China",
-    "Brasil"
+  "elementos_ordenados": null,
+  "categorias": [
+    "América",
+    "África",
+    "Asia",
+    "Europa"
   ],
-  "categorias": null,
-  "clasificacion_correcta": null,
+  "clasificacion_correcta": {
+    "Amazonas": "América",
+    "Nilo": "África",
+    "Yangtsé": "Asia",
+    "Misisipi": "América",
+    "Ganges": "Asia",
+    "Danubio": "Europa",
+    "Congo": "África",
+    "Mekong": "Asia",
+    "Rin": "Europa",
+    "Tigris": "Asia"
+  },
   "respuesta_canonica": null,
   "alias": null,
   "alias_parcial": null,

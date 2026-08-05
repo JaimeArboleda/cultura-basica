@@ -1,16 +1,14 @@
 // Acceso a D1. Sin lógica de negocio: cada función es una operación de lectura o
 // escritura directa sobre el esquema de schema/schema.sql.
 import type { AsignacionItem } from "./sorteo";
-import type { Demografia, Env, Fase } from "./tipos";
+import type { Demografia, Env } from "./tipos";
 
 export interface FilaSesion {
   id: string;
   creada_en: string;
   consentimiento: number;
   compromiso_honestidad: number;
-  completo_corto: number;
-  acepto_extension: number | null;
-  completo_largo: number;
+  completo: number;
 }
 
 export async function crearSesion(
@@ -20,10 +18,10 @@ export async function crearSesion(
     creadaEn: string;
     demografia: Demografia;
     userAgentClase: "movil" | "escritorio";
-    asignacionesCorto: AsignacionItem[];
+    asignaciones: AsignacionItem[];
   }
 ): Promise<void> {
-  const { id, creadaEn, demografia: d, userAgentClase, asignacionesCorto } = args;
+  const { id, creadaEn, demografia: d, userAgentClase, asignaciones } = args;
 
   const insertSesion = env.DB.prepare(
     `INSERT INTO sesiones (
@@ -52,10 +50,10 @@ export async function crearSesion(
     d.horas_redes_dia
   );
 
-  const insertsItems = asignacionesCorto.map((a) =>
+  const insertsItems = asignaciones.map((a) =>
     env.DB.prepare(
-      `INSERT INTO sesion_items (sesion_id, item_id, fase, orden_presentacion) VALUES (?,?,?,?)`
-    ).bind(id, a.item_id, a.fase, a.orden_presentacion)
+      `INSERT INTO sesion_items (sesion_id, item_id, orden_presentacion) VALUES (?,?,?)`
+    ).bind(id, a.item_id, a.orden_presentacion)
   );
 
   await env.DB.batch([insertSesion, ...insertsItems]);
@@ -68,36 +66,16 @@ export async function obtenerSesion(env: Env, sesionId: string): Promise<FilaSes
   return fila ?? null;
 }
 
-export async function obtenerSorteo(
+export async function obtenerAsignaciones(
   env: Env,
-  sesionId: string,
-  fase: Fase
+  sesionId: string
 ): Promise<{ item_id: string; orden_presentacion: number }[]> {
   const { results } = await env.DB.prepare(
-    "SELECT item_id, orden_presentacion FROM sesion_items WHERE sesion_id = ? AND fase = ? ORDER BY orden_presentacion"
+    "SELECT item_id, orden_presentacion FROM sesion_items WHERE sesion_id = ? ORDER BY orden_presentacion"
   )
-    .bind(sesionId, fase)
+    .bind(sesionId)
     .all<{ item_id: string; orden_presentacion: number }>();
   return results;
-}
-
-export async function insertarSorteoExtension(
-  env: Env,
-  sesionId: string,
-  asignaciones: AsignacionItem[]
-): Promise<void> {
-  const inserts = asignaciones.map((a) =>
-    env.DB.prepare(
-      `INSERT INTO sesion_items (sesion_id, item_id, fase, orden_presentacion) VALUES (?,?,?,?)`
-    ).bind(sesionId, a.item_id, a.fase, a.orden_presentacion)
-  );
-  await env.DB.batch(inserts);
-}
-
-export async function marcarExtension(env: Env, sesionId: string, acepta: boolean): Promise<void> {
-  await env.DB.prepare("UPDATE sesiones SET acepto_extension = ?, actualizada_en = ? WHERE id = ?")
-    .bind(acepta ? 1 : 0, new Date().toISOString(), sesionId)
-    .run();
 }
 
 export interface RespuestaInput {
@@ -144,26 +122,17 @@ export async function upsertRespuesta(env: Env, r: RespuestaInput): Promise<void
     .run();
 }
 
-export async function contarRespuestasFase(env: Env, sesionId: string, fase: Fase): Promise<number> {
+export async function contarRespuestas(env: Env, sesionId: string): Promise<number> {
   const fila = await env.DB.prepare(
-    `SELECT COUNT(*) AS n
-     FROM respuestas r
-     JOIN sesion_items si ON si.sesion_id = r.sesion_id AND si.item_id = r.item_id
-     WHERE r.sesion_id = ? AND si.fase = ?`
+    `SELECT COUNT(*) AS n FROM respuestas WHERE sesion_id = ?`
   )
-    .bind(sesionId, fase)
+    .bind(sesionId)
     .first<{ n: number }>();
   return fila?.n ?? 0;
 }
 
-export async function marcarCompletoCorto(env: Env, sesionId: string): Promise<void> {
-  await env.DB.prepare("UPDATE sesiones SET completo_corto = 1, actualizada_en = ? WHERE id = ?")
-    .bind(new Date().toISOString(), sesionId)
-    .run();
-}
-
-export async function marcarCompletoLargo(env: Env, sesionId: string): Promise<void> {
-  await env.DB.prepare("UPDATE sesiones SET completo_largo = 1, actualizada_en = ? WHERE id = ?")
+export async function marcarCompleto(env: Env, sesionId: string): Promise<void> {
+  await env.DB.prepare("UPDATE sesiones SET completo = 1, actualizada_en = ? WHERE id = ?")
     .bind(new Date().toISOString(), sesionId)
     .run();
 }
@@ -173,21 +142,17 @@ export interface FilaResultado {
   bloque: string;
   dificultad_declarada: string; // se recalcula con el banco real en el endpoint
   acierto: number;
-  fase: Fase;
 }
 
 export async function obtenerRespuestasParaResultado(
   env: Env,
   sesionId: string
-): Promise<{ item_id: string; acierto: number; fase: Fase }[]> {
+): Promise<{ item_id: string; acierto: number }[]> {
   const { results } = await env.DB.prepare(
-    `SELECT r.item_id AS item_id, r.acierto AS acierto, si.fase AS fase
-     FROM respuestas r
-     JOIN sesion_items si ON si.sesion_id = r.sesion_id AND si.item_id = r.item_id
-     WHERE r.sesion_id = ?`
+    `SELECT item_id, acierto FROM respuestas WHERE sesion_id = ?`
   )
     .bind(sesionId)
-    .all<{ item_id: string; acierto: number; fase: Fase }>();
+    .all<{ item_id: string; acierto: number }>();
   return results;
 }
 
@@ -195,11 +160,11 @@ export async function obtenerAsignacion(
   env: Env,
   sesionId: string,
   itemId: string
-): Promise<{ fase: Fase; orden_presentacion: number } | null> {
+): Promise<{ orden_presentacion: number } | null> {
   const fila = await env.DB.prepare(
-    "SELECT fase, orden_presentacion FROM sesion_items WHERE sesion_id = ? AND item_id = ? LIMIT 1"
+    "SELECT orden_presentacion FROM sesion_items WHERE sesion_id = ? AND item_id = ? LIMIT 1"
   )
     .bind(sesionId, itemId)
-    .first<{ fase: Fase; orden_presentacion: number }>();
+    .first<{ orden_presentacion: number }>();
   return fila ?? null;
 }

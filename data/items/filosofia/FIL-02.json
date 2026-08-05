@@ -1,23 +1,21 @@
 {
   "id": "FIL-02",
   "bloque": "filosofia",
-  "dificultad": "facil",
-  "ancla": false,
+  "dificultad": "medio",
   "formato": "abierto",
-  "enunciado": "¿De quién es la frase «pienso, luego existo»?",
+  "enunciado": "¿Quién es considerado el padre del psicoanálisis?",
   "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,
   "clasificacion_correcta": null,
-  "respuesta_canonica": "Descartes",
+  "respuesta_canonica": "Sigmund Freud",
   "alias": [
-    "descartes",
-    "rene descartes",
-    "renato descartes"
+    "freud",
+    "sigmund freud"
   ],
   "alias_parcial": null,
-  "tolerancia_edicion": 2,
+  "tolerancia_edicion": 1,
   "opciones": null,
   "indice_correcto": null
 }

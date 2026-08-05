@@ -1,9 +1,8 @@
 // Valida los invariantes de data/items.json (README §4.2).
 // Se ejecuta tras `node data/build-items.mjs`. Pensado para correr en CI (README §8).
 //
-// Durante la Fase 1 el banco se redacta bloque a bloque, así que los checks de
-// conteo/distribución/ancla solo se aplican a los bloques que YA tienen 12 ítems;
-// los checks de forma de cada ítem (opciones, alias, etc.) se aplican siempre.
+// El banco es fijo: 12 bloques × 3 ítems (uno por dificultad). Los checks de
+// forma de cada ítem (opciones, alias, etc.) se aplican siempre.
 import { readFileSync } from "node:fs";
 
 const ITEMS_FILE = new URL("./items.json", import.meta.url).pathname;
@@ -123,10 +122,6 @@ for (const it of items) {
     }
   }
 
-  if (it.ancla && it.dificultad !== "medio") {
-    err(`${ctx} ancla debe tener dificultad 'medio'`);
-  }
-
   if (String(it.enunciado ?? "").startsWith("TODO")) {
     warn(`${ctx} enunciado pendiente de redactar`);
   }
@@ -142,7 +137,7 @@ for (const it of items) {
   }
 }
 
-// --- Checks por bloque (solo si el bloque ya tiene 12 ítems) ---
+// --- Checks por bloque ---
 const porBloque = new Map();
 for (const it of items) {
   if (!porBloque.has(it.bloque)) porBloque.set(it.bloque, []);
@@ -150,42 +145,29 @@ for (const it of items) {
 }
 
 for (const [bloque, its] of porBloque) {
-  if (its.length !== 12) {
-    warn(`[${bloque}] tiene ${its.length}/12 ítems (bloque incompleto, aún no evaluado)`);
+  if (its.length !== 3) {
+    err(`[${bloque}] tiene ${its.length}/3 ítems (se espera exactamente 1 por dificultad)`);
     continue;
-  }
-  const anclas = its.filter((i) => i.ancla);
-  if (anclas.length !== 1) {
-    err(`[${bloque}] debe tener exactamente 1 ítem ancla, tiene ${anclas.length}`);
   }
   const porDificultad = { facil: 0, medio: 0, dificil: 0 };
   for (const i of its) porDificultad[i.dificultad]++;
-  if (porDificultad.facil !== 4 || porDificultad.medio !== 4 || porDificultad.dificil !== 4) {
+  if (porDificultad.facil !== 1 || porDificultad.medio !== 1 || porDificultad.dificil !== 1) {
     err(
       `[${bloque}] distribución de dificultad incorrecta: ` +
-        `facil=${porDificultad.facil} medio=${porDificultad.medio} dificil=${porDificultad.dificil} (esperado 4/4/4)`
+        `facil=${porDificultad.facil} medio=${porDificultad.medio} dificil=${porDificultad.dificil} (esperado 1/1/1)`
     );
-  }
-  const abiertos = its.filter((i) => i.formato === "abierto").length;
-  if (abiertos > 6) {
-    err(`[${bloque}] ítems abiertos (${abiertos}) supera el máximo del 50% (§4.2)`);
   }
 }
 
-// --- Checks globales (solo si el banco está completo) ---
-const TOTAL_BLOQUES = 13;
-const TOTAL_ITEMS = TOTAL_BLOQUES * 12; // 156
+// --- Checks globales ---
+const TOTAL_BLOQUES = 12;
+const TOTAL_ITEMS = TOTAL_BLOQUES * 3; // 36
 
-if (items.length === TOTAL_ITEMS) {
-  if (porBloque.size !== TOTAL_BLOQUES) {
-    err(`Se esperaban ${TOTAL_BLOQUES} bloques, hay ${porBloque.size}`);
-  }
-  const abiertosGlobal = items.filter((i) => i.formato === "abierto").length;
-  if (abiertosGlobal > TOTAL_ITEMS * 0.4) {
-    err(`Ítems abiertos globales (${abiertosGlobal}) supera el máximo del 40% (§1.5)`);
-  }
-} else {
-  warn(`Banco incompleto: ${items.length}/${TOTAL_ITEMS} ítems`);
+if (items.length !== TOTAL_ITEMS) {
+  err(`Se esperaban ${TOTAL_ITEMS} ítems (${TOTAL_BLOQUES} bloques × 3), hay ${items.length}`);
+}
+if (porBloque.size !== TOTAL_BLOQUES) {
+  err(`Se esperaban ${TOTAL_BLOQUES} bloques, hay ${porBloque.size}`);
 }
 
 for (const a of avisos) console.warn("AVISO:", a);

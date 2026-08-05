@@ -1,11 +1,10 @@
 {
   "id": "COM-02",
   "bloque": "comprension_lectora",
-  "dificultad": "facil",
-  "ancla": false,
+  "dificultad": "medio",
   "formato": "opcion_multiple",
-  "enunciado": "¿Cuál es la idea principal del texto?",
-  "texto": "Muchas personas creen que el chocolate negro con alto porcentaje de cacao aporta beneficios para la salud cardiovascular, gracias a unos compuestos llamados flavonoides. Sin embargo, los nutricionistas insisten en que estos beneficios solo aparecen con un consumo moderado: unos pocos gramos al día.\n\nEl problema es que buena parte del chocolate que se vende comercialmente contiene también grandes cantidades de azúcar y grasa, lo que anula cualquier ventaja si se consume en exceso. Por eso, el chocolate con mayor porcentaje de cacao y menos azúcar añadido es preferible al chocolate con leche.",
+  "enunciado": "Según el texto, ¿cuál es el tercer ardid para vencer al paso del tiempo que, según el autor, Shakespeare olvidó mencionar?",
+  "texto": "En sus Sonetos Shakespeare, lamentándose con poética vena del poder destructivo del tiempo, halla dos ardides para burlarlo: procrear hijos y el arte de efectos inmortalizadores. El inglés se olvidó del tercero, que, además, a diferencia de los suyos, está al alcance de cualquiera: la imagen de la vida que entregamos al morir. Nadie puede hurtarnos la ambición de vivir nuestra vida con una ejemplaridad digna de perdurar en la memoria de quienes nos sobreviven. ¿Qué te gustaría que dijeran de ti cuando no estés? ¿Que ampliaste los confines del imperio como los antiguos generales romanos? Piensa en algo mejor: que tu ejemplo sea recordado póstumamente como una invitación a una vida digna y bella. Todavía estás a tiempo de retocar el cuadro con hábiles pinceladas antes de ser interrumpido para siempre. Sin renunciar a los ardides del sonetista, sin renunciar a nada, cuida de tu futura imagen mientras vivas.",
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,
@@ -15,12 +14,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "El chocolate negro puede tener beneficios para la salud, pero solo si se consume con moderación y con poco azúcar añadido",
-    "El chocolate es perjudicial para la salud en cualquier cantidad",
-    "Todo el chocolate comercial contiene flavonoides beneficiosos",
-    "El chocolate con leche es más sano que el chocolate negro",
-    "Los nutricionistas recomiendan comer chocolate a diario sin límite",
-    "Los flavonoides solo se encuentran en el chocolate con leche"
+    "Pintar un cuadro con hábiles pinceladas, que pase a la historia",
+    "Escribir obras literarias que alcancen fama mundial",
+    "Acumular riquezas para que las disfruten las generaciones futuras",
+    "Vivir con ejemplaridad para legar una imagen perdurable",
+    "Vivir el mayor número posible de años",
+    "Tener descendencia abundante que te recuerde tras la muerte"
   ],
-  "indice_correcto": 0
+  "indice_correcto": 3
 }

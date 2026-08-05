@@ -2,7 +2,6 @@
   "id": "FIQ-01",
   "bloque": "fisica_quimica",
   "dificultad": "facil",
-  "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué se conserva en las reacciones químicas?",
   "texto": null,

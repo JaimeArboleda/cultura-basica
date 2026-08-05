@@ -39,13 +39,6 @@ export function enviarRespuesta({ sesion_id, item_id, respuesta, t_ms, perdio_fo
   });
 }
 
-export function extender({ sesion_id, acepta }) {
-  return peticion("/api/extender", {
-    method: "POST",
-    body: JSON.stringify({ sesion_id, acepta }),
-  });
-}
-
 export function obtenerResultado(sesionId) {
   return peticion(`/api/resultado/${encodeURIComponent(sesionId)}`);
 }

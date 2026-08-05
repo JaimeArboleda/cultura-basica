@@ -52,10 +52,10 @@ async function crearSesionDeTest() {
 }
 
 describe("POST /api/sesion", () => {
-  it("crea una sesión y devuelve 39 ítems sin respuestas correctas", async () => {
+  it("crea una sesión y devuelve 36 ítems sin respuestas correctas", async () => {
     const { sesion_id, items } = await crearSesionDeTest();
     expect(sesion_id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(items.length).toBe(39);
+    expect(items.length).toBe(36);
     for (const item of items) {
       expect(item).not.toHaveProperty("respuesta_canonica");
       expect(item).not.toHaveProperty("indice_correcto");
@@ -120,13 +120,11 @@ describe("POST /api/respuesta", () => {
   });
 
   it("rechaza un item_id que no pertenece al sorteo de la sesión", async () => {
-    const { sesion_id, items } = await crearSesionDeTest();
-    const idsSorteados = new Set(items.map((i) => i.id));
-    const itemAjeno = bancoItems.find((i) => !idsSorteados.has(i.id))!;
+    const { sesion_id } = await crearSesionDeTest();
 
     const res = await postJson("/api/respuesta", {
       sesion_id,
-      item_id: itemAjeno.id,
+      item_id: "NO-EXISTE-99",
       respuesta: "cualquier cosa",
       t_ms: 100,
       perdio_foco: false,
@@ -165,59 +163,26 @@ describe("POST /api/respuesta", () => {
   });
 });
 
-describe("POST /api/extender", () => {
-  async function completarModoCorto(sesionId: string, items: { id: string; formato: string }[]) {
-    for (const itemPublico of items) {
-      const real = bancoItems.find((i) => i.id === itemPublico.id)!;
-      const respuesta =
-        real.formato === "opcion_multiple"
-          ? real.indice_correcto
-          : real.formato === "ordenar"
-            ? real.elementos_ordenados
-            : real.formato === "clasificar"
-              ? real.clasificacion_correcta
-              : real.respuesta_canonica;
-      await postJson("/api/respuesta", {
-        sesion_id: sesionId,
-        item_id: real.id,
-        respuesta,
-        t_ms: 500,
-        perdio_foco: false,
-      });
-    }
+async function completarTest(sesionId: string, items: { id: string; formato: string }[]) {
+  for (const itemPublico of items) {
+    const real = bancoItems.find((i) => i.id === itemPublico.id)!;
+    const respuesta =
+      real.formato === "opcion_multiple"
+        ? real.indice_correcto
+        : real.formato === "ordenar"
+          ? real.elementos_ordenados
+          : real.formato === "clasificar"
+            ? real.clasificacion_correcta
+            : real.respuesta_canonica;
+    await postJson("/api/respuesta", {
+      sesion_id: sesionId,
+      item_id: real.id,
+      respuesta,
+      t_ms: 500,
+      perdio_foco: false,
+    });
   }
-
-  it("rechaza si el modo corto no está completo", async () => {
-    const { sesion_id } = await crearSesionDeTest();
-    const res = await postJson("/api/extender", { sesion_id, acepta: true });
-    expect(res.status).toBe(400);
-  });
-
-  it("acepta=false no crea sorteo de extensión", async () => {
-    const { sesion_id, items } = await crearSesionDeTest();
-    await completarModoCorto(sesion_id, items);
-
-    const res = await postJson("/api/extender", { sesion_id, acepta: false });
-    expect(res.status).toBe(200);
-    expect((await res.json())).toEqual({ items: [] });
-  });
-
-  it("acepta=true crea exactamente 117 ítems y es idempotente ante llamadas repetidas", async () => {
-    const { sesion_id, items } = await crearSesionDeTest();
-    await completarModoCorto(sesion_id, items);
-
-    const res1 = await postJson("/api/extender", { sesion_id, acepta: true });
-    const body1 = (await res1.json()) as { items: unknown[] };
-    expect(body1.items.length).toBe(117);
-
-    const res2 = await postJson("/api/extender", { sesion_id, acepta: true });
-    const body2 = (await res2.json()) as { items: { id: string }[] };
-    expect(body2.items.length).toBe(117);
-    expect(body2.items.map((i) => i.id)).toEqual(
-      (body1.items as { id: string }[]).map((i) => i.id)
-    );
-  });
-});
+}
 
 describe("GET /api/resultado/:id", () => {
   it("404 para una sesión inexistente", async () => {
@@ -225,12 +190,22 @@ describe("GET /api/resultado/:id", () => {
     expect(res.status).toBe(404);
   });
 
-  it("modo en_progreso mientras el corto no está completo", async () => {
+  it("modo en_progreso mientras el test no está completo", async () => {
     const { sesion_id } = await crearSesionDeTest();
     const res = await SELF.fetch(`http://worker.test/api/resultado/${sesion_id}`);
     const body = (await res.json()) as { estado: string; items_pendientes: unknown[] };
     expect(body.estado).toBe("en_progreso");
-    expect(body.items_pendientes.length).toBe(39);
+    expect(body.items_pendientes.length).toBe(36);
+  });
+
+  it("modo completo tras responder los 36 ítems", async () => {
+    const { sesion_id, items } = await crearSesionDeTest();
+    await completarTest(sesion_id, items);
+
+    const res = await SELF.fetch(`http://worker.test/api/resultado/${sesion_id}`);
+    const body = (await res.json()) as { estado: string; resultado: unknown };
+    expect(body.estado).toBe("completo");
+    expect(body.resultado).toBeDefined();
   });
 });
 

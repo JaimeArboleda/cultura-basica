@@ -1,7 +1,6 @@
 import {
-  contarRespuestasFase,
-  marcarCompletoCorto,
-  marcarCompletoLargo,
+  contarRespuestas,
+  marcarCompleto,
   obtenerAsignacion,
   obtenerSesion,
   upsertRespuesta,
@@ -32,7 +31,7 @@ function corregir(item: Item, respuesta: unknown): ResultadoCorreccion | null {
   }
 }
 
-const TOTAL_FASE = { corto: 30, extension: 90 } as const;
+const TOTAL_ITEMS = 36;
 
 export async function postRespuesta(request: Request, env: Env): Promise<Response> {
   let body: unknown;
@@ -80,12 +79,9 @@ export async function postRespuesta(request: Request, env: Env): Promise<Respons
     enviadaEn: new Date().toISOString(),
   });
 
-  const totalRespondidas = await contarRespuestasFase(env, sesionId, asignacion.fase);
-  if (asignacion.fase === "corto" && totalRespondidas >= TOTAL_FASE.corto && sesion.completo_corto === 0) {
-    await marcarCompletoCorto(env, sesionId);
-  }
-  if (asignacion.fase === "extension" && totalRespondidas >= TOTAL_FASE.extension) {
-    await marcarCompletoLargo(env, sesionId);
+  const totalRespondidas = await contarRespuestas(env, sesionId);
+  if (totalRespondidas >= TOTAL_ITEMS && sesion.completo === 0) {
+    await marcarCompleto(env, sesionId);
   }
 
   return json(env, resultado);

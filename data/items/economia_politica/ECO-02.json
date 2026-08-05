@@ -1,8 +1,7 @@
 {
   "id": "ECO-02",
   "bloque": "economia_politica",
-  "dificultad": "facil",
-  "ancla": false,
+  "dificultad": "medio",
   "formato": "opcion_multiple",
   "enunciado": "¿Cuáles son los tres poderes según Montesquieu?",
   "texto": null,

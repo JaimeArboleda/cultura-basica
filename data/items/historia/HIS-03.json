@@ -1,26 +1,24 @@
 {
   "id": "HIS-03",
   "bloque": "historia",
-  "dificultad": "facil",
-  "ancla": false,
-  "formato": "opcion_multiple",
-  "enunciado": "¿Con qué otro nombre se conoce al Imperio Romano de Oriente?",
+  "dificultad": "dificil",
+  "formato": "abierto",
+  "enunciado": "¿A qué guerra puso fin el Tratado de Versalles?",
   "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,
   "clasificacion_correcta": null,
-  "respuesta_canonica": null,
-  "alias": null,
-  "alias_parcial": null,
-  "tolerancia_edicion": null,
-  "opciones": [
-    "Imperio bizantino",
-    "Sacro Imperio Romano Germánico",
-    "Imperio otomano",
-    "Imperio carolingio",
-    "Imperio latino de Constantinopla",
-    "Imperio romano de Occidente"
+  "respuesta_canonica": "Primera Guerra Mundial",
+  "alias": [
+    "primera guerra mundial",
+    "la primera guerra mundial",
+    "i guerra mundial",
+    "gran guerra",
+    "la gran guerra"
   ],
-  "indice_correcto": 0
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
 }

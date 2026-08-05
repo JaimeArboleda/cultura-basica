@@ -1,23 +1,22 @@
 {
   "id": "BIO-02",
   "bloque": "biologia_geologia",
-  "dificultad": "facil",
-  "ancla": false,
+  "dificultad": "medio",
   "formato": "abierto",
-  "enunciado": "¿Qué proceso permite a las plantas producir su propio alimento usando la luz solar?",
+  "enunciado": "¿De qué moléculas están compuestas las proteínas?",
   "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,
   "clasificacion_correcta": null,
-  "respuesta_canonica": "Fotosíntesis",
+  "respuesta_canonica": "Aminoácidos",
   "alias": [
-    "fotosintesis",
-    "la fotosintesis",
-    "fotosintesis clorofilica"
+    "aminoacidos",
+    "amino acidos",
+    "los aminoacidos"
   ],
   "alias_parcial": null,
-  "tolerancia_edicion": 2,
+  "tolerancia_edicion": 1,
   "opciones": null,
   "indice_correcto": null
 }

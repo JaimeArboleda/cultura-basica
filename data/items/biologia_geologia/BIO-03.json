@@ -1,10 +1,9 @@
 {
   "id": "BIO-03",
   "bloque": "biologia_geologia",
-  "dificultad": "medio",
-  "ancla": false,
+  "dificultad": "dificil",
   "formato": "opcion_multiple",
-  "enunciado": "¿Cómo se llama la capa rígida y fragmentada en placas que forma el exterior de la Tierra?",
+  "enunciado": "¿Qué es la tectónica de placas?",
   "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
@@ -15,12 +14,12 @@
   "alias_parcial": null,
   "tolerancia_edicion": null,
   "opciones": [
-    "La litosfera",
-    "La corteza continental",
-    "El manto superior",
-    "La astenosfera",
-    "El núcleo externo",
-    "El núcleo interno"
+    "El movimiento de grandes fragmentos de la litosfera terrestre sobre el manto",
+    "El proceso por el que se forman las nubes y la lluvia",
+    "La capa más interna y sólida del núcleo de la Tierra",
+    "El estudio de los terremotos y los volcanes",
+    "El movimiento de las corrientes oceánicas y las mareas",
+    "La erosión de las montañas causada por el agua y el hielo"
   ],
   "indice_correcto": 0
 }

@@ -2,7 +2,6 @@
   "id": "ECO-01",
   "bloque": "economia_politica",
   "dificultad": "facil",
-  "ancla": false,
   "formato": "opcion_multiple",
   "enunciado": "¿Qué es la inflación?",
   "texto": null,

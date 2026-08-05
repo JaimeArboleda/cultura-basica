@@ -3,14 +3,12 @@
 
 export type Dificultad = "facil" | "medio" | "dificil";
 export type Formato = "abierto" | "opcion_multiple" | "ordenar" | "clasificar";
-export type Fase = "corto" | "extension";
 export type EstadoCorreccion = "auto" | "parcial" | "pendiente_revision" | "manual";
 
 export interface Item {
   id: string;
   bloque: string;
   dificultad: Dificultad;
-  ancla: boolean;
   formato: Formato;
   enunciado: string;
   texto: string | null;

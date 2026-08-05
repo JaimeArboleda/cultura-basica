@@ -15,7 +15,6 @@ function itemAbierto(overrides: Partial<Item> = {}): Item {
     id: "TEST-01",
     bloque: "test",
     dificultad: "facil",
-    ancla: false,
     formato: "abierto",
     enunciado: "¿?",
     texto: null,

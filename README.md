@@ -23,7 +23,7 @@ El test mide **cultura clásica / canon occidental** de forma deliberada. La aus
 El objetivo declarado es medir la existencia de analfabetismo funcional, razón por la que el test es fácil a propósito. 
 
 
-### 1.2 Bloques temáticos (13)
+### 1.2 Bloques temáticos (12)
 
 **Bloques de cultura clásica / canon (10):**
 
@@ -38,14 +38,7 @@ El objetivo declarado es medir la existencia de analfabetismo funcional, razón 
 9. Arte
 10. Religión
 
-Dentro de los bloques anteriores se incluyen también, en el hueco que mejor
-encaja temáticamente, algunos ítems de disciplinas que de otro modo quedarían
-sin ningún ítem propio: **Derecho** (en Economía y Política), **Psicología**
-(en Filosofía), **Medicina** (en Biología y Geología) y **Tecnología** (en
-Física y Química). No constituyen bloques nuevos ni cambian el reparto por
-bloque; son ítems más dentro del bloque que mejor los acoge.
-
-**Bloques de habilidades transversales (3):**
+**Bloques de habilidades transversales (2):**
 
 11. **Razonamiento** — lógica, sentido común, detección de falacias argumentales,
     inferencia, sesgos de razonamiento habituales (falacia del jugador, tasa base,
@@ -54,22 +47,19 @@ bloque; son ítems más dentro del bloque que mejor los acoge.
 12. **Comprensión lectora** — un texto de 2-3 párrafos (campo `texto`, ver §4.2) seguido
     de una pregunta que exige haber entendido el texto (idea principal, inferencia,
     detalle, propósito del autor), no conocimiento externo sobre el tema del texto.
-13. **Competencias básicas** — el equivalente funcional de la cultura general para la
-    vida cotidiana: aritmética de descuentos y porcentajes, lectura de una factura o
-    una etiqueta, interés simple, proporciones, unidades. Su ausencia genera problemas
-    prácticos concretos (ejemplo canónico: no saber que un 50% de descuento es mejor
-    que un "3x2").
 
-Estos 3 bloques se tratan exactamente igual que los 10 de canon a efectos de
-estructura del ítem, dificultad, formato y sorteo (§1.3-§1.5, §4.2); la única
+Estos 2 bloques se tratan exactamente igual que los 10 de canon a efectos de
+estructura del ítem, dificultad y formato (§1.3-§1.5, §4.2); la única
 diferencia es de contenido, no de mecánica del test.
 
-**12 ítems/preguntas por bloque × 13 bloques = 156 ítems en el banco.**
+**3 ítems fijos (uno por dificultad) por bloque × 12 bloques = 36 ítems, el test
+completo.** El banco no tiene ítems de reserva: cada persona ve exactamente estos
+36 ítems, en orden aleatorio (§1.4).
 
 ### 1.3 Niveles de dificultad
 
 Cada ítem se etiqueta como `facil`, `medio` o `dificil`.
-Distribución objetivo por bloque: 4 / 4 / 4.
+Cada bloque tiene exactamente 1 ítem por nivel: 1 / 1 / 1.
 
 - Los ítems **fáciles** existen para documentar el efecto techo: son "mínimos absolutos"
   que una persona de cultura normal debería acertar. Su unidad de análisis es el **ítem**,
@@ -85,30 +75,18 @@ Distribución objetivo por bloque: 4 / 4 / 4.
 redacta un test estima mal la dificultad de sus propios ítems. Tras el piloto se
 **reetiquetan según el porcentaje de acierto real**.
 
-### 1.4 Modo corto y modo completo
+### 1.4 Un único test fijo (36 ítems)
 
-**Todo el mundo hace primero el modo corto de 39 ítems.** Al terminar, se muestra el
-resultado y se ofrece continuar con los 117 restantes.
+**Todo el mundo hace el mismo test: los 36 ítems del banco (12 bloques × 3 niveles de
+dificultad), sin sorteo de contenido.** No hay banco de reserva ni fase de extensión:
+el banco entero es el test. Lo único que se aleatoriza es el **orden de presentación**
+(§3), para que los bloques no queden agrupados por tema.
 
-> **No se ofrece la elección al principio.** Si el usuario elige entre "39" y "156" al
-> entrar, la elección está correlacionada con conocimiento y motivación, y las dos
-> submuestras dejan de ser comparables. Ofrecer la continuación *después* de terminar los
-> 39 resuelve esto: se obtienen datos del núcleo de todos los participantes, sube la tasa
-> de entrada, y la decisión de continuar se convierte en un **dato observado** en lugar de
-> un sesgo invisible.
-
-**Composición del modo corto (39 ítems, 3 por bloque):**
-
-| Por cada bloque | Cantidad | Selección |
-|---|---|---|
-| Ítem de dificultad **media** | 1 | **Fijo** (ancla) |
-| Ítem de dificultad **fácil** | 1 | Aleatorio |
-| Ítem de dificultad **difícil** | 1 | Aleatorio |
-
-Los **13 ítems fijos son el conjunto de anclaje**: permiten poner en la misma escala a
-quien contestó 39 y a quien contestó 156. Se eligen de dificultad **media** a propósito:
-un ítem que acierta el 95% no ancla nada porque no discrimina en el rango donde está
-casi toda la muestra.
+Esto simplifica la comparabilidad entre participantes (todos ven exactamente los
+mismos 36 ítems, así que no hace falta un subconjunto de anclaje para poner las
+puntuaciones en la misma escala) a cambio de menos varianza por persona que un banco
+más grande. Es una decisión deliberada de diseño: menos preguntas, pero curadas una a
+una, frente a un banco grande muestreado en parte al azar.
 
 ### 1.5 Formato de respuesta: mixto
 
@@ -268,8 +246,6 @@ a CSV.
 │   ├── items/            # Banco de ítems, un JSON por ítem, en carpetas por bloque (fuente de verdad)
 │   ├── items.json         # Generado: `npm run build:items` fusiona data/items/
 │   ├── build-items.mjs
-│   ├── build-debug.mjs    # Genera data/debug.html — `npm run build:debug` (ver §4.4)
-│   ├── debug.html         # Generado: web de debug autocontenida, no se edita a mano
 │   └── validate-items.mjs
 ├── schema/
 │   └── schema.sql       # DDL de D1
@@ -286,9 +262,7 @@ CREATE TABLE sesiones (
   actualizada_en    TEXT,
   consentimiento    INTEGER NOT NULL,        -- 0/1
   compromiso_honestidad INTEGER NOT NULL,
-  completo_corto    INTEGER DEFAULT 0,       -- terminó los 39
-  acepto_extension  INTEGER,                 -- NULL si no llegó a la oferta
-  completo_largo    INTEGER DEFAULT 0,       -- terminó los 156 (39 + 117)
+  completo          INTEGER DEFAULT 0,       -- terminó los 36 ítems
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
   -- demografía
   anio_nacimiento   INTEGER,
@@ -332,9 +306,9 @@ CREATE INDEX idx_respuestas_item   ON respuestas(item_id);
 -- red tras un timeout nunca duplica la respuesta a un mismo ítem.
 CREATE UNIQUE INDEX idx_respuestas_sesion_item ON respuestas(sesion_id, item_id);
 
--- Persiste el sorteo de ítems hecho en el servidor: "el sorteo de ítems se hace
--- en el servidor y se persiste, para que recargar la página no cambie el set"
--- (§4.3). No contiene contenido de ítems, solo el id: el contenido vive
+-- Persiste el orden de presentación del test hecho en el servidor: "el orden se
+-- decide en el servidor y se persiste, para que recargar la página no cambie el
+-- orden" (§4.3). No contiene contenido de ítems, solo el id: el contenido vive
 -- únicamente en data/items.json, que el Worker importa como módulo estático
 -- (§4.2) — D1 nunca se usa como copia del banco de ítems, así que editar un
 -- ítem y regenerar data/items.json no requiere ninguna migración de datos.
@@ -342,10 +316,9 @@ CREATE TABLE sesion_items (
   id                  INTEGER PRIMARY KEY AUTOINCREMENT,
   sesion_id           TEXT NOT NULL REFERENCES sesiones(id),
   item_id             TEXT NOT NULL,
-  fase                TEXT NOT NULL CHECK (fase IN ('corto','extension')),
   orden_presentacion  INTEGER NOT NULL,
   UNIQUE (sesion_id, item_id),
-  UNIQUE (sesion_id, fase, orden_presentacion)
+  UNIQUE (sesion_id, orden_presentacion)
 );
 
 CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
@@ -359,7 +332,6 @@ CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
     "id": "HIS-01",
     "bloque": "historia",
     "dificultad": "facil",          // facil | medio | dificil
-    "ancla": false,                  // true en los 13 ítems fijos (uno por bloque, medio)
     "formato": "abierto",            // abierto | opcion_multiple | ordenar | clasificar
     "enunciado": "¿En qué año llegó Cristóbal Colón a América?",
     "texto": null,                   // opcional: pasaje de 2-3 párrafos (bloque comprensión lectora, ver más abajo)
@@ -374,7 +346,6 @@ CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
     "id": "FIS-07",
     "bloque": "fisica_quimica",
     "dificultad": "medio",
-    "ancla": true,
     "formato": "opcion_multiple",
     "enunciado": "¿Qué es la refracción?",
     "opciones": [
@@ -389,7 +360,6 @@ CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
     "id": "ART-01",
     "bloque": "arte",
     "dificultad": "dificil",
-    "ancla": false,
     "formato": "ordenar",
     "enunciado": "Ordena estos compositores de más antiguo a más moderno:",
     "elementos": ["Beethoven", "Bach", "Brahms", "Haydn", "Mozart", "Schubert"],
@@ -403,7 +373,6 @@ CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
     "id": "FIL-06",
     "bloque": "filosofia",
     "dificultad": "medio",
-    "ancla": true,
     "formato": "clasificar",
     "enunciado": "Clasifica a cada filósofo según la corriente ética que defendió:",
     "categorias": ["Utilitarismo", "Deontología", "Ética de la virtud", "Estoicismo"],
@@ -426,7 +395,6 @@ CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
     "id": "COM-01",
     "bloque": "comprension_lectora",
     "dificultad": "facil",
-    "ancla": false,
     "formato": "opcion_multiple",
     "enunciado": "¿Cuál es la idea principal del texto?",
     "texto": "Primer párrafo del pasaje…\n\nSegundo párrafo del pasaje…",
@@ -464,8 +432,7 @@ fijo), `elementos` es la bandeja de fichas a repartir (orden de presentación fi
 acierto.
 
 **Invariantes que el código debe validar al arrancar:**
-- Exactamente 13 bloques × 12 ítems.
-- Exactamente 1 ítem con `ancla: true` por bloque, y su `dificultad` debe ser `medio`.
+- Exactamente 12 bloques × 3 ítems (uno por dificultad).
 - `texto`, si está presente, es una cadena no vacía. Solo se espera en el bloque
   `comprension_lectora`.
 - Todo ítem `opcion_multiple` tiene exactamente 6 opciones e `indice_correcto` válido.
@@ -479,33 +446,29 @@ acierto.
   duplicados) y `clasificacion_correcta` con exactamente una entrada por elemento, cada
   una apuntando a una categoría existente, y con las `categorias` usadas al menos una
   vez cada una.
-- Ítems `abierto` ≤ 50% del total por bloque (`ordenar` y `clasificar` no cuentan para
-  este tope, ver §1.5).
-- 4 fáciles, 4 medias y 4 difíciles.
+- 1 fácil, 1 media y 1 difícil por bloque.
 
 ### 4.3 Endpoints del Worker
 
 ```
-POST /api/sesion            → crea sesión, devuelve id + set de ítems sorteado
+POST /api/sesion            → crea sesión, devuelve id + los 36 ítems en orden aleatorio
 POST /api/respuesta         → guarda una respuesta (idempotente por sesion_id+item_id)
-POST /api/extender          → registra aceptación/rechazo y devuelve los 117 restantes
 GET  /api/resultado/:id     → devuelve el resultado de esa sesión
 GET  /api/export?token=…    → volcado CSV/JSON (protegido con secreto en env)
 ```
 
 Notas de implementación:
-- El sorteo de ítems se hace **en el servidor** y se persiste (tabla `sesion_items`,
-  §4.1), para que recargar la página no cambie el set y no se pueda "rerodar" hasta
-  obtener preguntas fáciles. `POST /api/sesion` y `POST /api/extender` son idempotentes
-  respecto al sorteo: si la sesión ya tiene un sorteo persistido para esa fase, se
-  devuelve el mismo en vez de generar uno nuevo.
+- El orden de presentación se decide **en el servidor** y se persiste (tabla
+  `sesion_items`, §4.1), para que recargar la página no cambie el orden.
+  `POST /api/sesion` es idempotente: si la sesión ya existe, no se puede volver a
+  llamar (cada sesión se crea una sola vez); reanudar usa `GET /api/resultado/:id`.
 - `GET /api/resultado/:id` tiene dos formas de respuesta según el estado de la sesión:
-  si `completo_corto=0` (test en curso, típicamente tras recargar la página o volver
-  más tarde), devuelve `{ estado: 'en_progreso', fase_actual, items_pendientes }` en
-  vez de un resultado, para que el cliente pueda **reanudar sin volver a sortear nada
-  en el propio front-end** — el `localStorage` del cliente solo necesita guardar el
-  `sesion_id` (§8), nunca qué ítems tocan ni en qué orden. Si la sesión está completa
-  (o al menos completó el modo corto), devuelve los agregados de resultado.
+  si `completo=0` (test en curso, típicamente tras recargar la página o volver más
+  tarde), devuelve `{ estado: 'en_progreso', items_pendientes }` en vez de un
+  resultado, para que el cliente pueda **reanudar sin volver a decidir nada en el
+  propio front-end** — el `localStorage` del cliente solo necesita guardar el
+  `sesion_id` (§8), nunca qué ítems tocan ni en qué orden. Si la sesión está completa,
+  devuelve `{ estado: 'completo', resultado }` con los agregados.
 - **Las respuestas correctas nunca se envían al cliente** antes de que el ítem se
   conteste. La corrección ocurre en el Worker. Para ítems `ordenar`, esto significa que
   `elementos_ordenados` no se envía al cliente hasta contestar; solo se envía
@@ -514,50 +477,7 @@ Notas de implementación:
   envían `categorias` y `elementos`.
 - Rate limiting básico por IP para evitar envíos automatizados; la IP **no se almacena**.
 
-### 4.4 Web de debug de ítems (`data/debug.html`)
-
-Mientras se redacta el banco (Fase 1), antes de que exista el Worker/front-end
-definitivo, hace falta poder revisar visualmente cada ítem tal y como se vería en
-la app real y comprobar que la corrección automática lo clasifica como se espera.
-Para eso existe `data/debug.html`: una página **autocontenida** (HTML+CSS+JS
-embebidos, sin llamadas de red ni dependencias) generada por
-`data/build-debug.mjs` a partir de los ficheros en `data/items/<bloque>/*.json`.
-
-Se puede abrir directamente con doble clic (`file://…`) o descargarse y probarse
-en cualquier navegador, sin servidor.
-
-Qué muestra, por bloque y por ítem:
-- Las preguntas agrupadas por bloque y renderizadas como en la web definitiva
-  (texto libre, opción múltiple de 6 opciones, ordenar por arrastre, clasificar en
-  cajas por arrastre).
-- Metadatos que la web de usuario **nunca** mostrará: id del ítem, dificultad,
-  formato y si es el ítem `ancla` del bloque.
-- Estadísticas por bloque: nº de ítems por dificultad y por formato, y cuál es
-  el ancla.
-- Un botón **"Comprobar todo"** que aplica el algoritmo de corrección del §1.6
-  (normalización, Levenshtein, alias/alias_parcial) y anota cada ítem como
-  acierto / fallo / parcial / sin responder, con el alias que hizo match y la
-  distancia — para verificar que la política de corrección de cada ítem hace lo
-  que se pretendía.
-
-**Los bloques o ítems que aún no están redactados (carpeta con solo
-`.gitkeep`) no aparecen y no producen error** — es el estado esperado mientras el
-banco se completa bloque a bloque.
-
-**Regenerar tras cualquier cambio en `data/items/`:**
-
-```bash
-npm run build:debug
-```
-
-Este comando lee de nuevo todos los JSON de `data/items/<bloque>/` y sobrescribe
-`data/debug.html`. `data/debug.html` es un **artefacto generado** (como
-`data/items.json`): no se edita a mano, se regenera cada vez que se añade,
-corrige o completa un ítem. Conviene tenerlo abierto en el navegador con
-recarga automática (o simplemente refrescar la pestaña) mientras se va
-ejecutando `npm run build:debug` en la redacción de cada nuevo ítem.
-
-### 4.5 Despliegue manual a Cloudflare
+### 4.4 Despliegue manual a Cloudflare
 
 Nada de esto lo ejecuta Claude Code de forma autónoma: requiere una cuenta de
 Cloudflare real y credenciales que no viven en este entorno. Pasos, en orden, desde
@@ -643,9 +563,9 @@ enunciados ni respuestas hardcodeadas.
 ## 6. Fases del proyecto
 
 ### Fase 1 — Banco de ítems
-Redactar los 156 ítems con: bloque, dificultad a priori, formato, enunciado,
-respuesta canónica + alias (abiertos) o 6 opciones con distractores plausibles.
-Empezar por Filosofía e Historia y validar el estilo antes de continuar.
+Redactar los 36 ítems (12 bloques × 3 niveles de dificultad) con: bloque,
+dificultad, formato, enunciado, respuesta canónica + alias (abiertos) o 6 opciones
+con distractores plausibles.
 
 ### Fase 2 — App
 Front-end + Worker + D1 según §4.
@@ -654,14 +574,13 @@ Front-end + Worker + D1 según §4.
 Objetivos:
 - **Reetiquetar la dificultad** según el % de acierto real. Es probable que haya
   sorpresas, y esas sorpresas son material para el paper.
-- Eliminar ítems con discriminación baja o dificultad extrema.
+- Revisar/sustituir ítems con discriminación baja o dificultad extrema.
 - Afinar las listas de alias con las respuestas reales.
 - Medir tiempo real de cumplimentación y tasa de abandono por posición.
 
 ### Fase 4 — Lanzamiento
-Objetivo: **≥300-400 sesiones**. Con 13 bloques × 3 niveles y sorteo aleatorio, cada
-ítem no fijo aparece en ~1/4 de las sesiones del modo corto; se necesitan ≥100 respuestas
-por ítem para calibrarlo.
+Objetivo: **≥300-400 sesiones**. Con un banco fijo de 36 ítems, todas las sesiones ven
+los mismos ítems: se necesitan ≥100 respuestas por ítem para calibrarlo.
 
 ### Fase 5 — Análisis y publicación
 
@@ -699,8 +618,8 @@ cuestionarios online son un subconjunto muy atípico de su cohorte.
 - **DIF (funcionamiento diferencial del ítem)** por sexo y por cohorte: si un ítem
   funciona distinto en mayores y jóvenes a igual nivel general, **eso es el efecto
   cohorte hecho visible**, y es material central para el paper.
-- **Análisis de abandono:** quién abandona, en qué posición, y quién acepta la extensión
-  a 156 ítems. Es un dato observado, no ruido.
+- **Análisis de abandono:** quién abandona y en qué posición del test. Es un dato
+  observado, no ruido.
 
 ---
 
@@ -708,7 +627,7 @@ cuestionarios online son un subconjunto muy atípico de su cohorte.
 
 - `data/items.json` es la **fuente de verdad**. El front-end no debe contener enunciados
   ni respuestas hardcodeadas.
-- Escribir el validador de invariantes (§4.2) como test que corre en CI. Con 156 ítems
+- Escribir el validador de invariantes (§4.2) como test que corre en CI. Con 36 ítems
   redactados a mano, los errores de estructura son inevitables.
 - La corrección de respuestas abiertas debe vivir en el Worker y ser **testeable de forma
   aislada**, con una batería de casos por ítem (variantes con y sin acentos, erratas,

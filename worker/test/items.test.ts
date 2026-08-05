@@ -23,8 +23,8 @@ const CLAVES_PROHIBIDAS = [
 ];
 
 describe("banco de ítems", () => {
-  it("carga los 156 ítems desde data/items.json", () => {
-    expect(bancoItems.length).toBe(156);
+  it("carga los 36 ítems desde data/items.json", () => {
+    expect(bancoItems.length).toBe(36);
   });
 
   it("obtenerItem encuentra un ítem real por id", () => {
