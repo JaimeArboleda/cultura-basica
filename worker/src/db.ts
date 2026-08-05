@@ -9,6 +9,7 @@ export interface FilaSesion {
   consentimiento: number;
   compromiso_honestidad: number;
   completo: number;
+  puntuacion_ponderada: number | null;
 }
 
 export async function crearSesion(
@@ -122,10 +123,31 @@ export async function contarRespuestas(env: Env, sesionId: string): Promise<numb
   return fila?.n ?? 0;
 }
 
-export async function marcarCompleto(env: Env, sesionId: string): Promise<void> {
-  await env.DB.prepare("UPDATE sesiones SET completo = 1, actualizada_en = ? WHERE id = ?")
-    .bind(new Date().toISOString(), sesionId)
+export async function marcarCompleto(
+  env: Env,
+  sesionId: string,
+  puntuacionPonderada: number
+): Promise<void> {
+  await env.DB.prepare(
+    "UPDATE sesiones SET completo = 1, actualizada_en = ?, puntuacion_ponderada = ? WHERE id = ?"
+  )
+    .bind(new Date().toISOString(), puntuacionPonderada, sesionId)
     .run();
+}
+
+// Puntuaciones de otras sesiones ya completadas, para el percentil empírico del
+// resultado (README §3): no asume ninguna distribución, solo compara contra los
+// datos reales que haya en ese momento.
+export async function obtenerPuntuacionesCompletadas(
+  env: Env,
+  excluirSesionId: string
+): Promise<number[]> {
+  const { results } = await env.DB.prepare(
+    "SELECT puntuacion_ponderada AS p FROM sesiones WHERE completo = 1 AND id != ? AND puntuacion_ponderada IS NOT NULL"
+  )
+    .bind(excluirSesionId)
+    .all<{ p: number }>();
+  return results.map((r) => r.p);
 }
 
 export interface FilaResultado {

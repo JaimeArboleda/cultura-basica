@@ -3,6 +3,7 @@ import {
   marcarCompleto,
   obtenerAsignacion,
   obtenerAsignaciones,
+  obtenerRespuestasParaResultado,
   obtenerSesion,
   upsertRespuesta,
 } from "../db";
@@ -14,7 +15,8 @@ import {
   type ResultadoCorreccion,
 } from "../correccion";
 import { error, json } from "../http";
-import { obtenerItem } from "../items";
+import { itemsPorId, obtenerItem } from "../items";
+import { calcularPuntuacionPonderada } from "../puntuacion";
 import type { Env, Item } from "../tipos";
 
 function corregir(item: Item, respuesta: unknown): ResultadoCorreccion | null {
@@ -82,7 +84,12 @@ export async function postRespuesta(request: Request, env: Env): Promise<Respons
     const totalAsignados = (await obtenerAsignaciones(env, sesionId)).length;
     const totalRespondidas = await contarRespuestas(env, sesionId);
     if (totalRespondidas >= totalAsignados) {
-      await marcarCompleto(env, sesionId);
+      const respuestas = await obtenerRespuestasParaResultado(env, sesionId);
+      const puntuacion = calcularPuntuacionPonderada(
+        respuestas,
+        (id) => itemsPorId.get(id)?.dificultad
+      );
+      await marcarCompleto(env, sesionId, puntuacion);
     }
   }
 

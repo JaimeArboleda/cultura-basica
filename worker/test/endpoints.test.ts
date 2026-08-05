@@ -180,14 +180,62 @@ describe("GET /api/resultado/:id", () => {
     expect(body.items_pendientes.length).toBe(36);
   });
 
-  it("modo completo tras responder los 36 ítems", async () => {
+  it("modo completo tras responder los 36 ítems, con puntuación ponderada y percentil 50 sin otras sesiones", async () => {
     const { sesion_id, items } = await crearSesionDeTest();
     await completarTest(sesion_id, items);
 
     const res = await SELF.fetch(`http://worker.test/api/resultado/${sesion_id}`);
-    const body = (await res.json()) as { estado: string; resultado: unknown };
+    const body = (await res.json()) as {
+      estado: string;
+      resultado: {
+        por_bloque: Record<string, { facil: boolean; medio: boolean; dificil: boolean }>;
+        puntuacion: number;
+        puntuacion_maxima: number;
+        percentil: number;
+        media: number | null;
+      };
+    };
     expect(body.estado).toBe("completo");
-    expect(body.resultado).toBeDefined();
+    expect(body.resultado.puntuacion).toBe(36);
+    expect(body.resultado.puntuacion_maxima).toBe(36);
+    expect(body.resultado.percentil).toBe(50);
+    expect(body.resultado.media).toBeNull();
+    expect(Object.keys(body.resultado.por_bloque).length).toBe(12);
+    for (const bloque of Object.values(body.resultado.por_bloque)) {
+      expect(bloque).toEqual({ facil: true, medio: true, dificil: true });
+    }
+  });
+
+  it("percentil empírico frente a otra sesión ya completada", async () => {
+    const perfecta = await crearSesionDeTest();
+    await completarTest(perfecta.sesion_id, perfecta.items);
+
+    const vacia = await crearSesionDeTest();
+    for (const item of vacia.items) {
+      const real = bancoItems.find((i) => i.id === item.id)!;
+      const respuestaIncorrecta =
+        real.formato === "opcion_multiple" ? (real.indice_correcto! + 1) % 6 : real.formato === "ordenar" ? [...real.elementos!].reverse() : real.formato === "clasificar" ? {} : "";
+      await postJson("/api/respuesta", {
+        sesion_id: vacia.sesion_id,
+        item_id: real.id,
+        respuesta: respuestaIncorrecta,
+        t_ms: 500,
+        perdio_foco: false,
+      });
+    }
+
+    const resVacia = await SELF.fetch(`http://worker.test/api/resultado/${vacia.sesion_id}`);
+    const bodyVacia = (await resVacia.json()) as { resultado: { puntuacion: number; percentil: number; media: number | null } };
+    expect(bodyVacia.resultado.puntuacion).toBe(0);
+    expect(bodyVacia.resultado.media).not.toBeNull();
+
+    const resPerfecta = await SELF.fetch(`http://worker.test/api/resultado/${perfecta.sesion_id}`);
+    const bodyPerfecta = (await resPerfecta.json()) as { resultado: { percentil: number } };
+    // No se asume aislamiento de almacenamiento entre tests de este fichero: se
+    // compara en relativo (la sesión perfecta debe quedar muy por encima de la
+    // vacía) en vez de fijar percentiles exactos que dependerían de qué otras
+    // sesiones haya creado el resto de tests.
+    expect(bodyPerfecta.resultado.percentil).toBeGreaterThan(bodyVacia.resultado.percentil);
   });
 });
 

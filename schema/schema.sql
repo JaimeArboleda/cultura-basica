@@ -7,6 +7,7 @@ CREATE TABLE sesiones (
   consentimiento    INTEGER NOT NULL,        -- 0/1
   compromiso_honestidad INTEGER NOT NULL,
   completo          INTEGER DEFAULT 0,       -- terminó los 36 ítems
+  puntuacion_ponderada REAL,                 -- 0-36, ver worker/src/puntuacion.ts (peso 1.5/1/0.5 por dificultad)
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
   -- demografía
   anio_nacimiento   INTEGER,

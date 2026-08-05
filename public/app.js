@@ -5,6 +5,7 @@
 import * as api from "./js/api.js";
 import * as demografia from "./js/demografia.js";
 import * as renderItem from "./js/render-item.js";
+import { nombreBonito } from "./js/bloques.js";
 
 const CLAVE_SESION = "cb_sesion_id";
 const app = document.getElementById("app");
@@ -202,34 +203,91 @@ function mostrarSegunEstado(sesionId, resultado, intento = 0) {
   pantallaResultado(resultado.resultado);
 }
 
-function tablaAgregados(titulo, agregado) {
-  const filasBloque = Object.entries(agregado.por_bloque)
-    .map(([bloque, a]) => `<tr><td>${escaparHtml(bloque)}</td><td>${a.aciertos} / ${a.total}</td></tr>`)
-    .join("");
-  const filasDificultad = ["facil", "medio", "dificil"]
-    .map((d) => {
-      const a = agregado.por_dificultad[d];
-      return `<tr><td>${d}</td><td>${a.aciertos} / ${a.total}</td></tr>`;
-    })
+const ICONO_CHECK =
+  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 4.8"/></svg>';
+
+const ETIQUETA_DIFICULTAD = { facil: "Fácil", medio: "Media", dificil: "Difícil" };
+
+function formatearPuntos(n) {
+  return n.toLocaleString("es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+function filaCategoria(bloque, marcas) {
+  const total = ["facil", "medio", "dificil"].filter((d) => marcas[d]).length;
+  const puntos = ["facil", "medio", "dificil"]
+    .map(
+      (d) => `
+    <div class="dificultad-punto">
+      <span class="dificultad-etiqueta">${ETIQUETA_DIFICULTAD[d]}</span>
+      <span class="marca-acierto ${marcas[d] ? "si" : "no"}">${marcas[d] ? ICONO_CHECK : ""}</span>
+    </div>`
+    )
     .join("");
 
   return `
-    <h3>${titulo}</h3>
-    <table class="tabla-resultado">
-      <caption>Por bloque</caption>
-      <tbody>${filasBloque}</tbody>
-    </table>
-    <table class="tabla-resultado">
-      <caption>Por dificultad (no se suman entre sí)</caption>
-      <tbody>${filasDificultad}</tbody>
-    </table>`;
+    <div class="categoria">
+      <div>
+        <div class="categoria-nombre">${escaparHtml(nombreBonito(bloque))}</div>
+        <div class="categoria-total">${total} / 3 aciertos</div>
+      </div>
+      <div class="dificultades">${puntos}</div>
+    </div>`;
 }
 
 function pantallaResultado(resultado) {
+  const { puntuacion, puntuacion_maxima: maxima, percentil, media, por_bloque } = resultado;
+  const posicionPuntuacion = (puntuacion / maxima) * 100;
+  const posicionMedia = media != null ? (media / maxima) * 100 : null;
+
+  const categorias = Object.keys(por_bloque)
+    .sort((a, b) => nombreBonito(a).localeCompare(nombreBonito(b), "es"))
+    .map((bloque) => filaCategoria(bloque, por_bloque[bloque]))
+    .join("");
+
   montar(`
     <section class="pantalla">
-      <h1>Resultado</h1>
-      ${tablaAgregados("Resultado del test", resultado)}
+      <div class="agradecimiento">
+        <h1>Gracias por tu tiempo</h1>
+        <p>
+          Has completado el test. Cada respuesta ayuda a entender qué parte de la cultura
+          general se sigue transmitiendo entre generaciones.
+        </p>
+      </div>
+
+      <div class="resumen">
+        <div class="resumen-cabecera">
+          <div>
+            <div class="puntuacion">${formatearPuntos(puntuacion)}<span> / ${maxima} puntos</span></div>
+            <p class="resumen-nota" style="margin-top: 0.3rem;">Puntuación normalizada por dificultad</p>
+          </div>
+          <div>
+            <div class="percentil-etiqueta">Percentil</div>
+            <div class="percentil-valor">${percentil}</div>
+          </div>
+        </div>
+        <div>
+          <div class="gauge-pista">
+            ${posicionMedia != null ? `<div class="gauge-media" style="left: ${posicionMedia}%;"></div>` : ""}
+            <div class="gauge-marca" style="left: ${posicionPuntuacion}%;"></div>
+          </div>
+          <div class="gauge-leyenda"><span>0</span><span>${media != null ? `Media: ${formatearPuntos(media)}` : ""}</span><span>${maxima}</span></div>
+        </div>
+        <p class="resumen-nota">
+          ${
+            media != null
+              ? `Tu puntuación queda por encima del <strong>${percentil} %</strong> de quienes han completado el test hasta ahora (media: ${formatearPuntos(media)} / ${maxima}).`
+              : `Eres de las primeras personas en completar el test, así que todavía no hay con quién comparar tu puntuación.`
+          }
+        </p>
+      </div>
+
+      <div>
+        <h2>Resultado por bloque</h2>
+        <p class="resumen-nota" style="margin-bottom: 0.75rem;">Un acierto o fallo por cada nivel de dificultad.</p>
+        <div class="categorias">${categorias}</div>
+      </div>
+
+      <footer class="cierre">Puedes cerrar esta página cuando quieras. No se guarda ningún dato identificativo.</footer>
     </section>`);
 }
 
