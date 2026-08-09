@@ -24,6 +24,21 @@ export function html(item) {
             .join("")}
         </div>`;
 
+    case "seleccion_multiple":
+      return `
+        <div class="opciones opciones-multiples" role="group">
+          ${item.opciones
+            .map(
+              (op, i) => `
+            <label class="opcion-checkbox">
+              <input type="checkbox" data-indice="${i}" />
+              <span>${escapar(op)}</span>
+            </label>`
+            )
+            .join("")}
+        </div>
+        <button type="button" class="boton-principal" id="boton-responder">Responder</button>`;
+
     case "ordenar":
       return `
         <ol id="lista-ordenar" class="lista-ordenar">
@@ -85,6 +100,16 @@ export function attachListeners(root, item, onResponder) {
   if (item.formato === "opcion_multiple") {
     root.querySelectorAll(".boton-opcion").forEach((btn) => {
       btn.addEventListener("click", () => onResponder(Number(btn.dataset.indice)));
+    });
+    return;
+  }
+
+  if (item.formato === "seleccion_multiple") {
+    boton.addEventListener("click", () => {
+      const seleccionadas = [...root.querySelectorAll('input[type="checkbox"]:checked')]
+        .map((input) => Number(input.dataset.indice))
+        .sort((a, b) => a - b);
+      onResponder(seleccionadas);
     });
     return;
   }

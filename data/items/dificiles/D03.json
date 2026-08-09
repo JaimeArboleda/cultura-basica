@@ -1,0 +1,40 @@
+{
+  "id": "D03",
+  "tipo": "trivia",
+  "dificultad": "dificil",
+  "formato": "ordenar",
+  "enunciado": "Ordena cronológicamente las siguientes creaciones humanas:",
+  "texto": null,
+  "elementos": [
+    "La Ilíada",
+    "Cien años de soledad",
+    "Don Quijote de la Mancha",
+    "Crimen y Castigo de Dostoievsky",
+    "El Cantar del Mío Cid",
+    "El Corán",
+    "El Coliseo de Roma",
+    "El David de Miguel Ángel",
+    "La Novena Sinfonía de Beethoven",
+    "El Gernika de Picasso"
+  ],
+  "elementos_ordenados": [
+    "La Ilíada",
+    "El Coliseo de Roma",
+    "El Corán",
+    "El Cantar del Mío Cid",
+    "El David de Miguel Ángel",
+    "Don Quijote de la Mancha",
+    "La Novena Sinfonía de Beethoven",
+    "Crimen y Castigo de Dostoievsky",
+    "El Gernika de Picasso",
+    "Cien años de soledad"
+  ],
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": null,
+  "indice_correcto": null
+}

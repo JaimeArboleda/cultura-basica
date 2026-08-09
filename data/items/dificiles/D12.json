@@ -1,0 +1,32 @@
+{
+  "id": "D12",
+  "tipo": "trivia",
+  "dificultad": "dificil",
+  "formato": "seleccion_multiple",
+  "enunciado": "Se afirma que «todos los objetos que cumplen A, cumplen también B y C». Marca todos los ejemplos de objetos que servirían para demostrar que esa afirmación es falsa:",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Un objeto que cumple A, cumple B y cumple C",
+    "Un objeto que cumple A, no cumple B y no cumple C",
+    "Un objeto que cumple A, cumple B y no cumple C",
+    "Un objeto que cumple A, no cumple B y cumple C",
+    "Un objeto que no cumple A, cumple B y cumple C",
+    "Un objeto que no cumple A, no cumple B y no cumple C",
+    "Un objeto que no cumple A, cumple B y no cumple C",
+    "Un objeto que no cumple A, no cumple B y cumple C"
+  ],
+  "opciones_correctas": [
+    1,
+    2,
+    3
+  ],
+  "indice_correcto": null
+}

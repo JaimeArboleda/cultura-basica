@@ -1,0 +1,25 @@
+{
+  "id": "F05",
+  "tipo": "trivia",
+  "dificultad": "facil",
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué se conserva en las reacciones químicas?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "El número total de moléculas",
+    "La presión, siempre que el recipiente esté cerrado",
+    "La temperatura del sistema",
+    "El estado de agregación de las sustancias",
+    "La masa total y el número de átomos de cada elemento",
+    "El volumen total de las sustancias implicadas"
+  ],
+  "indice_correcto": 4
+}

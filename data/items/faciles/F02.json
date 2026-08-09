@@ -1,0 +1,27 @@
+{
+  "id": "F02",
+  "tipo": "trivia",
+  "dificultad": "facil",
+  "formato": "abierto",
+  "enunciado": "¿Quién reinaba en Castilla cuando Cristóbal Colón llegó a América?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "Isabel la Católica",
+  "alias": [
+    "isabel la catolica",
+    "isabel i",
+    "isabel i de castilla",
+    "isabel de castilla",
+    "los reyes catolicos",
+    "reyes catolicos",
+    "fernando e isabel",
+    "isabel y fernando"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

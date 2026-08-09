@@ -1,0 +1,28 @@
+{
+  "id": "D02",
+  "tipo": "trivia",
+  "dificultad": "dificil",
+  "formato": "abierto",
+  "enunciado": "¿Cómo se llamó a la paz que puso fin a la Guerra de los Treinta Años?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "Paz de Westfalia",
+  "alias": [
+    "paz de westfalia",
+    "westfalia",
+    "tratado de westfalia",
+    "tratados de westfalia"
+  ],
+  "alias_parcial": [
+    "munster",
+    "münster",
+    "osnabruck",
+    "osnabrück"
+  ],
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

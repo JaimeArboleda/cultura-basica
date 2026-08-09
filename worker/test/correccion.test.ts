@@ -4,6 +4,7 @@ import {
   corregirClasificar,
   corregirOpcionMultiple,
   corregirOrdenar,
+  corregirSeleccionMultiple,
   levenshtein,
   normalizar,
 } from "../src/correccion";
@@ -13,7 +14,7 @@ import type { Item } from "../src/tipos";
 function itemAbierto(overrides: Partial<Item> = {}): Item {
   return {
     id: "TEST-01",
-    bloque: "test",
+    tipo: "trivia",
     dificultad: "facil",
     formato: "abierto",
     enunciado: "¿?",
@@ -24,6 +25,7 @@ function itemAbierto(overrides: Partial<Item> = {}): Item {
     tolerancia_edicion: 1,
     opciones: null,
     indice_correcto: null,
+    opciones_correctas: null,
     elementos: null,
     elementos_ordenados: null,
     categorias: null,
@@ -117,6 +119,28 @@ describe("corregirOpcionMultiple", () => {
   });
   it("falla con otro índice", () => {
     expect(corregirOpcionMultiple(item, 0)).toEqual({ acierto: 0, estado_correccion: "auto" });
+  });
+});
+
+describe("corregirSeleccionMultiple", () => {
+  const item = itemAbierto({ formato: "seleccion_multiple", opciones_correctas: [1, 3, 5] });
+  it("acierta marcando exactamente el conjunto correcto, en cualquier orden", () => {
+    expect(corregirSeleccionMultiple(item, [5, 1, 3])).toEqual({
+      acierto: 1,
+      estado_correccion: "auto",
+    });
+  });
+  it("falla si falta alguna correcta", () => {
+    expect(corregirSeleccionMultiple(item, [1, 3])).toEqual({ acierto: 0, estado_correccion: "auto" });
+  });
+  it("falla si sobra alguna incorrecta", () => {
+    expect(corregirSeleccionMultiple(item, [1, 3, 5, 0])).toEqual({
+      acierto: 0,
+      estado_correccion: "auto",
+    });
+  });
+  it("falla con selección vacía", () => {
+    expect(corregirSeleccionMultiple(item, [])).toEqual({ acierto: 0, estado_correccion: "auto" });
   });
 });
 

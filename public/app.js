@@ -1,11 +1,14 @@
-// Orquestador del front-end (README §4, §8). Máquina de estados lineal, sin
-// navegación hacia atrás. localStorage solo guarda el id de sesión para poder
-// reanudar (§8): la fuente de verdad de qué ítems tocan y en qué orden es siempre
-// el Worker (ver GET /api/resultado/:id en modo 'en_progreso').
+// Orquestador del front-end (README §4, §8). localStorage solo guarda el id de
+// sesión para poder reanudar (§8): la fuente de verdad de qué ítems tocan y en
+// qué orden es siempre el Worker (ver GET /api/resultado/:id en modo
+// 'en_progreso'). Dentro de una misma tanda de ítems servida por el Worker se
+// permite volver atrás para corregir una respuesta (POST /api/respuesta es
+// idempotente por sesion_id+item_id, así que reenviarla la sobrescribe); no se
+// puede volver más atrás de esa tanda porque el Worker no reenvía ítems ya
+// respondidos.
 import * as api from "./js/api.js";
 import * as demografia from "./js/demografia.js";
 import * as renderItem from "./js/render-item.js";
-import { nombreBonito } from "./js/bloques.js";
 
 const CLAVE_SESION = "cb_sesion_id";
 const app = document.getElementById("app");
@@ -98,33 +101,48 @@ function pantallaDemografia() {
   });
 }
 
-// --- Ejecución del test (36 ítems fijos) ---
+// --- Ejecución del test (25 ítems fijos) ---
 
-const TOTAL_ITEMS = 36;
+const TOTAL_ITEMS = 25;
 
 function ejecutarTest(sesionId, itemsPendientes) {
-  const cola = [...itemsPendientes];
+  const items = [...itemsPendientes];
   const total = TOTAL_ITEMS;
+  const yaRespondidos = total - items.length;
+  let pos = 0;
 
-  function siguiente() {
-    if (cola.length === 0) {
-      onTestCompleto(sesionId);
-      return;
-    }
-    const item = cola.shift();
-    renderItemActual(sesionId, item, total - cola.length, total, siguiente);
+  function mostrarActual() {
+    const item = items[pos];
+    renderItemActual(sesionId, item, yaRespondidos + pos + 1, total, {
+      puedeVolver: pos > 0,
+      onSiguiente: () => {
+        pos++;
+        if (pos >= items.length) {
+          onTestCompleto(sesionId);
+        } else {
+          mostrarActual();
+        }
+      },
+      onAtras: () => {
+        pos--;
+        mostrarActual();
+      },
+    });
   }
 
-  siguiente();
+  mostrarActual();
 }
 
-function renderItemActual(sesionId, item, posicion, total, onSiguiente) {
+function renderItemActual(sesionId, item, posicion, total, { puedeVolver, onSiguiente, onAtras }) {
   const root = montar(`
     <section class="pantalla pantalla-item">
       <div class="barra-progreso" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${posicion}">
         <div class="barra-progreso-relleno" style="width:${(posicion / total) * 100}%"></div>
       </div>
-      <p class="contador">${posicion} / ${total}</p>
+      <div class="cabecera-item">
+        ${puedeVolver ? `<button type="button" class="boton-atras" id="boton-atras">← Atrás</button>` : "<span></span>"}
+        <p class="contador">${posicion} / ${total}</p>
+      </div>
       ${item.texto ? `<p class="texto-lectura">${escaparHtml(item.texto)}</p>` : ""}
       <h2>${escaparHtml(item.enunciado)}</h2>
       <div id="zona-respuesta">${renderItem.html(item)}</div>
@@ -136,6 +154,13 @@ function renderItemActual(sesionId, item, posicion, total, onSiguiente) {
     if (document.hidden) perdioFoco = true;
   };
   document.addEventListener("visibilitychange", onVisibility);
+
+  if (puedeVolver) {
+    root.querySelector("#boton-atras").addEventListener("click", () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      onAtras();
+    });
+  }
 
   renderItem.attachListeners(root.querySelector("#zona-respuesta"), item, async (respuesta) => {
     document.removeEventListener("visibilitychange", onVisibility);
@@ -203,46 +228,12 @@ function mostrarSegunEstado(sesionId, resultado, intento = 0) {
   pantallaResultado(resultado.resultado);
 }
 
-const ICONO_CHECK =
-  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 4.8"/></svg>';
-
-const ETIQUETA_DIFICULTAD = { facil: "Fácil", medio: "Media", dificil: "Difícil" };
-
-function formatearPuntos(n) {
-  return n.toLocaleString("es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-}
-
-function filaCategoria(bloque, marcas) {
-  const total = ["facil", "medio", "dificil"].filter((d) => marcas[d]).length;
-  const puntos = ["facil", "medio", "dificil"]
-    .map(
-      (d) => `
-    <div class="dificultad-punto">
-      <span class="dificultad-etiqueta">${ETIQUETA_DIFICULTAD[d]}</span>
-      <span class="marca-acierto ${marcas[d] ? "si" : "no"}">${marcas[d] ? ICONO_CHECK : ""}</span>
-    </div>`
-    )
-    .join("");
-
-  return `
-    <div class="categoria">
-      <div>
-        <div class="categoria-nombre">${escaparHtml(nombreBonito(bloque))}</div>
-        <div class="categoria-total">${total} / 3 aciertos</div>
-      </div>
-      <div class="dificultades">${puntos}</div>
-    </div>`;
-}
-
+// No se muestra ninguna puntuación en bruto ni desglose por dificultad: el único
+// dato que se enseña al terminar es el percentil (una "golosina" simbólica), que el
+// Worker ya calcula sin exponer la puntuación ponderada interna (ver
+// worker/src/endpoints/resultado.ts).
 function pantallaResultado(resultado) {
-  const { puntuacion, puntuacion_maxima: maxima, percentil, media, por_bloque } = resultado;
-  const posicionPuntuacion = (puntuacion / maxima) * 100;
-  const posicionMedia = media != null ? (media / maxima) * 100 : null;
-
-  const categorias = Object.keys(por_bloque)
-    .sort((a, b) => nombreBonito(a).localeCompare(nombreBonito(b), "es"))
-    .map((bloque) => filaCategoria(bloque, por_bloque[bloque]))
-    .join("");
+  const { primera, percentil } = resultado;
 
   montar(`
     <section class="pantalla">
@@ -254,37 +245,15 @@ function pantallaResultado(resultado) {
         </p>
       </div>
 
-      <div class="resumen">
-        <div class="resumen-cabecera">
-          <div>
-            <div class="puntuacion">${formatearPuntos(puntuacion)}<span> / ${maxima} puntos</span></div>
-            <p class="resumen-nota" style="margin-top: 0.3rem;">Puntuación normalizada por dificultad</p>
-          </div>
-          <div>
-            <div class="percentil-etiqueta">Percentil</div>
-            <div class="percentil-valor">${percentil}</div>
-          </div>
-        </div>
-        <div>
-          <div class="gauge-pista">
-            ${posicionMedia != null ? `<div class="gauge-media" style="left: ${posicionMedia}%;"></div>` : ""}
-            <div class="gauge-marca" style="left: ${posicionPuntuacion}%;"></div>
-          </div>
-          <div class="gauge-leyenda"><span>0</span><span>${media != null ? `Media: ${formatearPuntos(media)}` : ""}</span><span>${maxima}</span></div>
-        </div>
-        <p class="resumen-nota">
-          ${
-            media != null
-              ? `Tu puntuación queda por encima del <strong>${percentil} %</strong> de quienes han completado el test hasta ahora (media: ${formatearPuntos(media)} / ${maxima}).`
-              : `Eres de las primeras personas en completar el test, así que todavía no hay con quién comparar tu puntuación.`
-          }
-        </p>
-      </div>
-
-      <div>
-        <h2>Resultado por bloque</h2>
-        <p class="resumen-nota" style="margin-bottom: 0.75rem;">Un acierto o fallo por cada nivel de dificultad.</p>
-        <div class="categorias">${categorias}</div>
+      <div class="resumen resumen-percentil">
+        ${
+          primera
+            ? `<p class="resumen-nota">Eres de las primeras personas en completar el test, así que todavía no hay con quién comparar tu resultado.</p>`
+            : `
+          <div class="percentil-etiqueta">Tu percentil</div>
+          <div class="percentil-valor-grande">${percentil}</div>
+          <p class="resumen-nota">Tu resultado global queda por encima del <strong>${percentil} %</strong> de quienes han completado el test hasta ahora.</p>`
+        }
       </div>
 
       <footer class="cierre">Puedes cerrar esta página cuando quieras. No se guarda ningún dato identificativo.</footer>

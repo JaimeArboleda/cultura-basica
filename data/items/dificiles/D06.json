@@ -1,0 +1,34 @@
+{
+  "id": "D06",
+  "tipo": "trivia",
+  "dificultad": "dificil",
+  "formato": "seleccion_multiple",
+  "enunciado": "Marca todos los poderes considerados por Montesquieu en su teoría de la división de poderes del Estado:",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Civil",
+    "Judicial",
+    "Militar",
+    "Religioso",
+    "Ejecutivo",
+    "Económico",
+    "Político",
+    "Social",
+    "Legislativo",
+    "Administrativo"
+  ],
+  "opciones_correctas": [
+    1,
+    4,
+    8
+  ],
+  "indice_correcto": null
+}

@@ -1,6 +1,6 @@
 // Validación de la demografía recibida en POST /api/sesion contra los catálogos
 // cerrados de README §2 (ver tipos.ts).
-import { AREA_ESTUDIOS, CCAA, LIBROS_EN_CASA, NIVEL_ESTUDIOS, type Demografia } from "./tipos";
+import { AREA_ESTUDIOS, CCAA, LIBROS_EN_CASA, NIVEL_ESTUDIOS, SEXO, type Demografia } from "./tipos";
 
 const ANIO_MINIMO = 1920;
 
@@ -21,6 +21,7 @@ export function validarDemografia(body: unknown): Demografia | null {
   ) {
     return null;
   }
+  if (!enCatalogo(d.sexo, SEXO)) return null;
   if (!enCatalogo(d.ccaa_educacion_secundaria, CCAA)) return null;
   if (!enCatalogo(d.nivel_estudios, NIVEL_ESTUDIOS)) return null;
   if (!enCatalogo(d.area_estudios, AREA_ESTUDIOS)) return null;
@@ -29,6 +30,7 @@ export function validarDemografia(body: unknown): Demografia | null {
 
   return {
     anio_nacimiento: d.anio_nacimiento,
+    sexo: d.sexo,
     ccaa_educacion_secundaria: d.ccaa_educacion_secundaria,
     nivel_estudios: d.nivel_estudios,
     area_estudios: d.area_estudios,

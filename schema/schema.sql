@@ -6,11 +6,15 @@ CREATE TABLE sesiones (
   actualizada_en    TEXT,
   consentimiento    INTEGER NOT NULL,        -- 0/1
   compromiso_honestidad INTEGER NOT NULL,
-  completo          INTEGER DEFAULT 0,       -- terminó los 36 ítems
-  puntuacion_ponderada REAL,                 -- 0-36, ver worker/src/puntuacion.ts (peso 1.5/1/0.5 por dificultad)
+  completo          INTEGER DEFAULT 0,       -- terminó los 25 ítems
+  -- Puntuación ponderada interna (0-75), ver worker/src/puntuacion.ts (peso 4/2/3
+  -- fácil/difícil/comentario de texto). Nunca se muestra al usuario: solo sirve para
+  -- calcular el percentil de la pantalla de resultado.
+  puntuacion_ponderada REAL,
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
   -- demografía
   anio_nacimiento   INTEGER,
+  sexo              TEXT,
   ccaa_educacion_secundaria TEXT,
   nivel_estudios    TEXT,
   area_estudios     TEXT,

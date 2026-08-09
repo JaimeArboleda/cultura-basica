@@ -1,0 +1,25 @@
+{
+  "id": "D09",
+  "tipo": "trivia",
+  "dificultad": "dificil",
+  "formato": "opcion_multiple",
+  "enunciado": "Si tiras dos dados y sumas las puntuaciones, ¿cuál es el valor más probable?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "2",
+    "Todos por igual",
+    "12",
+    "6",
+    "5",
+    "7"
+  ],
+  "indice_correcto": 5
+}

@@ -1,0 +1,32 @@
+{
+  "id": "D10",
+  "tipo": "trivia",
+  "dificultad": "dificil",
+  "formato": "seleccion_multiple",
+  "enunciado": "¿Qué compositores fueron los más destacados de la llamada Primera Escuela de Viena?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Bach",
+    "Beethoven",
+    "Handel",
+    "Mozart",
+    "Brahms",
+    "Haydn",
+    "Chopin",
+    "Strauss"
+  ],
+  "opciones_correctas": [
+    1,
+    3,
+    5
+  ],
+  "indice_correcto": null
+}

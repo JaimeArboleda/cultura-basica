@@ -3,7 +3,6 @@ import { bancoItems, obtenerItem, paraCliente } from "../src/items";
 
 const CLAVES_PERMITIDAS = new Set([
   "id",
-  "bloque",
   "formato",
   "enunciado",
   "texto",
@@ -18,13 +17,14 @@ const CLAVES_PROHIBIDAS = [
   "alias_parcial",
   "tolerancia_edicion",
   "indice_correcto",
+  "opciones_correctas",
   "elementos_ordenados",
   "clasificacion_correcta",
 ];
 
 describe("banco de ítems", () => {
-  it("carga los 36 ítems desde data/items.json", () => {
-    expect(bancoItems.length).toBe(36);
+  it("carga los 25 ítems desde data/items.json", () => {
+    expect(bancoItems.length).toBe(25);
   });
 
   it("obtenerItem encuentra un ítem real por id", () => {
@@ -55,6 +55,13 @@ describe("paraCliente: no debe filtrar la respuesta correcta", () => {
     expect(publico.opciones).toHaveLength(6);
   });
 
+  it("un ítem seleccion_multiple expone las opciones sin las opciones_correctas", () => {
+    const item = bancoItems.find((i) => i.formato === "seleccion_multiple")!;
+    const publico = paraCliente(item);
+    expect(publico.opciones).toEqual(item.opciones);
+    expect(publico).not.toHaveProperty("opciones_correctas");
+  });
+
   it("un ítem ordenar expone elementos en orden de presentación, no elementos_ordenados", () => {
     const item = bancoItems.find((i) => i.formato === "ordenar")!;
     const publico = paraCliente(item);
@@ -62,7 +69,10 @@ describe("paraCliente: no debe filtrar la respuesta correcta", () => {
   });
 
   it("un ítem clasificar expone categorias y elementos, no clasificacion_correcta", () => {
-    const item = bancoItems.find((i) => i.formato === "clasificar")!;
+    // El formato sigue soportado aunque el banco actual de 25 ítems no incluya
+    // ninguno: se salta el test si no hay ningún ítem clasificar que comprobar.
+    const item = bancoItems.find((i) => i.formato === "clasificar");
+    if (!item) return;
     const publico = paraCliente(item);
     expect(publico.categorias).toEqual(item.categorias);
     expect(publico.elementos).toEqual(item.elementos);

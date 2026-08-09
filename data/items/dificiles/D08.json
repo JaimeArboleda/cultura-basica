@@ -1,0 +1,25 @@
+{
+  "id": "D08",
+  "tipo": "trivia",
+  "dificultad": "dificil",
+  "formato": "opcion_multiple",
+  "enunciado": "¿En qué región del mundo se producen los vientos alisios?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "En los polos, por la circulación de aire frío alrededor.",
+    "Entre los trópicos y el ecuador.",
+    "En la cercanía de las grandes cordilleras montañosas.",
+    "Únicamente sobre el Océano Pacífico ecuatorial, produciendo monzones.",
+    "En las zonas de alta montaña, por diferencias de presión atmosférica.",
+    "A lo largo de las corrientes marinas."
+  ],
+  "indice_correcto": 1
+}

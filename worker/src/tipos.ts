@@ -1,14 +1,17 @@
 // Tipos compartidos por el Worker. Ver README §4.1 (esquema D1), §4.2 (formato de
 // ítems) y §2 (variables demográficas).
 
-export type Dificultad = "facil" | "medio" | "dificil";
-export type Formato = "abierto" | "opcion_multiple" | "ordenar" | "clasificar";
+export type TipoItem = "trivia" | "comentario_texto";
+export type Dificultad = "facil" | "dificil";
+export type Formato = "abierto" | "opcion_multiple" | "seleccion_multiple" | "ordenar" | "clasificar";
 export type EstadoCorreccion = "auto" | "parcial" | "pendiente_revision" | "manual";
 
 export interface Item {
   id: string;
-  bloque: string;
-  dificultad: Dificultad;
+  tipo: TipoItem;
+  // null únicamente para el ítem de tipo "comentario_texto" (no pertenece al cupo
+  // fácil/difícil, ver worker/src/puntuacion.ts).
+  dificultad: Dificultad | null;
   formato: Formato;
   enunciado: string;
   texto: string | null;
@@ -18,6 +21,9 @@ export interface Item {
   tolerancia_edicion: number | null;
   opciones: string[] | null;
   indice_correcto: number | null;
+  // Solo para formato "seleccion_multiple": índices (0-based) de las opciones
+  // correctas. Acierto exige marcar exactamente ese conjunto, ni más ni menos.
+  opciones_correctas: number[] | null;
   elementos: string[] | null;
   elementos_ordenados: string[] | null;
   categorias: string[] | null;
@@ -28,7 +34,6 @@ export interface Item {
 // Ver worker/src/items.ts::paraCliente().
 export interface ItemPublico {
   id: string;
-  bloque: string;
   formato: Formato;
   enunciado: string;
   texto: string | null;
@@ -53,6 +58,8 @@ export interface Env {
 // El README fija las categorías de nivel_estudios, area_estudios y libros_en_casa
 // (deben ser compatibles con INE/CINE/PISA) y exige que ccaa_educacion_secundaria sea
 // una de las 19 comunidades/ciudades autónomas (el estudio se limita a España).
+
+export const SEXO = ["Hombre", "Mujer", "Otro", "Prefiero no decirlo"] as const;
 
 export const CCAA = [
   "Andalucía",
@@ -101,6 +108,7 @@ export const LIBROS_EN_CASA = ["0-10", "11-25", "26-100", "101-200", "+200"] as 
 
 export interface Demografia {
   anio_nacimiento: number;
+  sexo: (typeof SEXO)[number];
   ccaa_educacion_secundaria: (typeof CCAA)[number];
   nivel_estudios: (typeof NIVEL_ESTUDIOS)[number];
   area_estudios: (typeof AREA_ESTUDIOS)[number];

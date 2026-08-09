@@ -12,6 +12,7 @@ import {
   corregirClasificar,
   corregirOpcionMultiple,
   corregirOrdenar,
+  corregirSeleccionMultiple,
   type ResultadoCorreccion,
 } from "../correccion";
 import { error, json } from "../http";
@@ -25,6 +26,8 @@ function corregir(item: Item, respuesta: unknown): ResultadoCorreccion | null {
       return typeof respuesta === "string" ? corregirAbierto(item, respuesta) : null;
     case "opcion_multiple":
       return typeof respuesta === "number" ? corregirOpcionMultiple(item, respuesta) : null;
+    case "seleccion_multiple":
+      return Array.isArray(respuesta) ? corregirSeleccionMultiple(item, respuesta) : null;
     case "ordenar":
       return Array.isArray(respuesta) ? corregirOrdenar(item, respuesta) : null;
     case "clasificar":
@@ -85,10 +88,7 @@ export async function postRespuesta(request: Request, env: Env): Promise<Respons
     const totalRespondidas = await contarRespuestas(env, sesionId);
     if (totalRespondidas >= totalAsignados) {
       const respuestas = await obtenerRespuestasParaResultado(env, sesionId);
-      const puntuacion = calcularPuntuacionPonderada(
-        respuestas,
-        (id) => itemsPorId.get(id)?.dificultad
-      );
+      const puntuacion = calcularPuntuacionPonderada(respuestas, (id) => itemsPorId.get(id));
       await marcarCompleto(env, sesionId, puntuacion);
     }
   }

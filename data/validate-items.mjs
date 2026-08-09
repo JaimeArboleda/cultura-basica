@@ -1,8 +1,9 @@
 // Valida los invariantes de data/items.json (README §4.2).
 // Se ejecuta tras `node data/build-items.mjs`. Pensado para correr en CI (README §8).
 //
-// El banco es fijo: 12 bloques × 3 ítems (uno por dificultad). Los checks de
-// forma de cada ítem (opciones, alias, etc.) se aplican siempre.
+// El banco es fijo: 12 ítems fáciles + 12 difíciles (tipo "trivia") + 1 comentario de
+// texto (tipo "comentario_texto") = 25 ítems. Los checks de forma de cada ítem
+// (opciones, alias, etc.) se aplican siempre.
 import { readFileSync } from "node:fs";
 
 const ITEMS_FILE = new URL("./items.json", import.meta.url).pathname;
@@ -22,10 +23,25 @@ function warn(msg) {
 for (const it of items) {
   const ctx = `[${it.id}]`;
 
-  if (!["facil", "medio", "dificil"].includes(it.dificultad)) {
-    err(`${ctx} dificultad inválida: ${it.dificultad}`);
+  if (!["trivia", "comentario_texto"].includes(it.tipo)) {
+    err(`${ctx} tipo inválido: ${it.tipo}`);
   }
-  if (!["abierto", "opcion_multiple", "ordenar", "clasificar"].includes(it.formato)) {
+  if (it.tipo === "trivia" && !["facil", "dificil"].includes(it.dificultad)) {
+    err(`${ctx} dificultad inválida para un ítem trivia: ${it.dificultad}`);
+  }
+  if (it.tipo === "comentario_texto") {
+    if (it.dificultad !== null) {
+      err(`${ctx} un comentario_texto no debe tener dificultad (debe ser null)`);
+    }
+    if (typeof it.texto !== "string" || it.texto.trim() === "") {
+      err(`${ctx} comentario_texto sin texto`);
+    }
+  }
+  if (
+    !["abierto", "opcion_multiple", "seleccion_multiple", "ordenar", "clasificar"].includes(
+      it.formato
+    )
+  ) {
     err(`${ctx} formato inválido: ${it.formato}`);
   }
 
@@ -43,6 +59,32 @@ for (const it of items) {
       it.indice_correcto > 5
     ) {
       err(`${ctx} indice_correcto inválido`);
+    }
+  }
+
+  if (it.formato === "seleccion_multiple") {
+    if (!Array.isArray(it.opciones) || it.opciones.length < 2) {
+      err(`${ctx} seleccion_multiple debe tener al menos 2 opciones`);
+    } else if (new Set(it.opciones).size !== it.opciones.length) {
+      err(`${ctx} seleccion_multiple tiene opciones duplicadas`);
+    }
+    if (!Array.isArray(it.opciones_correctas) || it.opciones_correctas.length < 1) {
+      err(`${ctx} seleccion_multiple debe tener al menos 1 opción correcta`);
+    } else if (new Set(it.opciones_correctas).size !== it.opciones_correctas.length) {
+      err(`${ctx} opciones_correctas tiene índices duplicados`);
+    } else if (
+      Array.isArray(it.opciones) &&
+      it.opciones_correctas.some((i) => !Number.isInteger(i) || i < 0 || i >= it.opciones.length)
+    ) {
+      err(`${ctx} opciones_correctas tiene algún índice fuera de rango`);
+    } else if (
+      Array.isArray(it.opciones) &&
+      it.opciones_correctas.length === it.opciones.length
+    ) {
+      err(`${ctx} seleccion_multiple no debe marcar todas las opciones como correctas`);
+    }
+    if (it.indice_correcto !== null) {
+      err(`${ctx} seleccion_multiple no debe usar indice_correcto (usa opciones_correctas)`);
     }
   }
 
@@ -137,37 +179,32 @@ for (const it of items) {
   }
 }
 
-// --- Checks por bloque ---
-const porBloque = new Map();
-for (const it of items) {
-  if (!porBloque.has(it.bloque)) porBloque.set(it.bloque, []);
-  porBloque.get(it.bloque).push(it);
-}
-
-for (const [bloque, its] of porBloque) {
-  if (its.length !== 3) {
-    err(`[${bloque}] tiene ${its.length}/3 ítems (se espera exactamente 1 por dificultad)`);
-    continue;
-  }
-  const porDificultad = { facil: 0, medio: 0, dificil: 0 };
-  for (const i of its) porDificultad[i.dificultad]++;
-  if (porDificultad.facil !== 1 || porDificultad.medio !== 1 || porDificultad.dificil !== 1) {
-    err(
-      `[${bloque}] distribución de dificultad incorrecta: ` +
-        `facil=${porDificultad.facil} medio=${porDificultad.medio} dificil=${porDificultad.dificil} (esperado 1/1/1)`
-    );
-  }
-}
-
 // --- Checks globales ---
-const TOTAL_BLOQUES = 12;
-const TOTAL_ITEMS = TOTAL_BLOQUES * 3; // 36
+const TOTAL_FACILES = 12;
+const TOTAL_DIFICILES = 12;
+const TOTAL_COMENTARIO_TEXTO = 1;
+const TOTAL_ITEMS = TOTAL_FACILES + TOTAL_DIFICILES + TOTAL_COMENTARIO_TEXTO; // 25
 
-if (items.length !== TOTAL_ITEMS) {
-  err(`Se esperaban ${TOTAL_ITEMS} ítems (${TOTAL_BLOQUES} bloques × 3), hay ${items.length}`);
+const facilesReales = items.filter((it) => it.tipo === "trivia" && it.dificultad === "facil").length;
+const dificilesReales = items.filter((it) => it.tipo === "trivia" && it.dificultad === "dificil").length;
+const comentarioTextoReales = items.filter((it) => it.tipo === "comentario_texto").length;
+
+if (facilesReales !== TOTAL_FACILES) {
+  err(`Se esperaban ${TOTAL_FACILES} ítems fáciles, hay ${facilesReales}`);
 }
-if (porBloque.size !== TOTAL_BLOQUES) {
-  err(`Se esperaban ${TOTAL_BLOQUES} bloques, hay ${porBloque.size}`);
+if (dificilesReales !== TOTAL_DIFICILES) {
+  err(`Se esperaban ${TOTAL_DIFICILES} ítems difíciles, hay ${dificilesReales}`);
+}
+if (comentarioTextoReales !== TOTAL_COMENTARIO_TEXTO) {
+  err(`Se esperaba ${TOTAL_COMENTARIO_TEXTO} comentario de texto, hay ${comentarioTextoReales}`);
+}
+if (items.length !== TOTAL_ITEMS) {
+  err(`Se esperaban ${TOTAL_ITEMS} ítems en total, hay ${items.length}`);
+}
+
+const ids = items.map((it) => it.id);
+if (new Set(ids).size !== ids.length) {
+  err(`Hay ids de ítem duplicados`);
 }
 
 for (const a of avisos) console.warn("AVISO:", a);

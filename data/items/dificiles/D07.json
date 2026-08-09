@@ -1,0 +1,22 @@
+{
+  "id": "D07",
+  "tipo": "trivia",
+  "dificultad": "dificil",
+  "formato": "abierto",
+  "enunciado": "En la teoría marxista, ¿cómo se denomina al valor adicional que un trabajador produce por encima de lo que percibe como salario?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "Plusvalía",
+  "alias": [
+    "plusvalia",
+    "la plusvalia",
+    "valor plusvalia"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

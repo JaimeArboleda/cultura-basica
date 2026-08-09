@@ -1,0 +1,25 @@
+{
+  "id": "D01",
+  "tipo": "trivia",
+  "dificultad": "dificil",
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué representan las sombras en el mito de la caverna de Platón?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Los recuerdos deformados de una existencia anterior",
+    "Las Ideas eternas que solo el filósofo llega a contemplar",
+    "Las pasiones que nublan el juicio del alma",
+    "Los dioses tal como los imagina el vulgo",
+    "El conocimiento de las formas de los objetos materiales",
+    "Las apariencias sensibles que tomamos por realidad"
+  ],
+  "indice_correcto": 5
+}

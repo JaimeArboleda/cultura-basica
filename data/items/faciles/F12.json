@@ -1,0 +1,25 @@
+{
+  "id": "F12",
+  "tipo": "trivia",
+  "dificultad": "facil",
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué diferencia hay entre agnosticismo y ateísmo?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "El ateo rechaza toda religión; el agnóstico las religiones reveladas",
+    "El ateo duda de la existencia de Dios; el agnóstico la niega",
+    "No hay diferencia: son dos formas de designar la incredulidad",
+    "El ateo niega la espiritualidad; el agnóstico cree en una fuerza espiritual indefinida",
+    "El ateo niega la existencia de Dios; el agnóstico sostiene que no puede saberse",
+    "El ateo no practica ninguna religión; el agnóstico puede practicar varias"
+  ],
+  "indice_correcto": 4
+}

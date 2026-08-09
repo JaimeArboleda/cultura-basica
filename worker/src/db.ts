@@ -27,14 +27,15 @@ export async function crearSesion(
   const insertSesion = env.DB.prepare(
     `INSERT INTO sesiones (
        id, creada_en, consentimiento, compromiso_honestidad, user_agent_clase,
-       anio_nacimiento, ccaa_educacion_secundaria,
+       anio_nacimiento, sexo, ccaa_educacion_secundaria,
        nivel_estudios, area_estudios, estudios_mayor_progenitor, libros_en_casa
-     ) VALUES (?,?,1,1,?, ?,?, ?,?,?,?)`
+     ) VALUES (?,?,1,1,?, ?,?,?, ?,?,?,?)`
   ).bind(
     id,
     creadaEn,
     userAgentClase,
     d.anio_nacimiento,
+    d.sexo,
     d.ccaa_educacion_secundaria,
     d.nivel_estudios,
     d.area_estudios,

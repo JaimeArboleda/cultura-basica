@@ -44,6 +44,7 @@ export const CATALOGOS = {
     "No aplica",
   ],
   libros_en_casa: ["0-10", "11-25", "26-100", "101-200", "+200"],
+  sexo: ["Hombre", "Mujer", "Otro", "Prefiero no decirlo"],
 };
 
 function campoSelect(id, etiqueta, opciones, { opcional = false } = {}) {
@@ -67,6 +68,7 @@ export function html() {
                min="1920" max="${new Date().getFullYear() - 5}" required />
       </label>
 
+      ${campoSelect("sexo", "Sexo", CATALOGOS.sexo)}
       ${campoSelect("ccaa_educacion_secundaria", "Comunidad autónoma donde cursaste la educación secundaria", CATALOGOS.ccaa)}
       ${campoSelect("nivel_estudios", "Nivel de estudios", CATALOGOS.nivel_estudios)}
       ${campoSelect("area_estudios", "Área de estudios", CATALOGOS.area_estudios)}
@@ -86,6 +88,7 @@ export function attachListeners(root, onSubmit) {
 
     onSubmit({
       anio_nacimiento: Number(datos.get("anio_nacimiento")),
+      sexo: datos.get("sexo"),
       ccaa_educacion_secundaria: datos.get("ccaa_educacion_secundaria"),
       nivel_estudios: datos.get("nivel_estudios"),
       area_estudios: datos.get("area_estudios"),

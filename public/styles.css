@@ -180,6 +180,28 @@ h2 {
   border-color: var(--color-primario);
 }
 
+.opciones-multiples {
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.opcion-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+  cursor: pointer;
+}
+.opcion-checkbox:hover {
+  border-color: var(--color-primario);
+}
+.opcion-checkbox input {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
 #respuesta-abierta {
   width: 100%;
   padding: 0.75rem;
@@ -206,6 +228,28 @@ h2 {
   font-size: 0.85rem;
   opacity: 0.7;
   margin: 0;
+}
+
+.cabecera-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.cabecera-item .contador {
+  margin-left: auto;
+}
+
+.boton-atras {
+  padding: 0.3rem 0;
+  border: none;
+  background: none;
+  color: var(--color-primario);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.boton-atras:hover {
+  text-decoration: underline;
 }
 
 .lista-ordenar {
@@ -329,144 +373,30 @@ h2 {
   gap: 0.9rem;
 }
 
-.resumen-cabecera {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.puntuacion {
-  font-size: 2.4rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-.puntuacion span {
-  font-size: 1.1rem;
-  font-weight: 400;
-  color: var(--color-texto-tenue);
+.resumen-percentil {
+  align-items: center;
+  text-align: center;
 }
 
 .percentil-etiqueta {
-  text-align: right;
   font-size: 0.8rem;
   color: var(--color-texto-tenue);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.percentil-valor {
-  font-size: 1.6rem;
+.percentil-valor-grande {
+  font-size: 3rem;
   font-weight: 700;
   color: var(--color-primario);
   font-variant-numeric: tabular-nums;
-}
-
-.gauge-pista {
-  position: relative;
-  height: 10px;
-  border-radius: 999px;
-  background: linear-gradient(to right, var(--color-secundario), var(--color-primario) 100%);
-  opacity: 0.35;
-}
-.gauge-marca {
-  position: absolute;
-  top: -5px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--color-primario);
-  border: 3px solid var(--color-fondo);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  transform: translateX(-50%);
-}
-.gauge-media {
-  position: absolute;
-  top: -3px;
-  width: 2px;
-  height: 16px;
-  background: var(--color-texto-tenue);
-  transform: translateX(-50%);
-}
-.gauge-leyenda {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.72rem;
-  color: var(--color-texto-tenue);
-  margin-top: 0.35rem;
+  line-height: 1;
 }
 
 .resumen-nota {
   font-size: 0.85rem;
   color: var(--color-texto-tenue);
   margin: 0;
-}
-
-.categorias {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.categoria {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.7rem 0.9rem;
-  background: var(--color-superficie);
-  border: 1px solid var(--color-borde);
-  border-radius: var(--radio);
-}
-
-.categoria-nombre {
-  font-size: 0.92rem;
-  font-weight: 500;
-}
-
-.categoria-total {
-  font-size: 0.78rem;
-  color: var(--color-texto-tenue);
-  font-variant-numeric: tabular-nums;
-}
-
-.dificultades {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.dificultad-punto {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.dificultad-etiqueta {
-  font-size: 0.62rem;
-  color: var(--color-texto-tenue);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.marca-acierto {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.marca-acierto.si {
-  background: var(--color-acierto-fondo);
-  color: var(--color-acierto);
-}
-.marca-acierto.no {
-  border: 1.5px solid var(--color-vacio);
-}
-.marca-acierto svg {
-  width: 13px;
-  height: 13px;
+  max-width: 45ch;
 }
 
 .cierre {
@@ -474,16 +404,6 @@ h2 {
   font-size: 0.85rem;
   color: var(--color-texto-tenue);
   padding-top: 0.5rem;
-}
-
-@media (max-width: 420px) {
-  .categoria {
-    flex-wrap: wrap;
-  }
-  .dificultades {
-    width: 100%;
-    justify-content: flex-start;
-  }
 }
 
 @media (min-width: 700px) {

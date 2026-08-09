@@ -1,0 +1,21 @@
+{
+  "id": "F08",
+  "tipo": "trivia",
+  "dificultad": "facil",
+  "formato": "abierto",
+  "enunciado": "¿Cómo se denomina en economía al crecimiento sostenido de los precios?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "Inflación",
+  "alias": [
+    "inflacion",
+    "la inflacion"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

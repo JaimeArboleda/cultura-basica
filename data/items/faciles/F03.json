@@ -1,0 +1,38 @@
+{
+  "id": "F03",
+  "tipo": "trivia",
+  "dificultad": "facil",
+  "formato": "ordenar",
+  "enunciado": "Ordena estas figuras históricas de más antigua a más moderna:",
+  "texto": null,
+  "elementos": [
+    "Napoleón",
+    "Julio César",
+    "Alejandro Magno",
+    "Isaac Newton",
+    "Leonardo Da Vinci",
+    "Mahoma",
+    "Ramsés II",
+    "Santo Tomás de Aquino",
+    "Karl Marx"
+  ],
+  "elementos_ordenados": [
+    "Ramsés II",
+    "Alejandro Magno",
+    "Julio César",
+    "Mahoma",
+    "Santo Tomás de Aquino",
+    "Leonardo Da Vinci",
+    "Isaac Newton",
+    "Napoleón",
+    "Karl Marx"
+  ],
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": null,
+  "indice_correcto": null
+}

@@ -1,0 +1,25 @@
+{
+  "id": "D11",
+  "tipo": "trivia",
+  "dificultad": "dificil",
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué es la Santísima Trinidad en el catolicismo?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "El conjunto de los tres primeros evangelistas del Nuevo Testamento",
+    "Los tres sacramentos de la iniciación cristiana",
+    "La existencia de tres personas en un Dios único",
+    "Las tres naturalezas de Jesús: cuerpo, alma y espíritu",
+    "Los tres mandamientos más importantes de la Ley de Dios",
+    "Las tres religiones de Jerusalén"
+  ],
+  "indice_correcto": 2
+}

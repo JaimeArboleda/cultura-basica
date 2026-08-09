@@ -21,11 +21,13 @@ export function obtenerItem(id: string): Item | undefined {
 export function paraCliente(item: Item): ItemPublico {
   return {
     id: item.id,
-    bloque: item.bloque,
     formato: item.formato,
     enunciado: item.enunciado,
     texto: item.texto,
-    opciones: item.formato === "opcion_multiple" ? item.opciones : null,
+    opciones:
+      item.formato === "opcion_multiple" || item.formato === "seleccion_multiple"
+        ? item.opciones
+        : null,
     elementos: item.formato === "ordenar" || item.formato === "clasificar" ? item.elementos : null,
     categorias: item.formato === "clasificar" ? item.categorias : null,
   };

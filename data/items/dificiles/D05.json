@@ -1,0 +1,25 @@
+{
+  "id": "D05",
+  "tipo": "trivia",
+  "dificultad": "dificil",
+  "formato": "opcion_multiple",
+  "enunciado": "¿Qué ocurre en las zonas con fuerte actividad sísmica?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Son zonas donde la corteza terrestre es más delgada e inestable",
+    "Son zonas en las que el magma está a más temperatura",
+    "Suelen coincidir con los límites entre placas tectónicas",
+    "Se producen en zonas con climas extremos",
+    "Se concentran cerca de los yacimientos de petróleo",
+    "Se producen por el enfriamiento brusco de la corteza oceánica"
+  ],
+  "indice_correcto": 2
+}

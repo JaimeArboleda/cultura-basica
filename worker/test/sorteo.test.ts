@@ -15,20 +15,20 @@ function rngConSemilla(semilla: number): Rng {
 }
 
 describe("ordenarTest", () => {
-  it("devuelve exactamente los 36 ítems del banco", () => {
+  it("devuelve exactamente los 25 ítems del banco", () => {
     const asignaciones = ordenarTest(bancoItems, rngConSemilla(1));
-    expect(asignaciones.length).toBe(36);
+    expect(asignaciones.length).toBe(25);
     const ids = asignaciones.map((a) => a.item_id);
-    expect(new Set(ids).size).toBe(36);
+    expect(new Set(ids).size).toBe(25);
     for (const item of bancoItems) {
       expect(ids).toContain(item.id);
     }
   });
 
-  it("orden_presentacion es una permutación de 0..35", () => {
+  it("orden_presentacion es una permutación de 0..24", () => {
     const asignaciones = ordenarTest(bancoItems, rngConSemilla(3));
     const ordenes = asignaciones.map((a) => a.orden_presentacion).sort((a, b) => a - b);
-    expect(ordenes).toEqual(Array.from({ length: 36 }, (_, i) => i));
+    expect(ordenes).toEqual(Array.from({ length: 25 }, (_, i) => i));
   });
 
   it("el orden de presentación varía entre sorteos con distinta semilla", () => {

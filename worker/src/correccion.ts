@@ -73,6 +73,18 @@ export function corregirOpcionMultiple(item: Item, opcionElegida: number): Resul
   return { acierto, estado_correccion: "auto" };
 }
 
+// Acierto exige marcar exactamente el conjunto de opciones_correctas, ni de más ni de
+// menos (no hay puntuación parcial por acertar solo alguna).
+export function corregirSeleccionMultiple(item: Item, seleccionadas: number[]): ResultadoCorreccion {
+  const esperado = [...(item.opciones_correctas ?? [])].sort((a, b) => a - b);
+  const recibido = Array.isArray(seleccionadas)
+    ? [...new Set(seleccionadas)].sort((a, b) => a - b)
+    : [];
+  const acierto =
+    recibido.length === esperado.length && recibido.every((v, i) => v === esperado[i]) ? 1 : 0;
+  return { acierto, estado_correccion: "auto" };
+}
+
 export function corregirOrdenar(item: Item, respuestaOrden: string[]): ResultadoCorreccion {
   const esperado = item.elementos_ordenados ?? [];
   const acierto =
