@@ -170,6 +170,20 @@ export async function obtenerRespuestasParaResultado(
   return results;
 }
 
+// Para la pantalla "ver respuestas" (README §3): la respuesta cruda tal cual la
+// mandó el cliente, en el orden en que se presentaron las preguntas.
+export async function obtenerRespuestasParaRevision(
+  env: Env,
+  sesionId: string
+): Promise<{ item_id: string; respuesta_cruda: string | null; acierto: number }[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT item_id, respuesta_cruda, acierto FROM respuestas WHERE sesion_id = ? ORDER BY orden_presentacion`
+  )
+    .bind(sesionId)
+    .all<{ item_id: string; respuesta_cruda: string | null; acierto: number }>();
+  return results;
+}
+
 export async function obtenerAsignacion(
   env: Env,
   sesionId: string,

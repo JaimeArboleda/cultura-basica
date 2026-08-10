@@ -42,6 +42,23 @@ export interface ItemPublico {
   categorias: string[] | null;
 }
 
+// Vista de un ítem para la pantalla "ver respuestas" tras completar el test: a
+// diferencia de ItemPublico, sí incluye la respuesta correcta y lo que respondió el
+// usuario. Solo se sirve para sesiones ya completas (ver
+// worker/src/endpoints/resultado.ts::getResultado).
+export interface ItemRevision {
+  id: string;
+  formato: Formato;
+  enunciado: string;
+  texto: string | null;
+  opciones: string[] | null;
+  elementos: string[] | null;
+  categorias: string[] | null;
+  acierto: 0 | 1;
+  respuesta_usuario: unknown;
+  respuesta_correcta: unknown;
+}
+
 export interface Env {
   DB: D1Database;
   RATE_LIMIT: KVNamespace;

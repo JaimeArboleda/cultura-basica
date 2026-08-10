@@ -262,6 +262,33 @@ describe("GET /api/resultado/:id", () => {
     // sesiones haya creado el resto de tests.
     expect(bodyPerfecta.resultado.percentil!).toBeGreaterThan(bodyVacia.resultado.percentil!);
   });
+
+  it("incluye la revisión completa (enunciado, respuesta correcta y del usuario) cuando el test está completo", async () => {
+    const { sesion_id, items } = await crearSesionDeTest();
+    await completarTest(sesion_id, items);
+
+    const res = await SELF.fetch(`http://worker.test/api/resultado/${sesion_id}`);
+    const body = (await res.json()) as {
+      revision: {
+        id: string;
+        formato: string;
+        enunciado: string;
+        acierto: number;
+        respuesta_usuario: unknown;
+        respuesta_correcta: unknown;
+      }[];
+    };
+
+    expect(body.revision.length).toBe(25);
+    // completarTest() siempre responde con la respuesta correcta, así que la
+    // revisión entera debe salir marcada como acierto.
+    for (const fila of body.revision) {
+      const real = bancoItems.find((i) => i.id === fila.id)!;
+      expect(fila.acierto).toBe(1);
+      expect(fila.enunciado).toBe(real.enunciado);
+      expect(fila.respuesta_usuario).not.toBeNull();
+    }
+  });
 });
 
 describe("GET /api/export", () => {

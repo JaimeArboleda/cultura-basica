@@ -1,6 +1,12 @@
-import { obtenerAsignaciones, obtenerPuntuacionesCompletadas, obtenerRespuestasParaResultado, obtenerSesion } from "../db";
+import {
+  obtenerAsignaciones,
+  obtenerPuntuacionesCompletadas,
+  obtenerRespuestasParaResultado,
+  obtenerRespuestasParaRevision,
+  obtenerSesion,
+} from "../db";
 import { error, json } from "../http";
-import { itemsPorId, paraCliente } from "../items";
+import { itemsPorId, paraCliente, paraRevision } from "../items";
 import type { Env } from "../tipos";
 
 // Percentil empírico (README §3): % de sesiones ya completadas con una puntuación
@@ -34,11 +40,23 @@ export async function getResultado(sesionId: string, env: Env): Promise<Response
   const otras = await obtenerPuntuacionesCompletadas(env, sesionId);
   const puntuacion = sesion.puntuacion_ponderada ?? 0;
 
+  // Revisión completa (README §3, pantalla "ver respuestas"): a diferencia del
+  // percentil, esto solo se calcula bajo demanda del cliente, no cambia el
+  // cálculo de puntuación ni se usa para nada más.
+  const respuestas = await obtenerRespuestasParaRevision(env, sesionId);
+  const revision = respuestas
+    .map((r) => {
+      const item = itemsPorId.get(r.item_id);
+      return item ? paraRevision(item, r) : null;
+    })
+    .filter((r) => r !== null);
+
   return json(env, {
     estado: "completo",
     resultado:
       otras.length === 0
         ? { primera: true }
         : { primera: false, percentil: calcularPercentil(puntuacion, otras) },
+    revision,
   });
 }

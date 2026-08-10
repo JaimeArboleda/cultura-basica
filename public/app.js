@@ -225,17 +225,19 @@ function mostrarSegunEstado(sesionId, resultado, intento = 0) {
     ejecutarTest(sesionId, resultado.items_pendientes);
     return;
   }
-  pantallaResultado(resultado.resultado);
+  pantallaResultado(resultado.resultado, resultado.revision);
 }
 
 // No se muestra ninguna puntuación en bruto ni desglose por dificultad: el único
 // dato que se enseña al terminar es el percentil (una "golosina" simbólica), que el
 // Worker ya calcula sin exponer la puntuación ponderada interna (ver
-// worker/src/endpoints/resultado.ts).
-function pantallaResultado(resultado) {
+// worker/src/endpoints/resultado.ts). El detalle pregunta a pregunta sí se enseña,
+// pero solo bajo demanda (enlace "Ver mis respuestas"), como feedback para quien lo
+// quiera y no como parte del resumen principal.
+function pantallaResultado(resultado, revision) {
   const { primera, percentil } = resultado;
 
-  montar(`
+  const root = montar(`
     <section class="pantalla">
       <div class="agradecimiento">
         <h1>Gracias por tu tiempo</h1>
@@ -256,8 +258,44 @@ function pantallaResultado(resultado) {
         }
       </div>
 
+      <button type="button" class="enlace-ver-respuestas" id="boton-ver-respuestas">Ver mis respuestas →</button>
+
       <footer class="cierre">Puedes cerrar esta página cuando quieras. No se guarda ningún dato identificativo.</footer>
     </section>`);
+
+  root.querySelector("#boton-ver-respuestas").addEventListener("click", () => {
+    pantallaRevision(revision, () => pantallaResultado(resultado, revision));
+  });
+}
+
+function pantallaRevision(revision, onVolver) {
+  const aciertos = revision.filter((it) => it.acierto).length;
+
+  const root = montar(`
+    <section class="pantalla">
+      <div class="cabecera-revision">
+        <button type="button" class="boton-atras" id="boton-volver-revision">← Volver</button>
+        <p class="contador">${aciertos} / ${revision.length} correctas</p>
+      </div>
+      <h1>Tus respuestas</h1>
+      <div class="lista-revision">
+        ${revision
+          .map(
+            (item) => `
+          <article class="pregunta-revision">
+            <div class="pregunta-revision-cabecera">
+              <h2 class="pregunta-revision-enunciado">${escaparHtml(item.enunciado)}</h2>
+              <span class="etiqueta-acierto ${item.acierto ? "acierto" : "fallo"}">${item.acierto ? "Correcta" : "Incorrecta"}</span>
+            </div>
+            ${item.texto ? `<p class="texto-lectura">${escaparHtml(item.texto)}</p>` : ""}
+            ${renderItem.htmlRevision(item)}
+          </article>`
+          )
+          .join("")}
+      </div>
+    </section>`);
+
+  root.querySelector("#boton-volver-revision").addEventListener("click", onVolver);
 }
 
 // --- Arranque: reanudar sesión si existe, si no, empezar de cero ---

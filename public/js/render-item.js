@@ -330,3 +330,119 @@ export function attachListeners(root, item, onResponder) {
     return;
   }
 }
+
+// Renderizado de solo lectura para la pantalla "ver respuestas" (README §3): toma
+// un ItemRevision del Worker (ya incluye la respuesta correcta y lo que respondió
+// el usuario) y pinta en verde lo acertado y en rojo lo fallado.
+export function htmlRevision(item) {
+  switch (item.formato) {
+    case "abierto": {
+      const clase = item.acierto ? "acierto" : "fallo";
+      const respuesta = item.respuesta_usuario || "(sin respuesta)";
+      return `
+        <p class="revision-texto ${clase}">Tu respuesta: «${escapar(String(respuesta))}»</p>
+        ${
+          item.acierto
+            ? ""
+            : `<p class="revision-nota-correcta">Respuesta correcta: «${escapar(String(item.respuesta_correcta))}»</p>`
+        }`;
+    }
+
+    case "opcion_multiple": {
+      const elegida = item.respuesta_usuario;
+      const correcta = item.respuesta_correcta;
+      return `
+        <div class="revision-opciones">
+          ${item.opciones
+            .map((op, i) => {
+              let clase = "";
+              let marca = "";
+              if (i === elegida && i === correcta) {
+                clase = "acierto";
+                marca = " ✓";
+              } else if (i === elegida) {
+                clase = "fallo";
+                marca = " ✗";
+              } else if (i === correcta) {
+                clase = "acierto no-marcada";
+                marca = " (correcta)";
+              }
+              return `<div class="revision-opcion ${clase}">${escapar(op)}<span class="marca">${marca}</span></div>`;
+            })
+            .join("")}
+        </div>`;
+    }
+
+    case "seleccion_multiple": {
+      const elegidas = new Set(item.respuesta_usuario || []);
+      const correctas = new Set(item.respuesta_correcta || []);
+      return `
+        <div class="revision-opciones">
+          ${item.opciones
+            .map((op, i) => {
+              const marcada = elegidas.has(i);
+              const esCorrecta = correctas.has(i);
+              let clase = "";
+              let marca = "";
+              if (marcada && esCorrecta) {
+                clase = "acierto";
+                marca = " ✓";
+              } else if (marcada && !esCorrecta) {
+                clase = "fallo";
+                marca = " ✗";
+              } else if (!marcada && esCorrecta) {
+                clase = "acierto no-marcada";
+                marca = " (correcta, no marcada)";
+              }
+              return `<div class="revision-opcion ${clase}">${escapar(op)}<span class="marca">${marca}</span></div>`;
+            })
+            .join("")}
+        </div>`;
+    }
+
+    case "ordenar": {
+      const usuario = item.respuesta_usuario || [];
+      const correcto = item.respuesta_correcta || [];
+      return `
+        <ol class="revision-orden">
+          ${usuario
+            .map((el, i) => {
+              const clase = el === correcto[i] ? "acierto" : "fallo";
+              return `<li class="${clase}">${escapar(el)}</li>`;
+            })
+            .join("")}
+        </ol>
+        ${
+          item.acierto
+            ? ""
+            : `<p class="revision-nota-correcta">Orden correcto: ${correcto.map(escapar).join(" → ")}</p>`
+        }`;
+    }
+
+    case "clasificar": {
+      const usuario = item.respuesta_usuario || {};
+      const correcto = item.respuesta_correcta || {};
+      return `
+        <div class="revision-clasificar">
+          ${item.categorias
+            .map((cat) => {
+              const elementos = Object.keys(correcto).filter((el) => correcto[el] === cat);
+              return `
+              <div class="revision-clasificar-caja">
+                <h4>${escapar(cat)}</h4>
+                ${elementos
+                  .map((el) => {
+                    const clase = usuario[el] === correcto[el] ? "acierto" : "fallo";
+                    return `<span class="revision-clasificar-elemento ${clase}">${escapar(el)}</span>`;
+                  })
+                  .join("")}
+              </div>`;
+            })
+            .join("")}
+        </div>`;
+    }
+
+    default:
+      return "";
+  }
+}
