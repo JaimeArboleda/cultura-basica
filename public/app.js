@@ -1,11 +1,11 @@
 // Orquestador del front-end (README §4, §8). localStorage solo guarda el id de
 // sesión para poder reanudar (§8): la fuente de verdad de qué ítems tocan y en
 // qué orden es siempre el Worker (ver GET /api/resultado/:id en modo
-// 'en_progreso'). Dentro de una misma tanda de ítems servida por el Worker se
-// permite volver atrás para corregir una respuesta (POST /api/respuesta es
-// idempotente por sesion_id+item_id, así que reenviarla la sobrescribe); no se
-// puede volver más atrás de esa tanda porque el Worker no reenvía ítems ya
-// respondidos.
+// 'en_progreso', que devuelve tanto los ítems pendientes como los ya respondidos
+// con su respuesta). Se permite volver atrás en cualquier momento, incluso tras
+// un refresco que reanuda la sesión, para corregir una respuesta (POST
+// /api/respuesta es idempotente por sesion_id+item_id, así que reenviarla la
+// sobrescribe).
 import * as api from "./js/api.js";
 import * as demografia from "./js/demografia.js";
 import * as renderItem from "./js/render-item.js";
@@ -182,29 +182,35 @@ async function iniciarConToken(token) {
 
 const TOTAL_ITEMS = 25;
 
-function ejecutarTest(sesionId, itemsPendientes) {
-  const items = [...itemsPendientes];
+function ejecutarTest(sesionId, itemsPendientes, itemsRespondidosPrevios = []) {
+  // itemsRespondidosPrevios (README §8): ítems ya contestados antes de esta
+  // reanudación (p. ej. tras un refresco a mitad de test), con su respuesta ya
+  // dada. Se anteponen a los pendientes para reconstruir el orden fijo completo
+  // del test (§4.2) y poder revisarlos/corregirlos igual que los de esta tanda.
+  const items = [...itemsRespondidosPrevios, ...itemsPendientes];
   const total = TOTAL_ITEMS;
-  const yaRespondidos = total - items.length;
-  let pos = 0;
-  // Posición más lejana visitada dentro de esta tanda: permite mostrar un
-  // botón "Adelante" cuando se ha ido "Atrás" a revisar una pregunta ya
-  // respondida, para no obligar a reenviarla solo por avanzar.
-  let posMaxVisitada = 0;
+  let pos = itemsRespondidosPrevios.length;
+  // Posición más lejana visitada: permite mostrar un botón "Adelante" cuando se
+  // ha ido "Atrás" a revisar una pregunta ya respondida, para no obligar a
+  // reenviarla solo por avanzar.
+  let posMaxVisitada = pos;
   // true mientras se está corrigiendo una pregunta concreta desde la pantalla
   // de revisión final (enlace "Modificar respuesta"): al confirmarla, se
   // vuelve a esa pantalla en vez de continuar avanzando por el resto.
   let editandoDesdeRevision = false;
-  // Respuestas ya enviadas en esta tanda, por item_id: permite que "atrás" (§3)
-  // vuelva a mostrar una pregunta ya respondida con su estado en vez de en
-  // blanco, y que se pueda revisar/corregir antes de reenviarla (idempotente,
-  // ver cabecera del fichero).
+  // Respuestas ya enviadas, por item_id: permite que "atrás" (§3) vuelva a
+  // mostrar una pregunta ya respondida con su estado en vez de en blanco, y que
+  // se pueda revisar/corregir antes de reenviarla (idempotente, ver cabecera
+  // del fichero). Se siembra con lo que ya venía de itemsRespondidosPrevios.
   const respuestas = {};
+  itemsRespondidosPrevios.forEach((item) => {
+    respuestas[item.id] = item.respuesta_usuario;
+  });
 
   function mostrarActual() {
     const item = items[pos];
     if (pos > posMaxVisitada) posMaxVisitada = pos;
-    renderItemActual(sesionId, item, yaRespondidos + pos + 1, total, respuestas[item.id], {
+    renderItemActual(sesionId, item, pos + 1, total, respuestas[item.id], {
       // Editando desde la revisión final (§"Modificar respuesta"): se oculta la
       // navegación Atrás/Adelante para no arrastrar al usuario de vuelta al
       // recorrido pregunta a pregunta; solo puede guardar (Responder) o
@@ -245,7 +251,7 @@ function ejecutarTest(sesionId, itemsPendientes) {
   // hace scroll hasta su tarjeta en vez de dejar la vista general en lo alto,
   // para que quede claro cuál se acaba de modificar.
   function mostrarRevisionFinal(indiceDestacado) {
-    pantallaRevisionRespuestas(items, respuestas, yaRespondidos, total, {
+    pantallaRevisionRespuestas(items, respuestas, {
       onEditar: (indice) => {
         pos = indice;
         editandoDesdeRevision = true;
@@ -356,12 +362,13 @@ function renderItemActual(
 }
 
 // Pantalla de revisión final (§3 del encargo): antes de dar por terminado el
-// test se muestran todas las respuestas dadas en esta tanda (ya guardadas en
-// el Worker respuesta a respuesta, ver cabecera del fichero) para que se
-// puedan corregir. "Confirmar y enviar" es lo que dispara el cálculo del
-// resultado (onTestCompleto); no reenvía nada por sí solo porque cada
-// respuesta ya se guardó al pulsar "Responder" en su momento.
-function pantallaRevisionRespuestas(items, respuestas, yaRespondidos, total, { onEditar, onConfirmar, indiceDestacado }) {
+// test se muestran todas las respuestas dadas, incluidas las de antes de una
+// posible reanudación (ya guardadas en el Worker respuesta a respuesta, ver
+// cabecera del fichero), para que se puedan corregir. "Confirmar y enviar" es
+// lo que dispara el cálculo del resultado (onTestCompleto); no reenvía nada
+// por sí solo porque cada respuesta ya se guardó al pulsar "Responder" en su
+// momento.
+function pantallaRevisionRespuestas(items, respuestas, { onEditar, onConfirmar, indiceDestacado }) {
   const root = montar(`
     <section class="pantalla">
       <h1>Revisa tus respuestas</h1>
@@ -375,7 +382,7 @@ function pantallaRevisionRespuestas(items, respuestas, yaRespondidos, total, { o
             (item, i) => `
           <article class="pregunta-revision">
             <div class="pregunta-revision-cabecera">
-              <h2 class="pregunta-revision-enunciado">${yaRespondidos + i + 1}. ${escaparHtml(item.enunciado)}</h2>
+              <h2 class="pregunta-revision-enunciado">${i + 1}. ${escaparHtml(item.enunciado)}</h2>
               <button type="button" class="enlace-modificar" data-indice="${i}">Modificar respuesta</button>
             </div>
             ${renderItem.htmlResumen(item, respuestas[item.id])}
@@ -442,7 +449,7 @@ function mostrarSegunEstado(sesionId, resultado, intento = 0) {
       }, 500);
       return;
     }
-    ejecutarTest(sesionId, resultado.items_pendientes);
+    ejecutarTest(sesionId, resultado.items_pendientes, resultado.items_respondidos);
     return;
   }
   pantallaResultado(resultado.resultado, resultado.revision, sesionId);

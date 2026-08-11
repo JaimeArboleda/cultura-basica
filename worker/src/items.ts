@@ -4,7 +4,7 @@
 // es todo lo que hace falta para que un cambio en data/items/ llegue a producción.
 // D1 nunca almacena contenido de ítems (ver schema/schema.sql).
 import itemsRaw from "../../data/items.json";
-import type { Item, ItemPublico, ItemRevision } from "./tipos";
+import type { Item, ItemPublico, ItemPublicoRespondido, ItemRevision } from "./tipos";
 
 export const bancoItems: Item[] = itemsRaw as Item[];
 
@@ -32,6 +32,26 @@ export function paraCliente(item: Item): ItemPublico {
     categorias: item.formato === "clasificar" ? item.categorias : null,
     nota_parcial_desactivada: item.nota_parcial_desactivada === true,
   };
+}
+
+// Para un ítem ya respondido de una sesión aún en curso (README §3, §8): igual
+// que paraCliente(), pero añade lo que el usuario ya contestó, para poder
+// reconstruir la pantalla de revisión pre-envío tras un refresco sin perder de
+// vista las respuestas dadas antes del corte. No incluye acierto ni respuesta
+// correcta (ver ItemPublicoRespondido).
+export function paraClienteRespondido(
+  item: Item,
+  respuestaCruda: string | null
+): ItemPublicoRespondido {
+  let respuestaUsuario: unknown = null;
+  if (respuestaCruda != null) {
+    try {
+      respuestaUsuario = JSON.parse(respuestaCruda);
+    } catch {
+      respuestaUsuario = respuestaCruda;
+    }
+  }
+  return { ...paraCliente(item), respuesta_usuario: respuestaUsuario };
 }
 
 function respuestaCorrectaDe(item: Item): unknown {

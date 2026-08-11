@@ -52,6 +52,16 @@ export interface ItemPublico {
   nota_parcial_desactivada: boolean;
 }
 
+// Vista de un ítem ya respondido pero de una sesión aún en curso (README §3, §8:
+// reanudar tras un refresco no debe hacer perder de vista lo contestado antes del
+// corte). A diferencia de ItemRevision, NO incluye acierto ni respuesta correcta —
+// la sesión no está completa, así que sigue vigente la regla de no revelar
+// correcciones hasta el final (README §4.3). Ver
+// worker/src/items.ts::paraClienteRespondido().
+export interface ItemPublicoRespondido extends ItemPublico {
+  respuesta_usuario: unknown;
+}
+
 // Vista de un ítem para la pantalla "ver respuestas" tras completar el test: a
 // diferencia de ItemPublico, sí incluye la respuesta correcta y lo que respondió el
 // usuario. Solo se sirve para sesiones ya completas (ver
