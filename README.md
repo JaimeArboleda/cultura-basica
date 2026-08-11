@@ -546,22 +546,26 @@ GET  /api/token-valido?token=…      → { valido, motivo? } — comprobación 
 POST /api/solicitud-acceso          → guarda una solicitud de acceso sin token
 
 GET  /api/admin/auth/login          → redirige a Google OAuth
-GET  /api/admin/auth/callback       → callback de Google, fija la cookie de sesión de admin
-POST /api/admin/auth/logout         → borra la cookie de sesión
+GET  /api/admin/auth/callback       → callback de Google, redirige a /admin/#token=… (sesión, §4.5)
 GET  /api/admin/me                  → { email } del admin autenticado
 GET  /api/admin/tokens              → lista tokens (con nº de sesiones/completas)
 POST /api/admin/tokens              → crea un token { descripcion, horas_validez? }
 DELETE /api/admin/tokens/:id        → revoca (caduca de inmediato) un token
 DELETE /api/admin/tokens/:id/sesiones → borra todas las sesiones de esa remesa; el token sigue activo
+DELETE /api/admin/tokens/:id/completo → papelera: borra el token y todas sus sesiones/respuestas, sin dejar rastro
 GET  /api/admin/sesiones            → lista sesiones, filtros ?token_id=&estado=completo|en_progreso
 DELETE /api/admin/sesiones/:id      → borra una sesión (y sus respuestas)
 GET  /api/admin/stats               → agregados del piloto, opcional ?token_id=
 GET  /api/admin/solicitudes         → lista solicitudes de acceso
 PATCH /api/admin/solicitudes/:id    → marca una solicitud como atendida
+DELETE /api/admin/solicitudes/:id   → borra una solicitud de acceso
 GET  /api/admin/admins              → lista administradores
 POST /api/admin/admins              → añade un administrador { email }
 DELETE /api/admin/admins/:email     → quita un administrador (rechaza si es el último)
 ```
+
+No hay endpoint de logout: la sesión de admin es un token stateless (§4.5), así
+que "salir" es simplemente borrarlo del `localStorage` del navegador.
 
 Todas las rutas `/api/admin/*` salvo `auth/login` y `auth/callback` exigen la
 cookie de sesión de admin (§4.5); sin ella devuelven 401.
@@ -727,9 +731,18 @@ test. Se guarda en su propia tabla, **no** en el dataset anónimo del estudio
 **Panel de admin (`public/admin/`, bajo `/admin`):** cinco pestañas — Estadísticas
 (total/completas/en progreso, progreso hacia el objetivo del piloto de 100-150
 respuestas, distribución demográfica, todo filtrable por token), Tokens
-(crear/listar/revocar/borrar remesa/copiar enlace), Sesiones (listar con filtro por
-token y estado, borrar individual), Solicitudes de acceso (listar, marcar
-atendida) y Administradores (añadir/quitar cuentas autorizadas).
+(crear/listar/revocar/borrar remesa/copiar enlace/**borrar token entero**), Sesiones
+(listar con filtro por token y estado, borrar individual), Solicitudes de acceso
+(listar, marcar atendida, **borrar**) y Administradores (añadir/quitar cuentas
+autorizadas).
+
+**Papelera (borrado definitivo, sobre todo para limpiar datos de prueba):**
+"Borrar token" en la pestaña Tokens borra el token entero además de todas sus
+sesiones/respuestas (a diferencia de "Borrar respuestas", que deja el token vivo
+— ver más arriba), y "Borrar" en Solicitudes de acceso borra esa solicitud. Las
+dos acciones son irreversibles y usan un modal que exige teclear una frase exacta
+("borrar token" / "borrar solicitud", `public/admin/admin.js::pedirConfirmacionTexto`)
+en vez de un simple `confirm()` del navegador, para no pulsarlas por error.
 
 **Autenticación de admin: OAuth de Google, sin login propio.** Decisión deliberada
 para no gestionar contraseñas siendo un equipo de 3 personas, todas con cuenta de

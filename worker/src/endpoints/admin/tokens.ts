@@ -1,4 +1,4 @@
-import { borrarSesionesDeToken, crearToken, listarTokens, obtenerToken, revocarToken } from "../../db";
+import { borrarSesionesDeToken, borrarTokenCompleto, crearToken, listarTokens, obtenerToken, revocarToken } from "../../db";
 import { error, json } from "../../http";
 import type { Env } from "../../tipos";
 
@@ -59,5 +59,15 @@ export async function deleteTokenSesiones(env: Env, id: string): Promise<Respons
   const token = await obtenerToken(env, id);
   if (!token) return error(env, 404, "Token no encontrado");
   await borrarSesionesDeToken(env, id);
+  return json(env, { ok: true });
+}
+
+// "Papelera": borra el token y todas sus sesiones/respuestas de forma
+// definitiva (a diferencia de deleteToken, que solo revoca). Acción distinta
+// y más destructiva, pensada sobre todo para limpiar datos de prueba.
+export async function deleteTokenCompleto(env: Env, id: string): Promise<Response> {
+  const token = await obtenerToken(env, id);
+  if (!token) return error(env, 404, "Token no encontrado");
+  await borrarTokenCompleto(env, id);
   return json(env, { ok: true });
 }

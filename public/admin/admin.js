@@ -45,11 +45,14 @@ const api = {
   revocarToken: (id) => peticion(`/api/admin/tokens/${encodeURIComponent(id)}`, { method: "DELETE" }),
   borrarSesionesToken: (id) =>
     peticion(`/api/admin/tokens/${encodeURIComponent(id)}/sesiones`, { method: "DELETE" }),
+  borrarTokenCompleto: (id) =>
+    peticion(`/api/admin/tokens/${encodeURIComponent(id)}/completo`, { method: "DELETE" }),
   sesiones: (query) => peticion(`/api/admin/sesiones?${query}`),
   borrarSesion: (id) => peticion(`/api/admin/sesiones/${encodeURIComponent(id)}`, { method: "DELETE" }),
   stats: (query) => peticion(`/api/admin/stats?${query}`),
   solicitudes: () => peticion("/api/admin/solicitudes"),
   marcarSolicitud: (id) => peticion(`/api/admin/solicitudes/${id}`, { method: "PATCH" }),
+  borrarSolicitud: (id) => peticion(`/api/admin/solicitudes/${id}`, { method: "DELETE" }),
   admins: () => peticion("/api/admin/admins"),
   agregarAdmin: (email) => peticion("/api/admin/admins", { method: "POST", body: JSON.stringify({ email }) }),
   quitarAdmin: (email) => peticion(`/api/admin/admins/${encodeURIComponent(email)}`, { method: "DELETE" }),
@@ -69,6 +72,51 @@ function escaparHtml(s) {
 
 function formatearFecha(iso) {
   return new Date(iso).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
+}
+
+// --- Confirmación con texto (papelera): para las acciones más destructivas
+// (borrar un token entero con todas sus sesiones, borrar una solicitud) un
+// simple confirm() del navegador es fácil de pulsar sin leer. Exige teclear
+// la frase exacta antes de habilitar el botón de confirmar.
+function pedirConfirmacionTexto({ titulo, mensaje, frase }) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal-caja" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+        <h2 id="modal-titulo">${escaparHtml(titulo)}</h2>
+        <p>${escaparHtml(mensaje)}</p>
+        <p>Escribe <strong>${escaparHtml(frase)}</strong> para confirmar:</p>
+        <input type="text" class="modal-input" autocomplete="off" spellcheck="false" />
+        <div class="modal-botones">
+          <button type="button" class="boton-secundario" data-accion="cancelar">Cancelar</button>
+          <button type="button" class="boton-principal boton-peligro-solido" data-accion="confirmar" disabled>Confirmar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const cerrar = (resultado) => {
+      overlay.remove();
+      resolve(resultado);
+    };
+
+    const input = overlay.querySelector(".modal-input");
+    const botonConfirmar = overlay.querySelector('[data-accion="confirmar"]');
+    input.addEventListener("input", () => {
+      botonConfirmar.disabled = input.value.trim().toLowerCase() !== frase.toLowerCase();
+    });
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && !botonConfirmar.disabled) cerrar(true);
+      if (ev.key === "Escape") cerrar(false);
+    });
+    overlay.addEventListener("click", (ev) => {
+      if (ev.target === overlay) cerrar(false);
+    });
+    overlay.querySelector('[data-accion="cancelar"]').addEventListener("click", () => cerrar(false));
+    botonConfirmar.addEventListener("click", () => cerrar(true));
+
+    input.focus();
+  });
 }
 
 // --- Login ---
@@ -208,6 +256,7 @@ function filaToken(t) {
       <td class="acciones-tabla">
         ${caducado ? "" : `<button type="button" class="boton-tabla" data-revocar="${t.id}">Revocar</button>`}
         <button type="button" class="boton-tabla boton-peligro" data-borrar-remesa="${t.id}">Borrar respuestas</button>
+        <button type="button" class="boton-tabla boton-peligro" data-borrar-token="${t.id}" title="Borra el token entero y todas sus sesiones, sin dejar rastro">Borrar token</button>
       </td>
     </tr>`;
 }
@@ -274,6 +323,20 @@ async function renderTokens(contenedor, recargar) {
       )
         return;
       await api.borrarSesionesToken(boton.dataset.borrarRemesa);
+      recargar();
+    });
+  });
+
+  contenedor.querySelectorAll("[data-borrar-token]").forEach((boton) => {
+    boton.addEventListener("click", async () => {
+      const confirmado = await pedirConfirmacionTexto({
+        titulo: "Borrar token definitivamente",
+        mensaje:
+          "Se borrará el token, junto con todas las sesiones y respuestas creadas con él. No se puede deshacer.",
+        frase: "borrar token",
+      });
+      if (!confirmado) return;
+      await api.borrarTokenCompleto(boton.dataset.borrarToken);
       recargar();
     });
   });
@@ -372,7 +435,10 @@ async function renderSolicitudes(contenedor, recargar) {
               <td>${escaparHtml(s.motivo ?? "—")}</td>
               <td>${formatearFecha(s.creada_en)}</td>
               <td>${s.atendida ? "Atendida" : "Pendiente"}</td>
-              <td>${s.atendida ? "" : `<button type="button" class="boton-tabla" data-atender="${s.id}">Marcar atendida</button>`}</td>
+              <td class="acciones-tabla">
+                ${s.atendida ? "" : `<button type="button" class="boton-tabla" data-atender="${s.id}">Marcar atendida</button>`}
+                <button type="button" class="boton-tabla boton-peligro" data-borrar-solicitud="${s.id}">Borrar</button>
+              </td>
             </tr>`
             )
             .join("")}
@@ -384,6 +450,19 @@ async function renderSolicitudes(contenedor, recargar) {
   contenedor.querySelectorAll("[data-atender]").forEach((boton) => {
     boton.addEventListener("click", async () => {
       await api.marcarSolicitud(boton.dataset.atender);
+      recargar();
+    });
+  });
+
+  contenedor.querySelectorAll("[data-borrar-solicitud]").forEach((boton) => {
+    boton.addEventListener("click", async () => {
+      const confirmado = await pedirConfirmacionTexto({
+        titulo: "Borrar solicitud de acceso",
+        mensaje: "Se borrará esta solicitud de acceso. No se puede deshacer.",
+        frase: "borrar solicitud",
+      });
+      if (!confirmado) return;
+      await api.borrarSolicitud(boton.dataset.borrarSolicitud);
       recargar();
     });
   });
