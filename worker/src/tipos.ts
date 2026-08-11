@@ -68,6 +68,13 @@ export interface Env {
   // Por defecto 5; se sube en tests para no toparse con el límite al crear muchas
   // sesiones de prueba seguidas desde la misma IP simulada.
   RATE_LIMIT_MAX?: string;
+  // OAuth de Google para el panel de admin (README §4.5). GOOGLE_CLIENT_ID no es
+  // secreto (va en wrangler.toml [vars]); GOOGLE_CLIENT_SECRET y
+  // ADMIN_SESSION_SECRET sí lo son (wrangler secret put).
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+  // Clave con la que se firma (HMAC-SHA256) la cookie de sesión de admin.
+  ADMIN_SESSION_SECRET: string;
 }
 
 // --- Catálogos demográficos cerrados (README §2) ---

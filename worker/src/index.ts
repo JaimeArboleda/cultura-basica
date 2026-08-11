@@ -1,9 +1,12 @@
-// Worker de Cloudflare (API). Endpoints según README §4.3. El sorteo de ítems y la
-// corrección de respuestas ocurren aquí, nunca en el cliente.
+// Worker de Cloudflare (API). Endpoints según README §4.3 y §4.5. El sorteo de
+// ítems y la corrección de respuestas ocurren aquí, nunca en el cliente.
+import { manejarRutaAdmin } from "./adminRouter";
 import { getExport } from "./endpoints/export";
 import { postRespuesta } from "./endpoints/respuesta";
 import { getResultado } from "./endpoints/resultado";
 import { postSesion } from "./endpoints/sesion";
+import { postSolicitudAcceso } from "./endpoints/solicitudAcceso";
+import { getTokenValido } from "./endpoints/token";
 import { corsHeaders, error } from "./http";
 import type { Env } from "./tipos";
 
@@ -18,6 +21,9 @@ export default {
     }
 
     try {
+      if (url.pathname.startsWith("/api/admin/")) {
+        return await manejarRutaAdmin(request, env, url.pathname);
+      }
       if (request.method === "POST" && url.pathname === "/api/sesion") {
         return await postSesion(request, env);
       }
@@ -30,6 +36,12 @@ export default {
       }
       if (request.method === "GET" && url.pathname === "/api/export") {
         return await getExport(request, env);
+      }
+      if (request.method === "GET" && url.pathname === "/api/token-valido") {
+        return await getTokenValido(request, env);
+      }
+      if (request.method === "POST" && url.pathname === "/api/solicitud-acceso") {
+        return await postSolicitudAcceso(request, env);
       }
     } catch (e) {
       console.error(e);

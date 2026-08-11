@@ -3,8 +3,12 @@ import type { Env } from "./tipos";
 export function corsHeaders(env: Env): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN,
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+    // El panel de admin (worker/src/adminAuth.ts) se autentica con cookie
+    // httpOnly: hace falta esta cabecera para que el navegador la envíe si
+    // Pages y el Worker no comparten dominio (§4.6).
+    "Access-Control-Allow-Credentials": "true",
   };
 }
 

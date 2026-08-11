@@ -248,8 +248,12 @@ a CSV.
 ```
 /
 ├── public/              # Front-end estático → Cloudflare Pages
-│   ├── index.html       # App autocontenida
+│   ├── index.html       # App del test, autocontenida
 │   ├── app.js
+│   ├── admin/           # Panel de administración (§4.5), bajo /admin
+│   │   ├── index.html
+│   │   ├── admin.js
+│   │   └── admin.css
 │   └── styles.css
 ├── worker/              # Cloudflare Worker (API)
 │   ├── src/index.ts
@@ -268,6 +272,30 @@ a CSV.
 ### 4.1 Esquema de datos (D1 / SQLite)
 
 ```sql
+-- Control de acceso y panel de admin (§4.5): admins y tokens se crean antes que
+-- sesiones porque sesiones.token_id las referencia.
+CREATE TABLE admins (
+  email       TEXT PRIMARY KEY,
+  anadido_por TEXT,               -- email de quien lo dio de alta; NULL en la siembra inicial
+  anadido_en  TEXT NOT NULL
+);
+
+CREATE TABLE tokens (
+  id          TEXT PRIMARY KEY,    -- código compartido en la URL (?token=)
+  descripcion TEXT NOT NULL,       -- p. ej. "familia de Gerardo": de qué remesa viene
+  creado_por  TEXT NOT NULL,
+  creado_en   TEXT NOT NULL,
+  expira_en   TEXT NOT NULL
+);
+
+CREATE TABLE solicitudes_acceso (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  contacto  TEXT NOT NULL,
+  motivo    TEXT,
+  creada_en TEXT NOT NULL,
+  atendida  INTEGER DEFAULT 0
+);
+
 CREATE TABLE sesiones (
   id                TEXT PRIMARY KEY,        -- UUID generado en cliente
   creada_en         TEXT NOT NULL,           -- ISO 8601 UTC
@@ -280,6 +308,7 @@ CREATE TABLE sesiones (
   -- alimenta el percentil de la pantalla de resultado (§1.5, §4.3).
   puntuacion_total REAL,
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
+  token_id          TEXT REFERENCES tokens(id), -- remesa de invitación (§4.5); NULL en sesiones anteriores a este control de acceso
   -- demografía
   anio_nacimiento   INTEGER,
   sexo              TEXT,
@@ -289,6 +318,8 @@ CREATE TABLE sesiones (
   estudios_mayor_progenitor TEXT,
   libros_en_casa    TEXT
 );
+
+CREATE INDEX idx_sesiones_token ON sesiones(token_id);
 
 CREATE TABLE respuestas (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -507,11 +538,33 @@ código deba volver a aplicar.
 ### 4.3 Endpoints del Worker
 
 ```
-POST /api/sesion            → crea sesión, devuelve id + los 25 ítems en el orden fijo
+POST /api/sesion            → crea sesión (exige token de acceso, §4.5), devuelve id + los 25 ítems
 POST /api/respuesta         → guarda una respuesta (idempotente por sesion_id+item_id)
-GET  /api/resultado/:id     → devuelve el resultado de esa sesión
+GET  /api/resultado/:id     → devuelve el resultado de esa sesión (NO exige token, §4.5)
 GET  /api/export?token=…    → volcado CSV/JSON (protegido con secreto en env)
+GET  /api/token-valido?token=…      → { valido, motivo? } — comprobación previa al consentimiento
+POST /api/solicitud-acceso          → guarda una solicitud de acceso sin token
+
+GET  /api/admin/auth/login          → redirige a Google OAuth
+GET  /api/admin/auth/callback       → callback de Google, fija la cookie de sesión de admin
+POST /api/admin/auth/logout         → borra la cookie de sesión
+GET  /api/admin/me                  → { email } del admin autenticado
+GET  /api/admin/tokens              → lista tokens (con nº de sesiones/completas)
+POST /api/admin/tokens              → crea un token { descripcion, horas_validez? }
+DELETE /api/admin/tokens/:id        → revoca (caduca de inmediato) un token
+DELETE /api/admin/tokens/:id/sesiones → borra todas las sesiones de esa remesa; el token sigue activo
+GET  /api/admin/sesiones            → lista sesiones, filtros ?token_id=&estado=completo|en_progreso
+DELETE /api/admin/sesiones/:id      → borra una sesión (y sus respuestas)
+GET  /api/admin/stats               → agregados del piloto, opcional ?token_id=
+GET  /api/admin/solicitudes         → lista solicitudes de acceso
+PATCH /api/admin/solicitudes/:id    → marca una solicitud como atendida
+GET  /api/admin/admins              → lista administradores
+POST /api/admin/admins              → añade un administrador { email }
+DELETE /api/admin/admins/:email     → quita un administrador (rechaza si es el último)
 ```
+
+Todas las rutas `/api/admin/*` salvo `auth/login` y `auth/callback` exigen la
+cookie de sesión de admin (§4.5); sin ella devuelven 401.
 
 Notas de implementación:
 - El orden de presentación es **fijo** (`data/orden-test.json`, §4.2, igual para
@@ -624,6 +677,126 @@ npx wrangler d1 execute cultura-basica --remote \
   --command="ALTER TABLE sesiones ADD COLUMN sexo TEXT"
 ```
 
+### 4.5 Control de acceso y panel de administración (issue #2)
+
+**Motivación:** publicado sin control, el test es vulnerable a respuestas fuera del
+grupo objetivo o repetidas para "jugar" con el resultado. La solución no identifica
+a la persona (sigue sin pedir nombre ni email, §5): un **token de acceso** identifica
+una *remesa* de invitación compartida por varias personas ("familia de Gerardo",
+"primero de matemáticas de la uni"), no a quien responde.
+
+**Tokens de acceso (`tokens`, §4.1):**
+- `POST /api/sesion` exige un `token` válido y no caducado; sin él, o caducado, o
+  inexistente, se rechaza (401/403).
+- Un token **no tiene límite de usos**: sirve para cualquier número de personas
+  mientras no caduque. La validez se fija al crearlo (2 horas - 10 días, panel de
+  admin), 48h por defecto.
+- "Revocar" un token lo caduca de inmediato (no borra sus sesiones/respuestas).
+- `GET /api/resultado/:id` **nunca exige token**: reanudar el test o ver un
+  resultado ya existente depende solo de conocer el `sesion_id` (§8), nunca de que
+  el token siga vivo. Esto es intencional: separa "permiso para crear una sesión
+  nueva" (el token) de "identidad de un intento concreto" (`sesion_id`).
+
+**Borrado y repetición del test:** desde el panel se puede borrar una sesión
+individual (`DELETE /api/admin/sesiones/:id`) o toda una remesa de golpe
+(`DELETE /api/admin/tokens/:id/sesiones`); en ambos casos se borran en cascada sus
+`respuestas` y `sesion_items` (a mano, en un batch atómico — el esquema no declara
+`ON DELETE CASCADE`, ver `worker/src/db.ts::borrarSesion`). El token **no se
+revoca** al borrar sus sesiones: la próxima vez que el navegador de esa persona
+consulte `GET /api/resultado/:id` recibirá 404, lo que limpia su `localStorage`
+(`public/app.js::reanudarSesion`) y le permite repetir el test **reabriendo el
+mismo enlace de invitación** (`?token=…`), mientras el token no haya caducado. El
+token no se guarda en `localStorage`: es una decisión deliberada para que "repetir"
+siempre pase por el enlace original, no por un estado oculto del navegador.
+
+**Enlace permanente de resultado y "compartir":** al completar el test, la
+pantalla de resultado ofrece un enlace `?resultado=<sesion_id>` (con botón de
+compartir vía `navigator.share`, o copiar al portapapeles) que funciona
+**indefinidamente**, pase lo que pase con el token que se usó para crear la
+sesión — es justo lo que no depende del token (párrafo anterior). Si alguien
+abre ese enlace sin ser quien hizo el test (se lo compartieron), ve el mismo
+resultado y una llamada a la acción para solicitar su propio acceso; esa
+llamada se oculta cuando `sesion_id` coincide con el que hay en el
+`localStorage` de ese navegador (es decir, para quien lo hizo).
+
+**Solicitudes sin token (`solicitudes_acceso`, §4.1):** quien llega sin token
+válido ve un formulario simple (dato de contacto + motivo opcional) en vez del
+test. Se guarda en su propia tabla, **no** en el dataset anónimo del estudio
+(§5) — solo la ve el panel de admin, que puede marcarla como atendida.
+
+**Panel de admin (`public/admin/`, bajo `/admin`):** cinco pestañas — Estadísticas
+(total/completas/en progreso, progreso hacia el objetivo del piloto de 100-150
+respuestas, distribución demográfica, todo filtrable por token), Tokens
+(crear/listar/revocar/borrar remesa/copiar enlace), Sesiones (listar con filtro por
+token y estado, borrar individual), Solicitudes de acceso (listar, marcar
+atendida) y Administradores (añadir/quitar cuentas autorizadas).
+
+**Autenticación de admin: OAuth de Google, sin login propio.** Decisión deliberada
+para no gestionar contraseñas siendo un equipo de 3 personas, todas con cuenta de
+Gmail — más simple que poner Cloudflare Access delante:
+- La lista de administradores vive en la tabla `admins` (§4.1), gestionable desde
+  el propio panel una vez dentro (pestaña Administradores); no permite quitar al
+  último admin (red de seguridad ante un borrado accidental).
+- Flujo: `GET /api/admin/auth/login` redirige a Google (Authorization Code);
+  `GET /api/admin/auth/callback` intercambia el código por el email verificado
+  (`https://www.googleapis.com/oauth2/v3/userinfo`, sin verificar el JWT del
+  `id_token` a mano), comprueba que esté en `admins` y, si lo está, fija una cookie
+  httpOnly firmada con HMAC-SHA256 (`worker/src/adminAuth.ts`, secreto
+  `ADMIN_SESSION_SECRET`) válida 7 días. Cualquier fallo redirige a
+  `/admin/?error=…` con un mensaje legible en vez de un JSON crudo.
+- Cada petición a `/api/admin/*` (salvo `auth/login`/`auth/callback`) revalida la
+  cookie **y** que el email siga en `admins`: quitar a alguien del panel corta su
+  acceso de inmediato, sin esperar a que caduque su cookie.
+- No hay verificación CSRF de formulario (no hace falta: las mutaciones van por
+  `fetch` con `Content-Type: application/json`, no por formularios cross-site) pero
+  sí un parámetro `state` de un solo uso en el propio login OAuth.
+
+### 4.6 Desplegar el control de acceso (issue #2)
+
+Añade a los pasos de despliegue de §4.4:
+
+**Credenciales OAuth de Google** (una vez, en [Google Cloud Console](https://console.cloud.google.com/apis/credentials)):
+crear un "OAuth 2.0 Client ID" de tipo *Web application*, con
+`https://<dominio-de-pages>/api/admin/auth/callback` como *Authorized redirect URI*
+(el mismo valor que `ALLOWED_ORIGIN` en `worker/wrangler.toml` + `/api/admin/auth/callback`).
+Copiar el Client ID a `GOOGLE_CLIENT_ID` en `worker/wrangler.toml` `[vars]`, y el
+Client Secret como secret:
+
+```bash
+cd worker
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+npx wrangler secret put ADMIN_SESSION_SECRET   # cadena aleatoria larga, p. ej.
+                                                 # `openssl rand -base64 32`
+```
+
+**Sembrar los administradores iniciales** (problema del "primer admin": la tabla
+`admins` empieza vacía y solo alguien ya en `admins` puede añadir a otro desde el
+panel):
+
+```bash
+npx wrangler d1 execute cultura-basica --remote \
+  --command="INSERT INTO admins (email, anadido_por, anadido_en) VALUES ('persona1@gmail.com', NULL, '$(date -u +%Y-%m-%dT%H:%M:%SZ)')"
+# repetir para cada admin inicial
+```
+
+**Migrar una D1 ya desplegada** (test publicado antes de este control de acceso,
+issue #2) a las tablas nuevas, igual que el ejemplo de más arriba:
+
+```bash
+npx wrangler d1 execute cultura-basica --remote --command="
+  CREATE TABLE admins (email TEXT PRIMARY KEY, anadido_por TEXT, anadido_en TEXT NOT NULL);
+  CREATE TABLE tokens (id TEXT PRIMARY KEY, descripcion TEXT NOT NULL, creado_por TEXT NOT NULL, creado_en TEXT NOT NULL, expira_en TEXT NOT NULL);
+  CREATE TABLE solicitudes_acceso (id INTEGER PRIMARY KEY AUTOINCREMENT, contacto TEXT NOT NULL, motivo TEXT, creada_en TEXT NOT NULL, atendida INTEGER DEFAULT 0);
+  ALTER TABLE sesiones ADD COLUMN token_id TEXT REFERENCES tokens(id);
+  CREATE INDEX idx_sesiones_token ON sesiones(token_id);
+"
+```
+
+Las sesiones creadas antes de esta migración quedan con `token_id` a `NULL`
+(siguen visibles y exportables con normalidad, solo no pertenecen a ninguna
+remesa). A partir de aquí, `POST /api/sesion` empezará a exigir un token, así que
+conviene crear al menos uno desde el panel antes de anunciar el test de nuevo.
+
 ---
 
 ## 5. Privacidad y RGPD
@@ -636,6 +809,12 @@ npx wrangler d1 execute cultura-basica --remote \
 - El User-Agent completo no se almacena; solo una clasificación móvil/escritorio.
 - Publicar el dataset anonimizado junto al paper (con las celdas demográficas muy
   pequeñas agregadas, para evitar reidentificación).
+- **Excepciones deliberadas, fuera del dataset del estudio** (§4.5): la tabla
+  `solicitudes_acceso` sí guarda un dato de contacto, pero solo el que la propia
+  persona decide dar voluntariamente para pedir acceso — no se cruza nunca con
+  `sesiones`/`respuestas` y no se publica. La tabla `admins` guarda los emails de
+  Gmail del propio equipo del estudio (autenticación del panel), no de
+  participantes.
 
 ---
 

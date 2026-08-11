@@ -23,8 +23,21 @@ async function postJson(path: string, body: unknown) {
   });
 }
 
+// POST /api/sesion exige un token de acceso válido (issue #2, worker/src/endpoints/sesion.ts).
+// Se inserta directamente en D1 en vez de pasar por el panel de admin (que exige
+// login de Google, fuera del alcance de estos tests de endpoints públicos).
+async function crearTokenDeTest(expiraEn = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()) {
+  const id = crypto.randomUUID();
+  await env.DB.prepare("INSERT INTO tokens (id, descripcion, creado_por, creado_en, expira_en) VALUES (?,?,?,?,?)")
+    .bind(id, "token de test", "admin@example.com", new Date().toISOString(), expiraEn)
+    .run();
+  return id;
+}
+
 async function crearSesionDeTest() {
+  const token = await crearTokenDeTest();
   const res = await postJson("/api/sesion", {
+    token,
     consentimiento: true,
     compromiso_honestidad: true,
     user_agent_clase: "escritorio",
@@ -49,7 +62,9 @@ describe("POST /api/sesion", () => {
   });
 
   it("rechaza sin consentimiento", async () => {
+    const token = await crearTokenDeTest();
     const res = await postJson("/api/sesion", {
+      token,
       consentimiento: false,
       compromiso_honestidad: true,
       user_agent_clase: "escritorio",
@@ -59,7 +74,9 @@ describe("POST /api/sesion", () => {
   });
 
   it("rechaza demografía con valores fuera de catálogo", async () => {
+    const token = await crearTokenDeTest();
     const res = await postJson("/api/sesion", {
+      token,
       consentimiento: true,
       compromiso_honestidad: true,
       user_agent_clase: "escritorio",
@@ -69,13 +86,48 @@ describe("POST /api/sesion", () => {
   });
 
   it("rechaza demografía con sexo fuera de catálogo", async () => {
+    const token = await crearTokenDeTest();
     const res = await postJson("/api/sesion", {
+      token,
       consentimiento: true,
       compromiso_honestidad: true,
       user_agent_clase: "escritorio",
       demografia: { ...demografiaValida(), sexo: "invalido" },
     });
     expect(res.status).toBe(400);
+  });
+
+  it("rechaza sin token", async () => {
+    const res = await postJson("/api/sesion", {
+      consentimiento: true,
+      compromiso_honestidad: true,
+      user_agent_clase: "escritorio",
+      demografia: demografiaValida(),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("rechaza un token que no existe", async () => {
+    const res = await postJson("/api/sesion", {
+      token: "no-existe",
+      consentimiento: true,
+      compromiso_honestidad: true,
+      user_agent_clase: "escritorio",
+      demografia: demografiaValida(),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("rechaza un token caducado", async () => {
+    const token = await crearTokenDeTest(new Date(Date.now() - 1000).toISOString());
+    const res = await postJson("/api/sesion", {
+      token,
+      consentimiento: true,
+      compromiso_honestidad: true,
+      user_agent_clase: "escritorio",
+      demografia: demografiaValida(),
+    });
+    expect(res.status).toBe(403);
   });
 });
 

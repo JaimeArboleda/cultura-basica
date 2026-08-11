@@ -6,7 +6,13 @@ compatibility_date = "2026-01-01"
 # Origen exacto (scheme+host, sin barra final) desde el que Cloudflare Pages sirve
 # public/. Solo hace falta si Pages y el Worker NO están bajo el mismo dominio via
 # una route /api/*; en ese caso same-origin no necesita CORS. Ajustar tras desplegar.
+# También se usa para construir la redirect_uri de OAuth de Google (§4.6) y la
+# URL a la que se redirige tras el login de admin.
 ALLOWED_ORIGIN = "https://cultura-basica.pages.dev"
+
+# Client ID de las credenciales OAuth de Google del panel de admin (§4.6). No es
+# secreto (va siempre en la petición de autorización, visible en el navegador).
+GOOGLE_CLIENT_ID = "REEMPLAZAR_TRAS_CREAR_LAS_CREDENCIALES_OAUTH"
 
 [[d1_databases]]
 binding = "DB"
@@ -17,5 +23,9 @@ database_id = "7df34f15-cc38-4268-af72-8e5d9930a93b"
 binding = "RATE_LIMIT"
 id = "81f103c6a7e344b0bce4b449bdafb5c2"
 
-# EXPORT_TOKEN se define como secret, no aquí:
+# EXPORT_TOKEN, GOOGLE_CLIENT_SECRET y ADMIN_SESSION_SECRET se definen como
+# secret, no aquí (§4.6):
 #   wrangler secret put EXPORT_TOKEN
+#   wrangler secret put GOOGLE_CLIENT_SECRET
+#   wrangler secret put ADMIN_SESSION_SECRET   # cadena aleatoria larga cualquiera,
+#                                               # p. ej. `openssl rand -base64 32`

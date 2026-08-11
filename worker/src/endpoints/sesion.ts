@@ -1,4 +1,4 @@
-import { crearSesion } from "../db";
+import { crearSesion, obtenerToken } from "../db";
 import { error, ipDeRequest, json } from "../http";
 import { bancoItems, paraCliente } from "../items";
 import { permitir } from "../ratelimit";
@@ -6,6 +6,10 @@ import { ordenarTest } from "../sorteo";
 import type { Env } from "../tipos";
 import { validarDemografia } from "../validacion";
 
+// Guard de acceso (issue #2, README §4.5): crear una sesión exige un token de
+// invitación válido y no caducado. Ver /api/resultado/:id, que NO exige token
+// — reanudar o consultar un resultado ya existente nunca depende de que el
+// token siga vivo, solo de conocer el sesion_id (§8).
 export async function postSesion(request: Request, env: Env): Promise<Response> {
   const ip = ipDeRequest(request);
   if (!(await permitir(env, ip))) {
@@ -19,6 +23,18 @@ export async function postSesion(request: Request, env: Env): Promise<Response> 
     return error(env, 400, "JSON inválido");
   }
   const b = body as Record<string, unknown>;
+
+  const tokenId = typeof b.token === "string" ? b.token : "";
+  if (!tokenId) {
+    return error(env, 401, "Falta el token de acceso");
+  }
+  const token = await obtenerToken(env, tokenId);
+  if (!token) {
+    return error(env, 403, "Token inválido");
+  }
+  if (new Date(token.expira_en).getTime() < Date.now()) {
+    return error(env, 403, "Token caducado");
+  }
 
   if (b.consentimiento !== true || b.compromiso_honestidad !== true) {
     return error(env, 400, "Se requiere consentimiento y compromiso de honestidad");
@@ -40,6 +56,7 @@ export async function postSesion(request: Request, env: Env): Promise<Response> 
     demografia,
     userAgentClase: b.user_agent_clase,
     asignaciones,
+    tokenId,
   });
 
   const itemsPorId = new Map(bancoItems.map((i) => [i.id, i]));
