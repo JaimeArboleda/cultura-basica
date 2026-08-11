@@ -2,47 +2,77 @@
 // Todas las funciones aquí trabajan sobre datos ya "públicos" (sin respuesta
 // correcta) tal como los sirve el Worker.
 
+// Escapa para uso seguro tanto en texto como dentro de atributos HTML entre
+// comillas dobles (el uso que se le da en todo este fichero, p. ej.
+// data-categoria="${escapar(cat)}"). textContent → innerHTML ya cubre &, < y
+// >, pero NO las comillas dobles: un valor real como la categoría
+// 'Leopoldo Alas "Clarín"' (data/items/04.json) rompía el atributo a mitad de
+// cadena y truncaba el valor que luego se leía por dataset, provocando que la
+// clasificación se guardase con la categoría equivocada sin ningún error
+// visible (issue #3, bug "La Regenta").
 function escapar(s) {
   const div = document.createElement("div");
   div.textContent = s;
-  return div.innerHTML;
+  return div.innerHTML.replaceAll('"', "&quot;");
 }
 
-export function html(item) {
+// respuestaPrevia (opcional) es la respuesta ya enviada anteriormente para este
+// ítem, tal como la construye onResponder en cada formato (README §"navegación
+// atrás"). Si está presente, el ítem se pinta ya con ese estado para poder
+// revisarlo/corregirlo sin perderlo al volver atrás.
+export function html(item, respuestaPrevia) {
   switch (item.formato) {
-    case "abierto":
+    case "abierto": {
+      const valorPrevio = typeof respuestaPrevia === "string" ? respuestaPrevia : "";
       return `
         <input id="respuesta-abierta" type="text" inputmode="text" autocomplete="off"
-               placeholder="Escribe tu respuesta" />
+               placeholder="Escribe tu respuesta" value="${escapar(valorPrevio)}" />
         <button type="button" class="boton-principal" id="boton-responder">Responder</button>`;
+    }
 
-    case "opcion_multiple":
+    case "opcion_multiple": {
+      const elegida = typeof respuestaPrevia === "number" ? respuestaPrevia : null;
       return `
-        <div class="opciones" role="group">
+        <div class="opciones opciones-multiples" role="group">
           ${item.opciones
-            .map((op, i) => `<button type="button" class="boton-opcion" data-indice="${i}">${escapar(op)}</button>`)
+            .map(
+              (op, i) => `
+            <label class="opcion-radio">
+              <input type="radio" name="opcion-unica" data-indice="${i}" ${i === elegida ? "checked" : ""} />
+              <span>${escapar(op)}</span>
+            </label>`
+            )
             .join("")}
-        </div>`;
+        </div>
+        <button type="button" class="boton-principal" id="boton-responder" ${elegida === null ? "disabled" : ""}>Responder</button>`;
+    }
 
-    case "seleccion_multiple":
+    case "seleccion_multiple": {
+      const elegidas = new Set(Array.isArray(respuestaPrevia) ? respuestaPrevia : []);
       return `
         <div class="opciones opciones-multiples" role="group">
           ${item.opciones
             .map(
               (op, i) => `
             <label class="opcion-checkbox">
-              <input type="checkbox" data-indice="${i}" />
+              <input type="checkbox" data-indice="${i}" ${elegidas.has(i) ? "checked" : ""} />
               <span>${escapar(op)}</span>
             </label>`
             )
             .join("")}
         </div>
         <button type="button" class="boton-principal" id="boton-responder">Responder</button>`;
+    }
 
-    case "ordenar":
+    case "ordenar": {
+      const esPermutacionValida =
+        Array.isArray(respuestaPrevia) &&
+        respuestaPrevia.length === item.elementos.length &&
+        item.elementos.every((el) => respuestaPrevia.includes(el));
+      const orden = esPermutacionValida ? respuestaPrevia : item.elementos;
       return `
         <ol id="lista-ordenar" class="lista-ordenar">
-          ${item.elementos
+          ${orden
             .map(
               (el, i) => `
             <li data-elemento="${escapar(el)}">
@@ -50,18 +80,27 @@ export function html(item) {
               <span class="texto-elemento">${escapar(el)}</span>
               <span class="controles-orden">
                 <button type="button" data-mover="arriba" ${i === 0 ? "disabled" : ""} aria-label="Subir">▲</button>
-                <button type="button" data-mover="abajo" ${i === item.elementos.length - 1 ? "disabled" : ""} aria-label="Bajar">▼</button>
+                <button type="button" data-mover="abajo" ${i === orden.length - 1 ? "disabled" : ""} aria-label="Bajar">▼</button>
               </span>
             </li>`
             )
             .join("")}
         </ol>
         <button type="button" class="boton-principal" id="boton-responder">Responder</button>`;
+    }
 
-    case "clasificar":
+    case "clasificar": {
+      const previa =
+        respuestaPrevia && typeof respuestaPrevia === "object" && !Array.isArray(respuestaPrevia)
+          ? respuestaPrevia
+          : {};
+      const ficha = (el) => `<button type="button" class="ficha" data-elemento="${escapar(el)}">${escapar(el)}</button>`;
       return `
         <div class="bandeja" id="bandeja-elementos">
-          ${item.elementos.map((el) => `<button type="button" class="ficha" data-elemento="${escapar(el)}">${escapar(el)}</button>`).join("")}
+          ${item.elementos
+            .filter((el) => !(el in previa))
+            .map(ficha)
+            .join("")}
         </div>
         <div class="cajas-clasificar">
           ${item.categorias
@@ -69,12 +108,18 @@ export function html(item) {
               (cat) => `
             <div class="caja" data-categoria="${escapar(cat)}">
               <h3>${escapar(cat)}</h3>
-              <div class="caja-contenido" data-categoria="${escapar(cat)}"></div>
+              <div class="caja-contenido" data-categoria="${escapar(cat)}">
+                ${item.elementos
+                  .filter((el) => previa[el] === cat)
+                  .map(ficha)
+                  .join("")}
+              </div>
             </div>`
             )
             .join("")}
         </div>
-        <button type="button" class="boton-principal" id="boton-responder" disabled>Responder</button>`;
+        <button type="button" class="boton-principal" id="boton-responder">Responder</button>`;
+    }
 
     default:
       return "";
@@ -98,8 +143,16 @@ export function attachListeners(root, item, onResponder) {
   }
 
   if (item.formato === "opcion_multiple") {
-    root.querySelectorAll(".boton-opcion").forEach((btn) => {
-      btn.addEventListener("click", () => onResponder(Number(btn.dataset.indice)));
+    const radios = [...root.querySelectorAll('input[type="radio"]')];
+    radios.forEach((radio) => {
+      radio.addEventListener("change", () => {
+        boton.disabled = false;
+      });
+    });
+    boton.addEventListener("click", () => {
+      const elegida = radios.find((radio) => radio.checked);
+      if (!elegida) return;
+      onResponder(Number(elegida.dataset.indice));
     });
     return;
   }
@@ -222,27 +275,41 @@ export function attachListeners(root, item, onResponder) {
     const asignacion = {};
     let seleccionado = null;
 
+    // Si el ítem se pinta con una respuesta previa (revisión tras "atrás"), las
+    // fichas ya vienen colocadas en su caja-contenido (ver html()): se relee ese
+    // estado inicial en vez de asumir que todo empieza vacío.
+    root.querySelectorAll(".caja-contenido").forEach((contenido) => {
+      contenido.querySelectorAll(".ficha").forEach((f) => {
+        asignacion[f.dataset.elemento] = contenido.dataset.categoria;
+      });
+    });
+
     const marcarSeleccion = (ficha) => {
       root.querySelectorAll(".ficha").forEach((f) => f.classList.remove("ficha-seleccionada"));
       seleccionado = ficha;
       if (ficha) ficha.classList.add("ficha-seleccionada");
     };
 
-    const actualizarBotonResponder = () => {
-      const total = item.elementos.length;
-      boton.disabled = Object.keys(asignacion).length !== total;
+    const colocarEnCaja = (caja) => {
+      if (!seleccionado) return;
+      const categoria = caja.dataset.categoria;
+      const contenido = caja.querySelector(".caja-contenido");
+      contenido.appendChild(seleccionado);
+      seleccionado.classList.remove("ficha-seleccionada");
+      asignacion[seleccionado.dataset.elemento] = categoria;
+      seleccionado = null;
     };
 
+    // El clic en la caja solo se atiende cuando cae directamente sobre su fondo:
+    // si cae sobre una ficha ya colocada dentro (fichas y cajas están anidadas),
+    // el evento burbujea desde la ficha hasta aquí y, sin este filtro, dispara
+    // los dos listeners para el mismo clic — eso desincronizaba `asignacion`
+    // (bug: una ficha recién seleccionada se perdía en silencio si el siguiente
+    // clic caía sobre una ficha ya colocada en la caja destino).
     root.querySelectorAll(".caja").forEach((caja) => {
-      caja.addEventListener("click", () => {
-        if (!seleccionado) return;
-        const categoria = caja.dataset.categoria;
-        const contenido = caja.querySelector(".caja-contenido");
-        contenido.appendChild(seleccionado);
-        seleccionado.classList.remove("ficha-seleccionada");
-        asignacion[seleccionado.dataset.elemento] = categoria;
-        seleccionado = null;
-        actualizarBotonResponder();
+      caja.addEventListener("click", (ev) => {
+        if (ev.target.closest(".ficha")) return;
+        colocarEnCaja(caja);
       });
     });
 
@@ -308,7 +375,6 @@ export function attachListeners(root, item, onResponder) {
           delete asignacion[ficha.dataset.elemento];
         }
         marcarSeleccion(null);
-        actualizarBotonResponder();
       };
       ficha.addEventListener("pointerup", soltar);
       ficha.addEventListener("pointercancel", soltar);
@@ -318,6 +384,12 @@ export function attachListeners(root, item, onResponder) {
           arrastroRealizado = false;
           return;
         }
+        // Un clic sobre una ficha solo cambia SU selección, nunca coloca la
+        // ficha que estuviera pendiente de otra selección anterior: si el
+        // usuario tenía una ficha seleccionada y el clic cae por error sobre
+        // otra ficha ya colocada (en vez de en el fondo vacío de la caja
+        // destino), lo peor que puede pasar es que esa ficha se quede sin
+        // colocar (recuperable), nunca que se coloque en la caja equivocada.
         if (seleccionado === ficha) {
           marcarSeleccion(null);
         } else {
@@ -326,6 +398,10 @@ export function attachListeners(root, item, onResponder) {
       });
     });
 
+    // A diferencia de los otros formatos, "clasificar" permite enviar sin
+    // colocar todas las fichas: los elementos que falten cuentan como
+    // incorrectos con el sistema de puntuación fraccionaria (puntuarClasificar
+    // en worker/src/puntuacion.ts ya los trata como fallo, sin cambios extra).
     boton.addEventListener("click", () => onResponder({ ...asignacion }));
     return;
   }

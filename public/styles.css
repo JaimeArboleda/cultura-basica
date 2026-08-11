@@ -144,8 +144,7 @@ h2 {
 }
 
 .boton-principal,
-.boton-secundario,
-.boton-opcion {
+.boton-secundario {
   padding: 0.75rem 1rem;
   border-radius: var(--radio);
   border: 1px solid var(--color-borde);
@@ -179,20 +178,12 @@ h2 {
   gap: 0.5rem;
 }
 
-.boton-opcion {
-  background: var(--color-superficie);
-  color: var(--color-texto);
-  width: 100%;
-}
-.boton-opcion:hover {
-  border-color: var(--color-primario);
-}
-
 .opciones-multiples {
   gap: 0.5rem;
   margin-bottom: 0.75rem;
 }
-.opcion-checkbox {
+.opcion-checkbox,
+.opcion-radio {
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
@@ -202,10 +193,12 @@ h2 {
   background: var(--color-superficie);
   cursor: pointer;
 }
-.opcion-checkbox:hover {
+.opcion-checkbox:hover,
+.opcion-radio:hover {
   border-color: var(--color-primario);
 }
-.opcion-checkbox input {
+.opcion-checkbox input,
+.opcion-radio input {
   margin-top: 0.15rem;
   flex-shrink: 0;
 }

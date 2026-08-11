@@ -597,23 +597,23 @@
     ],
     "elementos_ordenados": null,
     "categorias": [
-      "impresionismo",
-      "renacentista",
-      "clasicismo",
-      "barroco",
-      "romanticismo"
+      "Impresionismo",
+      "Renacentista",
+      "Clasicismo",
+      "Barroco",
+      "Romanticismo"
     ],
     "clasificacion_correcta": {
-      "Bach": "barroco",
-      "Handel": "barroco",
-      "Mozart": "clasicismo",
-      "Beethoven": "clasicismo",
-      "Liszt": "romanticismo",
-      "Chopin": "romanticismo",
-      "Ravel": "impresionismo",
-      "Debussy": "impresionismo",
-      "Palestrina": "renacentista",
-      "Tomás Luis de Victoria": "renacentista"
+      "Bach": "Barroco",
+      "Handel": "Barroco",
+      "Mozart": "Clasicismo",
+      "Beethoven": "Clasicismo",
+      "Liszt": "Romanticismo",
+      "Chopin": "Romanticismo",
+      "Ravel": "Impresionismo",
+      "Debussy": "Impresionismo",
+      "Palestrina": "Renacentista",
+      "Tomás Luis de Victoria": "Renacentista"
     },
     "respuesta_canonica": null,
     "alias": null,
