@@ -128,8 +128,13 @@ function ejecutarTest(sesionId, itemsPendientes) {
     const item = items[pos];
     if (pos > posMaxVisitada) posMaxVisitada = pos;
     renderItemActual(sesionId, item, yaRespondidos + pos + 1, total, respuestas[item.id], {
-      puedeVolver: pos > 0,
-      puedeAvanzar: pos < posMaxVisitada,
+      // Editando desde la revisión final (§"Modificar respuesta"): se oculta la
+      // navegación Atrás/Adelante para no arrastrar al usuario de vuelta al
+      // recorrido pregunta a pregunta; solo puede guardar (Responder) o
+      // cancelar y volver directamente a la vista general.
+      puedeVolver: !editandoDesdeRevision && pos > 0,
+      puedeAvanzar: !editandoDesdeRevision && pos < posMaxVisitada,
+      modoEdicion: editandoDesdeRevision,
       onSiguiente: (respuestaEnviada) => {
         respuestas[item.id] = respuestaEnviada;
         if (editandoDesdeRevision) {
@@ -156,6 +161,12 @@ function ejecutarTest(sesionId, itemsPendientes) {
           mostrarActual();
         }
       },
+      onVolverRevision: editandoDesdeRevision
+        ? () => {
+            editandoDesdeRevision = false;
+            mostrarRevisionFinal();
+          }
+        : null,
     });
   }
 
@@ -179,7 +190,7 @@ function renderItemActual(
   posicion,
   total,
   respuestaPrevia,
-  { puedeVolver, puedeAvanzar, onSiguiente, onAtras, onAdelante }
+  { puedeVolver, puedeAvanzar, modoEdicion, onSiguiente, onAtras, onAdelante, onVolverRevision }
 ) {
   const root = montar(`
     <section class="pantalla pantalla-item">
@@ -187,7 +198,13 @@ function renderItemActual(
         <div class="barra-progreso-relleno" style="width:${(posicion / total) * 100}%"></div>
       </div>
       <div class="cabecera-item">
-        ${puedeVolver ? `<button type="button" class="boton-atras" id="boton-atras">← Atrás</button>` : "<span></span>"}
+        ${
+          modoEdicion
+            ? `<button type="button" class="boton-atras" id="boton-volver-revision">← Volver a la revisión</button>`
+            : puedeVolver
+              ? `<button type="button" class="boton-atras" id="boton-atras">← Atrás</button>`
+              : "<span></span>"
+        }
         <div class="cabecera-item-derecha">
           ${puedeAvanzar ? `<button type="button" class="boton-atras" id="boton-adelante">Adelante →</button>` : ""}
           <p class="contador">${posicion} / ${total}</p>
@@ -205,7 +222,12 @@ function renderItemActual(
   };
   document.addEventListener("visibilitychange", onVisibility);
 
-  if (puedeVolver) {
+  if (modoEdicion) {
+    root.querySelector("#boton-volver-revision").addEventListener("click", () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      onVolverRevision();
+    });
+  } else if (puedeVolver) {
     root.querySelector("#boton-atras").addEventListener("click", () => {
       document.removeEventListener("visibilitychange", onVisibility);
       onAtras();
