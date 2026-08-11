@@ -237,8 +237,14 @@ h2 {
   justify-content: space-between;
   gap: 0.5rem;
 }
-.cabecera-item .contador {
+.cabecera-item-derecha {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   margin-left: auto;
+}
+.cabecera-item-derecha .contador {
+  margin-left: 0;
 }
 
 .boton-atras {
@@ -581,4 +587,72 @@ h2 {
   .lista-ordenar li:hover {
     border-color: var(--color-primario);
   }
+}
+
+/* En móvil, "ordenar" y "clasificar" capturan el arrastre con Pointer Events
+   (touch-action: none) sobre elementos que ocupan casi todo el ancho, dejando
+   muy poco margen para hacer scroll vertical con el dedo sin iniciar sin
+   querer un arrastre. Este margen lateral extra deja una franja más ancha a
+   los lados, fuera de los elementos arrastrables, para poder deslizar. */
+@media (max-width: 700px) {
+  .lista-ordenar,
+  .bandeja,
+  .cajas-clasificar {
+    margin-left: 0.75rem;
+    margin-right: 0.75rem;
+  }
+}
+
+/* --- Pantalla de revisión final (antes de enviar) --- */
+
+.enlace-modificar {
+  flex-shrink: 0;
+  padding: 0.3rem 0;
+  border: none;
+  background: none;
+  color: var(--color-primario);
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.resumen-respuesta {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+}
+
+.resumen-orden {
+  list-style: decimal;
+  padding-left: 1.2rem;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.resumen-clasificar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0;
+}
+.resumen-clasificar-caja h4 {
+  margin: 0 0 0.3rem;
+  font-size: 0.85rem;
+  color: var(--color-texto-tenue);
+}
+.resumen-clasificar-elemento {
+  display: inline-block;
+  padding: 0.35rem 0.6rem;
+  margin: 0 0.3rem 0.3rem 0;
+  border-radius: 999px;
+  border: 1px solid var(--color-borde);
+  background: var(--color-superficie);
+  font-size: 0.85rem;
+}
+.resumen-clasificar-vacio {
+  font-size: 0.85rem;
+  color: var(--color-texto-tenue);
+  font-style: italic;
 }

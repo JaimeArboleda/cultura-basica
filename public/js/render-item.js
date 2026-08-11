@@ -407,6 +407,59 @@ export function attachListeners(root, item, onResponder) {
   }
 }
 
+// Renderizado de solo lectura para la pantalla de revisión final previa al
+// envío (respuesta ya guardada localmente en el cliente, tal como la
+// construye onResponder en cada formato, pero todavía sin corregir por el
+// Worker): a diferencia de htmlRevision, aquí no hay acierto/fallo ni
+// respuesta correcta, solo lo que el usuario ha contestado hasta ahora.
+export function htmlResumen(item, respuesta) {
+  switch (item.formato) {
+    case "abierto": {
+      const valor = typeof respuesta === "string" ? respuesta.trim() : "";
+      return `<p class="resumen-respuesta">${valor ? `Tu respuesta: «${escapar(valor)}»` : "(sin respuesta)"}</p>`;
+    }
+
+    case "opcion_multiple": {
+      const elegida = typeof respuesta === "number" ? item.opciones[respuesta] : null;
+      return `<p class="resumen-respuesta">${elegida ? escapar(elegida) : "(sin respuesta)"}</p>`;
+    }
+
+    case "seleccion_multiple": {
+      const elegidas = Array.isArray(respuesta) ? respuesta.map((i) => item.opciones[i]).filter(Boolean) : [];
+      return `<p class="resumen-respuesta">${elegidas.length ? elegidas.map(escapar).join(", ") : "(sin respuesta)"}</p>`;
+    }
+
+    case "ordenar": {
+      const orden = Array.isArray(respuesta) ? respuesta : [];
+      return `<ol class="resumen-orden">${orden.map((el) => `<li>${escapar(el)}</li>`).join("")}</ol>`;
+    }
+
+    case "clasificar": {
+      const asignacion = respuesta && typeof respuesta === "object" && !Array.isArray(respuesta) ? respuesta : {};
+      return `
+        <div class="resumen-clasificar">
+          ${item.categorias
+            .map((cat) => {
+              const elementos = item.elementos.filter((el) => asignacion[el] === cat);
+              return `
+              <div class="resumen-clasificar-caja">
+                <h4>${escapar(cat)}</h4>
+                ${
+                  elementos.length
+                    ? elementos.map((el) => `<span class="resumen-clasificar-elemento">${escapar(el)}</span>`).join("")
+                    : `<span class="resumen-clasificar-vacio">(sin clasificar)</span>`
+                }
+              </div>`;
+            })
+            .join("")}
+        </div>`;
+    }
+
+    default:
+      return "";
+  }
+}
+
 // Renderizado de solo lectura para la pantalla "ver respuestas" (README §3): toma
 // un ItemRevision del Worker (ya incluye la respuesta correcta y lo que respondió
 // el usuario) y pinta en verde lo acertado y en rojo lo fallado.

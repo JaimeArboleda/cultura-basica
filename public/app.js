@@ -110,6 +110,14 @@ function ejecutarTest(sesionId, itemsPendientes) {
   const total = TOTAL_ITEMS;
   const yaRespondidos = total - items.length;
   let pos = 0;
+  // Posición más lejana visitada dentro de esta tanda: permite mostrar un
+  // botón "Adelante" cuando se ha ido "Atrás" a revisar una pregunta ya
+  // respondida, para no obligar a reenviarla solo por avanzar.
+  let posMaxVisitada = 0;
+  // true mientras se está corrigiendo una pregunta concreta desde la pantalla
+  // de revisión final (enlace "Modificar respuesta"): al confirmarla, se
+  // vuelve a esa pantalla en vez de continuar avanzando por el resto.
+  let editandoDesdeRevision = false;
   // Respuestas ya enviadas en esta tanda, por item_id: permite que "atrás" (§3)
   // vuelva a mostrar una pregunta ya respondida con su estado en vez de en
   // blanco, y que se pueda revisar/corregir antes de reenviarla (idempotente,
@@ -118,13 +126,20 @@ function ejecutarTest(sesionId, itemsPendientes) {
 
   function mostrarActual() {
     const item = items[pos];
+    if (pos > posMaxVisitada) posMaxVisitada = pos;
     renderItemActual(sesionId, item, yaRespondidos + pos + 1, total, respuestas[item.id], {
       puedeVolver: pos > 0,
+      puedeAvanzar: pos < posMaxVisitada,
       onSiguiente: (respuestaEnviada) => {
         respuestas[item.id] = respuestaEnviada;
+        if (editandoDesdeRevision) {
+          editandoDesdeRevision = false;
+          mostrarRevisionFinal();
+          return;
+        }
         pos++;
         if (pos >= items.length) {
-          onTestCompleto(sesionId);
+          mostrarRevisionFinal();
         } else {
           mostrarActual();
         }
@@ -133,13 +148,39 @@ function ejecutarTest(sesionId, itemsPendientes) {
         pos--;
         mostrarActual();
       },
+      onAdelante: () => {
+        pos++;
+        if (pos >= items.length) {
+          mostrarRevisionFinal();
+        } else {
+          mostrarActual();
+        }
+      },
+    });
+  }
+
+  function mostrarRevisionFinal() {
+    pantallaRevisionRespuestas(items, respuestas, yaRespondidos, total, {
+      onEditar: (indice) => {
+        pos = indice;
+        editandoDesdeRevision = true;
+        mostrarActual();
+      },
+      onConfirmar: () => onTestCompleto(sesionId),
     });
   }
 
   mostrarActual();
 }
 
-function renderItemActual(sesionId, item, posicion, total, respuestaPrevia, { puedeVolver, onSiguiente, onAtras }) {
+function renderItemActual(
+  sesionId,
+  item,
+  posicion,
+  total,
+  respuestaPrevia,
+  { puedeVolver, puedeAvanzar, onSiguiente, onAtras, onAdelante }
+) {
   const root = montar(`
     <section class="pantalla pantalla-item">
       <div class="barra-progreso" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${posicion}">
@@ -147,7 +188,10 @@ function renderItemActual(sesionId, item, posicion, total, respuestaPrevia, { pu
       </div>
       <div class="cabecera-item">
         ${puedeVolver ? `<button type="button" class="boton-atras" id="boton-atras">← Atrás</button>` : "<span></span>"}
-        <p class="contador">${posicion} / ${total}</p>
+        <div class="cabecera-item-derecha">
+          ${puedeAvanzar ? `<button type="button" class="boton-atras" id="boton-adelante">Adelante →</button>` : ""}
+          <p class="contador">${posicion} / ${total}</p>
+        </div>
       </div>
       ${item.texto ? `<p class="texto-lectura">${escaparHtml(item.texto)}</p>` : ""}
       <h2>${escaparHtml(item.enunciado)}</h2>
@@ -168,6 +212,13 @@ function renderItemActual(sesionId, item, posicion, total, respuestaPrevia, { pu
     });
   }
 
+  if (puedeAvanzar) {
+    root.querySelector("#boton-adelante").addEventListener("click", () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      onAdelante();
+    });
+  }
+
   renderItem.attachListeners(root.querySelector("#zona-respuesta"), item, async (respuesta) => {
     document.removeEventListener("visibilitychange", onVisibility);
     const tMs = Math.round(performance.now() - tInicio);
@@ -185,6 +236,43 @@ function renderItemActual(sesionId, item, posicion, total, respuestaPrevia, { pu
     }
     onSiguiente(respuesta);
   });
+}
+
+// Pantalla de revisión final (§3 del encargo): antes de dar por terminado el
+// test se muestran todas las respuestas dadas en esta tanda (ya guardadas en
+// el Worker respuesta a respuesta, ver cabecera del fichero) para que se
+// puedan corregir. "Confirmar y enviar" es lo que dispara el cálculo del
+// resultado (onTestCompleto); no reenvía nada por sí solo porque cada
+// respuesta ya se guardó al pulsar "Responder" en su momento.
+function pantallaRevisionRespuestas(items, respuestas, yaRespondidos, total, { onEditar, onConfirmar }) {
+  const root = montar(`
+    <section class="pantalla">
+      <h1>Revisa tus respuestas</h1>
+      <p class="texto-lectura">
+        Antes de enviar el test puedes revisar y modificar cualquier respuesta.
+        Cuando estés conforme, pulsa «Confirmar y enviar».
+      </p>
+      <div class="lista-revision">
+        ${items
+          .map(
+            (item, i) => `
+          <article class="pregunta-revision">
+            <div class="pregunta-revision-cabecera">
+              <h2 class="pregunta-revision-enunciado">${yaRespondidos + i + 1}. ${escaparHtml(item.enunciado)}</h2>
+              <button type="button" class="enlace-modificar" data-indice="${i}">Modificar respuesta</button>
+            </div>
+            ${renderItem.htmlResumen(item, respuestas[item.id])}
+          </article>`
+          )
+          .join("")}
+      </div>
+      <button type="button" class="boton-principal" id="boton-confirmar-envio">Confirmar y enviar</button>
+    </section>`);
+
+  root.querySelectorAll(".enlace-modificar").forEach((boton) => {
+    boton.addEventListener("click", () => onEditar(Number(boton.dataset.indice)));
+  });
+  root.querySelector("#boton-confirmar-envio").addEventListener("click", onConfirmar);
 }
 
 function escaparHtml(s) {
