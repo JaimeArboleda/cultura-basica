@@ -266,11 +266,19 @@ describe("Dataset para la consola de estadísticas avanzadas", () => {
       sesiones: { id: string; token_id: string | null }[];
       respuestas: { sesion_id: string; item_id: string; acierto: number | null }[];
       tokens: { id: string; descripcion: string }[];
+      items: { id: string; formato: string; enunciado: string; respuesta_correcta: unknown }[];
     };
 
     expect(dataset.sesiones.some((s) => s.id === sesion_id && s.token_id === token.id)).toBe(true);
     expect(dataset.respuestas.some((r) => r.sesion_id === sesion_id && r.item_id === itemReal.id)).toBe(true);
     expect(dataset.tokens.some((t) => t.id === token.id && t.descripcion === "familia de Gerardo")).toBe(true);
+    // El banco de ítems completo (no filtrado por token: es el mismo para todas
+    // las sesiones), con el enunciado y la respuesta correcta para poder cruzar
+    // por item_id con "respuestas" y analizar errores.
+    expect(dataset.items.length).toBe(bancoItems.length);
+    const itemDataset = dataset.items.find((i) => i.id === itemReal.id)!;
+    expect(itemDataset.enunciado).toBe(itemReal.enunciado);
+    expect(itemDataset.respuesta_correcta).toBe(itemReal.indice_correcto);
 
     // Sin token_id: incluye sesiones de otras remesas también.
     const otroToken = await crearTokenViaAdmin(auth, "otra remesa");

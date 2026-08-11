@@ -305,14 +305,15 @@ def _ejecutar_celda(codigo):
     return json.dumps({"stdout": salida.getvalue(), "resultado": resultado, "error": error, "figuras": figuras})
 `;
 
-// Carga el dataset (ya en el kernel como JSON) en tres DataFrames. Un print()
+// Carga el dataset (ya en el kernel como JSON) en cuatro DataFrames. Un print()
 // en vez de dejar el mensaje como expresión final: así queda en "stdout" sin
 // el escapado de comillas de repr() sobre un f-string.
 const CODIGO_CARGA_DATASET = [
   "sesiones = pd.DataFrame(json.loads(_dataset_json)['sesiones'])",
   "respuestas = pd.DataFrame(json.loads(_dataset_json)['respuestas'])",
   "tokens = pd.DataFrame(json.loads(_dataset_json)['tokens'])",
-  "print(f'sesiones: {len(sesiones)} filas · respuestas: {len(respuestas)} filas · tokens: {len(tokens)} filas')",
+  "items = pd.DataFrame(json.loads(_dataset_json)['items'])",
+  "print(f'sesiones: {len(sesiones)} filas · respuestas: {len(respuestas)} filas · tokens: {len(tokens)} filas · items: {len(items)} filas')",
 ].join("\n");
 
 let promesaPyodide = null;
@@ -367,8 +368,9 @@ function renderCeldaHtml({ codigo, salida }) {
 // son pequeños) para no añadir ninguna librería nueva al proyecto.
 
 // Mismo orden de columnas que las interfaces de worker/src/db.ts
-// (FilaSesionAdmin, FilaRespuestaAdmin) y la fila de tokens del dataset, para
-// que la cabecera del CSV sea estable incluso si el array viene vacío.
+// (FilaSesionAdmin, FilaRespuestaAdmin) y worker/src/items.ts (FilaItemDataset),
+// más la fila de tokens del dataset, para que la cabecera del CSV sea estable
+// incluso si el array viene vacío.
 const COLUMNAS_CSV = {
   "sesiones.csv": [
     "id", "creada_en", "actualizada_en", "completo", "puntuacion_total", "user_agent_clase", "token_id",
@@ -380,11 +382,17 @@ const COLUMNAS_CSV = {
     "orden_presentacion", "perdio_foco", "enviada_en",
   ],
   "tokens.csv": ["id", "descripcion"],
+  // enunciado y respuesta_correcta: para poder cruzar por item_id con
+  // respuestas.csv y ver, para cada respuesta fallada, qué se esperaba.
+  "items.csv": ["id", "tipo", "dificultad", "formato", "enunciado", "texto", "opciones", "elementos", "categorias", "respuesta_correcta"],
 };
 
 function escaparCsv(valor) {
   if (valor === null || valor === undefined) return "";
-  const texto = String(valor);
+  // opciones/elementos/categorias/respuesta_correcta (items.csv) pueden ser
+  // arrays u objetos (p.ej. clasificacion_correcta): JSON.stringify en vez de
+  // String(), que para un objeto daría el inútil "[object Object]".
+  const texto = typeof valor === "object" ? JSON.stringify(valor) : String(valor);
   return /["\n,]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
 }
 
@@ -505,8 +513,9 @@ async function renderAvanzado(contenedor) {
   contenedor.innerHTML = `
     <p class="nota-formato">
       Consola de Python en tu propio navegador (<a href="https://pyodide.org" target="_blank" rel="noopener">Pyodide</a>):
-      pandas, matplotlib y scikit-learn sobre el dataset completo de sesiones y respuestas. No hay backend Python:
-      nada de esto sale de este navegador.
+      pandas, matplotlib y scikit-learn sobre el dataset completo de sesiones, respuestas, tokens e items (el banco
+      de ítems, con enunciado y respuesta correcta — para poder cruzar con "respuestas" por item_id y analizar en
+      qué preguntas hay más error). No hay backend Python: nada de esto sale de este navegador.
     </p>
     <label class="campo">
       <span>Cargar dataset filtrado por token</span>

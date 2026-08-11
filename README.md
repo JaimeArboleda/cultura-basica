@@ -745,14 +745,20 @@ precodificando cada estadística nueva en el Worker, esta pestaña carga
 [Pyodide](https://pyodide.org) (Python compilado a WebAssembly) directamente en
 el navegador del admin:
 - `GET /api/admin/dataset` (filtrable por `token_id`, igual que `/api/admin/stats`)
-  devuelve `sesiones`, `respuestas` y `tokens` (solo `id`+`descripcion`) en crudo.
-  **No** incluye `solicitudes_acceso`: no forma parte del dataset anónimo del
-  estudio (párrafo de más arriba).
+  devuelve `sesiones`, `respuestas`, `tokens` (solo `id`+`descripcion`) e `items`
+  (el banco de ítems completo — `id`, `tipo`, `dificultad`, `formato`, `enunciado`,
+  `opciones`/`elementos`/`categorias` según el formato, y `respuesta_correcta`;
+  `worker/src/items.ts::paraDataset()`) en crudo. `items` no depende del filtro
+  por token: es el mismo banco para todas las sesiones — se incluye para poder
+  cruzar por `item_id` con `respuestas` y ver en qué preguntas hay más error, sin
+  tener que ir a buscar el enunciado a mano en `data/items.json`. **No** incluye
+  `solicitudes_acceso`: no forma parte del dataset anónimo del estudio (párrafo de
+  más arriba).
 - Al pulsar "Cargar entorno", `public/admin/admin.js` descarga Pyodide más los
   paquetes `pandas`, `matplotlib` y `scikit-learn` desde jsdelivr (unos cuantos
   MB, por eso es perezoso: solo al entrar en esta pestaña) y mete el dataset como
-  tres DataFrames (`sesiones`, `respuestas`, `tokens`) en un espacio de nombres
-  Python persistente.
+  cuatro DataFrames (`sesiones`, `respuestas`, `tokens`, `items`) en un espacio de
+  nombres Python persistente.
 - Cada celda de código se ejecuta con `exec()`/`eval()` sobre ese mismo espacio de
   nombres (como una consola de Python, con auto-display de la última expresión
   igual que Jupyter/IPython) — no es un notebook real con protocolo de kernel,
@@ -766,8 +772,9 @@ el navegador del admin:
   datos en Excel/otro sitio sin pasar por la consola. Construye el `.zip` a
   mano en JS (formato PKZIP, entradas sin comprimir — el dataset del piloto es
   pequeño) para no añadir ninguna librería nueva; no depende de que Pyodide
-  esté cargado. Descarga `sesiones.csv`, `respuestas.csv` y `tokens.csv`,
-  respetando el filtro por token si hay uno seleccionado.
+  esté cargado. Descarga `sesiones.csv`, `respuestas.csv`, `tokens.csv` e
+  `items.csv`, respetando el filtro por token si hay uno seleccionado (`items.csv`
+  no cambia con el filtro: es el mismo banco para todas las sesiones).
 
 **Papelera (borrado definitivo, sobre todo para limpiar datos de prueba):**
 "Borrar token" en la pestaña Tokens borra el token entero además de todas sus

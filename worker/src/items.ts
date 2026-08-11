@@ -4,7 +4,7 @@
 // es todo lo que hace falta para que un cambio en data/items/ llegue a producción.
 // D1 nunca almacena contenido de ítems (ver schema/schema.sql).
 import itemsRaw from "../../data/items.json";
-import type { Item, ItemPublico, ItemRevision } from "./tipos";
+import type { Dificultad, Formato, Item, ItemPublico, ItemRevision, TipoItem } from "./tipos";
 
 export const bancoItems: Item[] = itemsRaw as Item[];
 
@@ -34,7 +34,7 @@ export function paraCliente(item: Item): ItemPublico {
   };
 }
 
-function respuestaCorrectaDe(item: Item): unknown {
+export function respuestaCorrectaDe(item: Item): unknown {
   switch (item.formato) {
     case "abierto":
       return item.respuesta_canonica;
@@ -77,6 +77,43 @@ export function paraRevision(
     categorias: item.formato === "clasificar" ? item.categorias : null,
     acierto: fila.acierto as 0 | 1,
     respuesta_usuario: respuestaUsuario,
+    respuesta_correcta: respuestaCorrectaDe(item),
+  };
+}
+
+// Fila del banco de ítems para el dataset del panel de admin (§4.5,
+// estadísticas avanzadas): a diferencia de ItemPublico, sí incluye la
+// respuesta correcta — es justo lo que hace falta para poder analizar en qué
+// ítems/formatos hay más error, cruzando por item_id con "respuestas" del
+// mismo dataset (worker/src/db.ts::obtenerDatasetCompleto). No sale de aquí
+// nada que no estuviera ya en data/items.json (público en el repo).
+export interface FilaItemDataset {
+  id: string;
+  tipo: TipoItem;
+  dificultad: Dificultad | null;
+  formato: Formato;
+  enunciado: string;
+  texto: string | null;
+  opciones: string[] | null;
+  elementos: string[] | null;
+  categorias: string[] | null;
+  respuesta_correcta: unknown;
+}
+
+export function paraDataset(item: Item): FilaItemDataset {
+  return {
+    id: item.id,
+    tipo: item.tipo,
+    dificultad: item.dificultad,
+    formato: item.formato,
+    enunciado: item.enunciado,
+    texto: item.texto,
+    opciones:
+      item.formato === "opcion_multiple" || item.formato === "seleccion_multiple"
+        ? item.opciones
+        : null,
+    elementos: item.formato === "ordenar" || item.formato === "clasificar" ? item.elementos : null,
+    categorias: item.formato === "clasificar" ? item.categorias : null,
     respuesta_correcta: respuestaCorrectaDe(item),
   };
 }
