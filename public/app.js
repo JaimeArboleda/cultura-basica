@@ -110,12 +110,18 @@ function ejecutarTest(sesionId, itemsPendientes) {
   const total = TOTAL_ITEMS;
   const yaRespondidos = total - items.length;
   let pos = 0;
+  // Respuestas ya enviadas en esta tanda, por item_id: permite que "atrás" (§3)
+  // vuelva a mostrar una pregunta ya respondida con su estado en vez de en
+  // blanco, y que se pueda revisar/corregir antes de reenviarla (idempotente,
+  // ver cabecera del fichero).
+  const respuestas = {};
 
   function mostrarActual() {
     const item = items[pos];
-    renderItemActual(sesionId, item, yaRespondidos + pos + 1, total, {
+    renderItemActual(sesionId, item, yaRespondidos + pos + 1, total, respuestas[item.id], {
       puedeVolver: pos > 0,
-      onSiguiente: () => {
+      onSiguiente: (respuestaEnviada) => {
+        respuestas[item.id] = respuestaEnviada;
         pos++;
         if (pos >= items.length) {
           onTestCompleto(sesionId);
@@ -133,7 +139,7 @@ function ejecutarTest(sesionId, itemsPendientes) {
   mostrarActual();
 }
 
-function renderItemActual(sesionId, item, posicion, total, { puedeVolver, onSiguiente, onAtras }) {
+function renderItemActual(sesionId, item, posicion, total, respuestaPrevia, { puedeVolver, onSiguiente, onAtras }) {
   const root = montar(`
     <section class="pantalla pantalla-item">
       <div class="barra-progreso" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${posicion}">
@@ -145,7 +151,7 @@ function renderItemActual(sesionId, item, posicion, total, { puedeVolver, onSigu
       </div>
       ${item.texto ? `<p class="texto-lectura">${escaparHtml(item.texto)}</p>` : ""}
       <h2>${escaparHtml(item.enunciado)}</h2>
-      <div id="zona-respuesta">${renderItem.html(item)}</div>
+      <div id="zona-respuesta">${renderItem.html(item, respuestaPrevia)}</div>
     </section>`);
 
   const tInicio = performance.now();
@@ -177,7 +183,7 @@ function renderItemActual(sesionId, item, posicion, total, { puedeVolver, onSigu
       pantallaError(e.message);
       return;
     }
-    onSiguiente();
+    onSiguiente(respuesta);
   });
 }
 
