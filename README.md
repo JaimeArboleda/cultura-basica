@@ -556,6 +556,7 @@ DELETE /api/admin/tokens/:id/completo → papelera: borra el token y todas sus s
 GET  /api/admin/sesiones            → lista sesiones, filtros ?token_id=&estado=completo|en_progreso
 DELETE /api/admin/sesiones/:id      → borra una sesión (y sus respuestas)
 GET  /api/admin/stats               → agregados del piloto, opcional ?token_id=
+GET  /api/admin/dataset             → dataset crudo {sesiones,respuestas,tokens} para la consola Pyodide (§4.5), opcional ?token_id=
 GET  /api/admin/solicitudes         → lista solicitudes de acceso
 PATCH /api/admin/solicitudes/:id    → marca una solicitud como atendida
 DELETE /api/admin/solicitudes/:id   → borra una solicitud de acceso
@@ -728,13 +729,39 @@ válido ve un formulario simple (dato de contacto + motivo opcional) en vez del
 test. Se guarda en su propia tabla, **no** en el dataset anónimo del estudio
 (§5) — solo la ve el panel de admin, que puede marcarla como atendida.
 
-**Panel de admin (`public/admin/`, bajo `/admin`):** cinco pestañas — Estadísticas
+**Panel de admin (`public/admin/`, bajo `/admin`):** seis pestañas — Estadísticas
 (total/completas/en progreso, progreso hacia el objetivo del piloto de 100-150
-respuestas, distribución demográfica, todo filtrable por token), Tokens
+respuestas, distribución demográfica, todo filtrable por token), Estadísticas
+avanzadas (ver más abajo), Tokens
 (crear/listar/revocar/borrar remesa/copiar enlace/**borrar token entero**), Sesiones
 (listar con filtro por token y estado, borrar individual), Solicitudes de acceso
 (listar, marcar atendida, **borrar**) y Administradores (añadir/quitar cuentas
 autorizadas).
+
+**Estadísticas avanzadas: consola Python en el navegador (sin backend Python).**
+La pestaña "Estadísticas" de más arriba muestra agregados fijos; para explorar
+libremente (correlaciones, regresiones, gráficos ad hoc) sin tener que ir
+precodificando cada estadística nueva en el Worker, esta pestaña carga
+[Pyodide](https://pyodide.org) (Python compilado a WebAssembly) directamente en
+el navegador del admin:
+- `GET /api/admin/dataset` (filtrable por `token_id`, igual que `/api/admin/stats`)
+  devuelve `sesiones`, `respuestas` y `tokens` (solo `id`+`descripcion`) en crudo.
+  **No** incluye `solicitudes_acceso`: no forma parte del dataset anónimo del
+  estudio (párrafo de más arriba).
+- Al pulsar "Cargar entorno", `public/admin/admin.js` descarga Pyodide más los
+  paquetes `pandas`, `matplotlib` y `scikit-learn` desde jsdelivr (unos cuantos
+  MB, por eso es perezoso: solo al entrar en esta pestaña) y mete el dataset como
+  tres DataFrames (`sesiones`, `respuestas`, `tokens`) en un espacio de nombres
+  Python persistente.
+- Cada celda de código se ejecuta con `exec()`/`eval()` sobre ese mismo espacio de
+  nombres (como una consola de Python, con auto-display de la última expresión
+  igual que Jupyter/IPython) — no es un notebook real con protocolo de kernel,
+  pero cubre pandas/matplotlib/scikit-learn arbitrarios sin montar esa UI. Las
+  figuras de matplotlib abiertas al terminar una celda se capturan como PNG
+  (backend `Agg`, sin canvas de por medio) y se muestran inline.
+- Todo ocurre en el navegador del admin: el dataset no pasa por ningún servidor
+  intermedio ni se envía a un backend Python, y el código que se ejecuta nunca
+  sale de esa pestaña.
 
 **Papelera (borrado definitivo, sobre todo para limpiar datos de prueba):**
 "Borrar token" en la pestaña Tokens borra el token entero además de todas sus

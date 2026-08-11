@@ -7,6 +7,7 @@
 import { leerTokenAutorizacion, verificarSesionAdmin } from "./adminAuth";
 import { deleteAdmin, getAdmins, postAdmins } from "./endpoints/admin/admins";
 import { getAdminCallback, getAdminLogin, getAdminYo } from "./endpoints/admin/auth";
+import { getDataset } from "./endpoints/admin/dataset";
 import { deleteSesion, getSesiones } from "./endpoints/admin/sesiones";
 import { deleteSolicitud, getSolicitudes, patchSolicitud } from "./endpoints/admin/solicitudes";
 import { getStats } from "./endpoints/admin/stats";
@@ -48,6 +49,8 @@ export async function manejarRutaAdmin(request: Request, env: Env, pathname: str
   if (method === "DELETE" && mSesion) return deleteSesion(env, decodeURIComponent(mSesion[1]));
 
   if (method === "GET" && pathname === "/api/admin/stats") return getStats(request, env);
+
+  if (method === "GET" && pathname === "/api/admin/dataset") return getDataset(request, env);
 
   if (method === "GET" && pathname === "/api/admin/solicitudes") return getSolicitudes(env);
 

@@ -286,6 +286,61 @@ export async function borrarTokenCompleto(env: Env, tokenId: string): Promise<vo
   ]);
 }
 
+// Fila de "respuestas" para el dataset del panel (§4.5, estadísticas avanzadas):
+// una respuesta individual a un ítem, sin datos de sesión (se cruza con
+// FilaSesionAdmin por sesion_id desde pandas, no aquí).
+export interface FilaRespuestaAdmin {
+  sesion_id: string;
+  item_id: string;
+  respuesta_cruda: string | null;
+  opcion_elegida: number | null;
+  acierto: number | null;
+  estado_correccion: string;
+  t_ms: number | null;
+  orden_presentacion: number | null;
+  perdio_foco: number;
+  enviada_en: string;
+}
+
+// Dataset completo para la consola de estadísticas avanzadas (§4.5): sesiones,
+// respuestas y tokens (solo id+descripción, para poder etiquetar remesas sin
+// exponer nada más de la tabla tokens). Deliberadamente NO incluye
+// solicitudes_acceso: esa tabla guarda un dato de contacto voluntario y no
+// forma parte del dataset anónimo del estudio (README §5, schema/schema.sql).
+export interface DatasetCompleto {
+  sesiones: FilaSesionAdmin[];
+  respuestas: FilaRespuestaAdmin[];
+  tokens: { id: string; descripcion: string }[];
+}
+
+export async function obtenerDatasetCompleto(env: Env, tokenId?: string): Promise<DatasetCompleto> {
+  const condicionSesiones = tokenId ? "WHERE token_id = ?" : "";
+  const bindsSesiones = tokenId ? [tokenId] : [];
+  const condicionRespuestas = tokenId ? "WHERE sesion_id IN (SELECT id FROM sesiones WHERE token_id = ?)" : "";
+  const bindsRespuestas = tokenId ? [tokenId] : [];
+
+  const [sesiones, respuestas, tokens] = await Promise.all([
+    env.DB.prepare(
+      `SELECT id, creada_en, actualizada_en, completo, puntuacion_total, user_agent_clase, token_id,
+              anio_nacimiento, sexo, ccaa_educacion_secundaria, nivel_estudios, area_estudios,
+              estudios_mayor_progenitor, libros_en_casa
+       FROM sesiones ${condicionSesiones} ORDER BY creada_en`
+    )
+      .bind(...bindsSesiones)
+      .all<FilaSesionAdmin>(),
+    env.DB.prepare(
+      `SELECT sesion_id, item_id, respuesta_cruda, opcion_elegida, acierto, estado_correccion, t_ms,
+              orden_presentacion, perdio_foco, enviada_en
+       FROM respuestas ${condicionRespuestas} ORDER BY sesion_id, orden_presentacion`
+    )
+      .bind(...bindsRespuestas)
+      .all<FilaRespuestaAdmin>(),
+    env.DB.prepare("SELECT id, descripcion FROM tokens").all<{ id: string; descripcion: string }>(),
+  ]);
+
+  return { sesiones: sesiones.results, respuestas: respuestas.results, tokens: tokens.results };
+}
+
 async function contarSesionesPorColumna(
   env: Env,
   columna: string,
