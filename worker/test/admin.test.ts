@@ -191,6 +191,34 @@ describe("Sesiones: borrado individual y por remesa", () => {
       expect(s.completo).toBe(0);
     }
   });
+
+  it("papelera: borra el token entero junto con sus sesiones, sin dejar rastro", async () => {
+    const auth = await tokenAdmin();
+    const token = await crearTokenViaAdmin(auth);
+    const { sesion_id } = await crearSesionConToken(token.id);
+
+    const borrado = await fetchAdmin(`/api/admin/tokens/${token.id}/completo`, { method: "DELETE" }, auth);
+    expect(borrado.status).toBe(200);
+
+    expect((await SELF.fetch(`http://worker.test/api/resultado/${sesion_id}`)).status).toBe(404);
+
+    // El token ya no existe: ni siquiera sirve para el mensaje de "caducado".
+    const listado = await fetchAdmin("/api/admin/tokens", {}, auth);
+    const { tokens } = (await listado.json()) as { tokens: { id: string }[] };
+    expect(tokens.some((t) => t.id === token.id)).toBe(false);
+
+    const intento = await fetchAdmin("/api/sesion", {
+      method: "POST",
+      body: JSON.stringify({
+        token: token.id,
+        consentimiento: true,
+        compromiso_honestidad: true,
+        user_agent_clase: "escritorio",
+        demografia: demografiaValida(),
+      }),
+    });
+    expect(intento.status).toBe(403);
+  });
 });
 
 describe("Estadísticas", () => {
@@ -223,6 +251,27 @@ describe("Solicitudes de acceso", () => {
 
     const marcar = await fetchAdmin(`/api/admin/solicitudes/${solicitud!.id}`, { method: "PATCH" }, auth);
     expect(marcar.status).toBe(200);
+  });
+
+  it("borra una solicitud", async () => {
+    await SELF.fetch("http://worker.test/api/solicitud-acceso", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contacto: "para-borrar@example.com" }),
+    });
+
+    const auth = await tokenAdmin();
+    const listado = await fetchAdmin("/api/admin/solicitudes", {}, auth);
+    const { solicitudes } = (await listado.json()) as { solicitudes: { id: number; contacto: string }[] };
+    const solicitud = solicitudes.find((s) => s.contacto === "para-borrar@example.com");
+    expect(solicitud).toBeTruthy();
+
+    const borrado = await fetchAdmin(`/api/admin/solicitudes/${solicitud!.id}`, { method: "DELETE" }, auth);
+    expect(borrado.status).toBe(200);
+
+    const listadoTras = await fetchAdmin("/api/admin/solicitudes", {}, auth);
+    const { solicitudes: solicitudesTras } = (await listadoTras.json()) as { solicitudes: { id: number }[] };
+    expect(solicitudesTras.some((s) => s.id === solicitud!.id)).toBe(false);
   });
 });
 

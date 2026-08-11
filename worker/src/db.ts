@@ -270,6 +270,22 @@ export async function borrarSesionesDeToken(env: Env, tokenId: string): Promise<
   ]);
 }
 
+// "Papelera" (distinto de borrarSesionesDeToken): borra el token en sí además
+// de todas sus sesiones/respuestas. Irreversible — a diferencia de revocar,
+// aquí no queda ni rastro del token para volver a usarlo.
+export async function borrarTokenCompleto(env: Env, tokenId: string): Promise<void> {
+  await env.DB.batch([
+    env.DB.prepare(
+      "DELETE FROM respuestas WHERE sesion_id IN (SELECT id FROM sesiones WHERE token_id = ?)"
+    ).bind(tokenId),
+    env.DB.prepare(
+      "DELETE FROM sesion_items WHERE sesion_id IN (SELECT id FROM sesiones WHERE token_id = ?)"
+    ).bind(tokenId),
+    env.DB.prepare("DELETE FROM sesiones WHERE token_id = ?").bind(tokenId),
+    env.DB.prepare("DELETE FROM tokens WHERE id = ?").bind(tokenId),
+  ]);
+}
+
 async function contarSesionesPorColumna(
   env: Env,
   columna: string,
@@ -396,6 +412,10 @@ export async function listarSolicitudesAcceso(env: Env): Promise<FilaSolicitud[]
 
 export async function marcarSolicitudAtendida(env: Env, id: number): Promise<void> {
   await env.DB.prepare("UPDATE solicitudes_acceso SET atendida = 1 WHERE id = ?").bind(id).run();
+}
+
+export async function borrarSolicitudAcceso(env: Env, id: number): Promise<void> {
+  await env.DB.prepare("DELETE FROM solicitudes_acceso WHERE id = ?").bind(id).run();
 }
 
 // --- Administradores ---

@@ -8,9 +8,9 @@ import { leerTokenAutorizacion, verificarSesionAdmin } from "./adminAuth";
 import { deleteAdmin, getAdmins, postAdmins } from "./endpoints/admin/admins";
 import { getAdminCallback, getAdminLogin, getAdminYo } from "./endpoints/admin/auth";
 import { deleteSesion, getSesiones } from "./endpoints/admin/sesiones";
-import { getSolicitudes, patchSolicitud } from "./endpoints/admin/solicitudes";
+import { deleteSolicitud, getSolicitudes, patchSolicitud } from "./endpoints/admin/solicitudes";
 import { getStats } from "./endpoints/admin/stats";
-import { deleteToken, deleteTokenSesiones, getTokens, postTokens } from "./endpoints/admin/tokens";
+import { deleteToken, deleteTokenCompleto, deleteTokenSesiones, getTokens, postTokens } from "./endpoints/admin/tokens";
 import { esAdmin } from "./db";
 import { error } from "./http";
 import type { Env } from "./tipos";
@@ -34,6 +34,11 @@ export async function manejarRutaAdmin(request: Request, env: Env, pathname: str
   const mTokenSesiones = pathname.match(/^\/api\/admin\/tokens\/([^/]+)\/sesiones$/);
   if (method === "DELETE" && mTokenSesiones) return deleteTokenSesiones(env, decodeURIComponent(mTokenSesiones[1]));
 
+  // Papelera (distinta de la revocación de más abajo): borra el token entero
+  // más todas sus sesiones/respuestas, sin dejar rastro.
+  const mTokenCompleto = pathname.match(/^\/api\/admin\/tokens\/([^/]+)\/completo$/);
+  if (method === "DELETE" && mTokenCompleto) return deleteTokenCompleto(env, decodeURIComponent(mTokenCompleto[1]));
+
   const mToken = pathname.match(/^\/api\/admin\/tokens\/([^/]+)$/);
   if (method === "DELETE" && mToken) return deleteToken(env, decodeURIComponent(mToken[1]));
 
@@ -48,6 +53,7 @@ export async function manejarRutaAdmin(request: Request, env: Env, pathname: str
 
   const mSolicitud = pathname.match(/^\/api\/admin\/solicitudes\/(\d+)$/);
   if (method === "PATCH" && mSolicitud) return patchSolicitud(env, Number(mSolicitud[1]));
+  if (method === "DELETE" && mSolicitud) return deleteSolicitud(env, Number(mSolicitud[1]));
 
   if (method === "GET" && pathname === "/api/admin/admins") return getAdmins(env);
   if (method === "POST" && pathname === "/api/admin/admins") return postAdmins(request, env, email);
