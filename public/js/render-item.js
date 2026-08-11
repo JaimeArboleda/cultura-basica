@@ -490,9 +490,15 @@ export function htmlRevision(item) {
   switch (item.formato) {
     case "abierto": {
       const clase = item.acierto ? "acierto" : "fallo";
-      const respuesta = item.respuesta_usuario || "(sin respuesta)";
+      // Sin respuesta: el badge "Sin respuesta" (estadoRespuesta, arriba) ya lo dice;
+      // repetirlo aquí como "Tu respuesta: «(sin respuesta)»" en rojo es redundante y
+      // confuso (parece un fallo activo, no una pregunta sin contestar).
       return `
-        <p class="revision-texto ${clase}">Tu respuesta: «${escapar(String(respuesta))}»</p>
+        ${
+          estadoRespuesta(item) === "sin_respuesta"
+            ? ""
+            : `<p class="revision-texto ${clase}">Tu respuesta: «${escapar(String(item.respuesta_usuario))}»</p>`
+        }
         ${
           item.acierto
             ? ""

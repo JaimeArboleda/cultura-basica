@@ -186,8 +186,13 @@ function ejecutarTest(sesionId, itemsPendientes) {
 // worker/src/puntuacion.ts): a diferencia de "abierto"/"opcion_multiple"
 // (todo o nada), aquí cada asignación/selección/pareja de orden cuenta por
 // separado, así que merece la pena avisar de que no hace falta rellenarlo
-// todo para sumar puntos.
-const FORMATOS_CON_NOTA_PARCIAL = new Set(["seleccion_multiple", "clasificar", "ordenar"]);
+// todo para sumar puntos. "ordenar" puntúa por pareja relativa (§4.4), no por
+// "asignación", así que lleva su propio texto.
+const NOTAS_PARCIALES = {
+  seleccion_multiple: "Rellena las que sepas; se puntúa cada asignación correcta por separado.",
+  clasificar: "Rellena las que sepas; se puntúa cada asignación correcta por separado.",
+  ordenar: "Rellena lo mejor que sepas; se puntúa cada ordenación relativa por separado.",
+};
 
 function renderItemActual(
   sesionId,
@@ -217,11 +222,7 @@ function renderItemActual(
       </div>
       ${item.texto ? `<p class="texto-lectura">${escaparHtml(item.texto)}</p>` : ""}
       <h2>${escaparHtml(item.enunciado)}</h2>
-      ${
-        FORMATOS_CON_NOTA_PARCIAL.has(item.formato)
-          ? `<p class="nota-formato">Rellena las que sepas; se puntúa cada asignación correcta por separado.</p>`
-          : ""
-      }
+      ${NOTAS_PARCIALES[item.formato] ? `<p class="nota-formato">${NOTAS_PARCIALES[item.formato]}</p>` : ""}
       <div id="zona-respuesta">${renderItem.html(item, respuestaPrevia)}</div>
     </section>`);
 
