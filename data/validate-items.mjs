@@ -167,6 +167,14 @@ for (const it of items) {
     }
   }
 
+  if (it.nota_parcial_desactivada != null) {
+    if (typeof it.nota_parcial_desactivada !== "boolean") {
+      err(`${ctx} nota_parcial_desactivada debe ser boolean si está presente`);
+    } else if (!["seleccion_multiple", "clasificar", "ordenar"].includes(it.formato)) {
+      err(`${ctx} nota_parcial_desactivada solo tiene sentido en formatos con nota parcial (seleccion_multiple/clasificar/ordenar)`);
+    }
+  }
+
   if (String(it.enunciado ?? "").startsWith("TODO")) {
     warn(`${ctx} enunciado pendiente de redactar`);
   }

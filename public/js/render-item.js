@@ -70,22 +70,29 @@ export function html(item, respuestaPrevia) {
         respuestaPrevia.length === item.elementos.length &&
         item.elementos.every((el) => respuestaPrevia.includes(el));
       const orden = esPermutacionValida ? respuestaPrevia : item.elementos;
-      return `
-        <ol id="lista-ordenar" class="lista-ordenar">
-          ${orden
-            .map(
-              (el, i) => `
+      // Listas largas (10 elementos es lo habitual) se reparten en dos columnas
+      // para reducir el alto total y el arrastre en distancias largas con
+      // scroll de por medio; listas cortas se quedan en una sola columna, en
+      // la que no aporta nada partir en dos. El número de posición se pinta
+      // en línea con el propio texto (no en un badge aparte) para que las
+      // líneas que envuelven no queden indentadas bajo un hueco fijo.
+      const mitad = Math.ceil(orden.length / 2);
+      const columnas = orden.length > 4 ? [orden.slice(0, mitad), orden.slice(mitad)] : [orden];
+      let numero = 0;
+      const filaOrdenar = (el) => {
+        numero += 1;
+        return `
             <li data-elemento="${escapar(el)}">
               <span class="asa-arrastre" aria-hidden="true">⠿</span>
-              <span class="texto-elemento">${escapar(el)}</span>
-              <span class="controles-orden">
-                <button type="button" data-mover="arriba" ${i === 0 ? "disabled" : ""} aria-label="Subir">▲</button>
-                <button type="button" data-mover="abajo" ${i === orden.length - 1 ? "disabled" : ""} aria-label="Bajar">▼</button>
-              </span>
-            </li>`
-            )
+              <span class="texto-elemento"><span class="num-orden">${numero}.</span>${escapar(el)}</span>
+            </li>`;
+      };
+      return `
+        <div class="columnas-ordenar">
+          ${columnas
+            .map((columna) => `<ol class="columna-ordenar">${columna.map(filaOrdenar).join("")}</ol>`)
             .join("")}
-        </ol>
+        </div>
         <button type="button" class="boton-principal" id="boton-responder">Responder</button>`;
     }
 
@@ -94,29 +101,39 @@ export function html(item, respuestaPrevia) {
         respuestaPrevia && typeof respuestaPrevia === "object" && !Array.isArray(respuestaPrevia)
           ? respuestaPrevia
           : {};
-      const ficha = (el) => `<button type="button" class="ficha" data-elemento="${escapar(el)}">${escapar(el)}</button>`;
+      // Dos columnas siempre visibles a la vez (elementos ↔ categorías), en vez
+      // de una bandeja arriba y las cajas destino más abajo: evita el scroll
+      // entre origen y destino que invitaba a rellenar deprisa y mal. Los
+      // elementos no se mueven de la columna al asignarse (a diferencia de la
+      // "bandeja" anterior): se marcan con la categoría asignada y una entrada
+      // "Sin asignar" en la columna derecha permite desasignarlos igual que se
+      // asignan, con el mismo gesto de tocar/arrastrar.
       return `
-        <div class="bandeja" id="bandeja-elementos">
-          ${item.elementos
-            .filter((el) => !(el in previa))
-            .map(ficha)
-            .join("")}
-        </div>
-        <div class="cajas-clasificar">
-          ${item.categorias
-            .map(
-              (cat) => `
-            <div class="caja" data-categoria="${escapar(cat)}">
-              <h3>${escapar(cat)}</h3>
-              <div class="caja-contenido" data-categoria="${escapar(cat)}">
-                ${item.elementos
-                  .filter((el) => previa[el] === cat)
-                  .map(ficha)
-                  .join("")}
-              </div>
-            </div>`
-            )
-            .join("")}
+        <div class="clasificar-columnas">
+          <div class="clasificar-col">
+            <h3 class="clasificar-col-titulo">Elementos</h3>
+            <ul class="clasificar-lista" id="lista-elementos">
+              ${item.elementos
+                .map((el) => {
+                  const cat = previa[el];
+                  return `
+                <li class="elemento-clasificar${cat ? " elemento-asignado" : ""}" data-elemento="${escapar(el)}" data-categoria-asignada="${cat ? escapar(cat) : ""}">
+                  <span class="elemento-clasificar-texto">${escapar(el)}</span>
+                  <span class="elemento-clasificar-categoria">${cat ? escapar(cat) : ""}</span>
+                </li>`;
+                })
+                .join("")}
+            </ul>
+          </div>
+          <div class="clasificar-col">
+            <h3 class="clasificar-col-titulo">Categorías</h3>
+            <ul class="clasificar-lista" id="lista-categorias">
+              <li class="categoria-clasificar categoria-sin-asignar" data-categoria="">Sin asignar</li>
+              ${item.categorias
+                .map((cat) => `<li class="categoria-clasificar" data-categoria="${escapar(cat)}">${escapar(cat)}</li>`)
+                .join("")}
+            </ul>
+          </div>
         </div>
         <button type="button" class="boton-principal" id="boton-responder">Responder</button>`;
     }
@@ -165,37 +182,42 @@ export function attachListeners(root, item, onResponder) {
   }
 
   if (item.formato === "ordenar") {
-    const lista = root.querySelector("#lista-ordenar");
-    const actualizarBotones = () => {
-      const items = [...lista.children];
-      items.forEach((li, i) => {
-        li.querySelector('[data-mover="arriba"]').disabled = i === 0;
-        li.querySelector('[data-mover="abajo"]').disabled = i === items.length - 1;
+    const columnas = [...root.querySelectorAll(".columna-ordenar")];
+    const todosLosLi = () => columnas.flatMap((col) => [...col.querySelectorAll("li")]);
+
+    // El número de posición se recalcula tras cada arrastre recorriendo las
+    // columnas en orden (izquierda→derecha, arriba→abajo dentro de cada una):
+    // ese recorrido define el orden final que se envía al responder.
+    const actualizarNumeros = () => {
+      let n = 0;
+      todosLosLi().forEach((li) => {
+        n += 1;
+        li.querySelector(".num-orden").textContent = `${n}.`;
       });
     };
-    lista.addEventListener("click", (ev) => {
-      const btn = ev.target.closest("[data-mover]");
-      if (!btn) return;
-      const li = btn.closest("li");
-      if (btn.dataset.mover === "arriba" && li.previousElementSibling) {
-        lista.insertBefore(li, li.previousElementSibling);
-      } else if (btn.dataset.mover === "abajo" && li.nextElementSibling) {
-        lista.insertBefore(li.nextElementSibling, li);
-      }
-      actualizarBotones();
-    });
 
     // Arrastre con Pointer Events (funciona con ratón y con dedo, a diferencia
     // del drag-and-drop nativo de HTML5, que no es fiable en móvil). El elemento
     // arrastrado se saca del flujo (position: fixed) y un "hueco" marca el punto
-    // de inserción mientras se mueve.
+    // de inserción mientras se mueve, en la columna más cercana al puntero
+    // (permite mover elementos también entre columnas).
     let arrastrando = null;
     let hueco = null;
     let offsetX = 0;
     let offsetY = 0;
 
-    const siguienteTrasHueco = (y) => {
-      const candidatos = [...lista.querySelectorAll("li")].filter((li) => li !== arrastrando && li !== hueco);
+    const columnaMasCercana = (x) =>
+      columnas.reduce(
+        (mejor, columna) => {
+          const rect = columna.getBoundingClientRect();
+          const distancia = Math.abs(x - (rect.left + rect.width / 2));
+          return distancia < mejor.distancia ? { columna, distancia } : mejor;
+        },
+        { columna: columnas[0], distancia: Number.POSITIVE_INFINITY }
+      ).columna;
+
+    const siguienteTrasHueco = (columna, y) => {
+      const candidatos = [...columna.querySelectorAll("li")].filter((li) => li !== arrastrando && li !== hueco);
       return candidatos.reduce(
         (cercania, li) => {
           const rect = li.getBoundingClientRect();
@@ -209,9 +231,8 @@ export function attachListeners(root, item, onResponder) {
       ).elemento;
     };
 
-    lista.querySelectorAll("li").forEach((li) => {
+    todosLosLi().forEach((li) => {
       li.addEventListener("pointerdown", (ev) => {
-        if (ev.target.closest("[data-mover]")) return;
         arrastrando = li;
         const rect = li.getBoundingClientRect();
         offsetX = ev.clientX - rect.left;
@@ -220,7 +241,7 @@ export function attachListeners(root, item, onResponder) {
         hueco = document.createElement("li");
         hueco.className = "hueco-arrastre";
         hueco.style.height = `${rect.height}px`;
-        lista.insertBefore(hueco, li);
+        li.parentElement.insertBefore(hueco, li);
 
         li.style.position = "fixed";
         li.style.left = `${rect.left}px`;
@@ -234,11 +255,12 @@ export function attachListeners(root, item, onResponder) {
         if (arrastrando !== li) return;
         li.style.left = `${ev.clientX - offsetX}px`;
         li.style.top = `${ev.clientY - offsetY}px`;
-        const siguiente = siguienteTrasHueco(ev.clientY);
+        const columnaDestino = columnaMasCercana(ev.clientX);
+        const siguiente = siguienteTrasHueco(columnaDestino, ev.clientY);
         if (siguiente == null) {
-          lista.appendChild(hueco);
-        } else if (siguiente !== hueco.nextSibling) {
-          lista.insertBefore(hueco, siguiente);
+          columnaDestino.appendChild(hueco);
+        } else if (siguiente !== hueco.nextSibling || hueco.parentElement !== columnaDestino) {
+          columnaDestino.insertBefore(hueco, siguiente);
         }
       });
 
@@ -250,63 +272,65 @@ export function attachListeners(root, item, onResponder) {
         li.style.left = "";
         li.style.top = "";
         li.style.width = "";
-        lista.insertBefore(li, hueco);
+        hueco.parentElement.insertBefore(li, hueco);
         hueco.remove();
         hueco = null;
         arrastrando = null;
-        actualizarBotones();
+        actualizarNumeros();
       };
       li.addEventListener("pointerup", soltar);
       li.addEventListener("pointercancel", soltar);
     });
 
     boton.addEventListener("click", () => {
-      const orden = [...lista.querySelectorAll("li")].map((li) => li.dataset.elemento);
-      onResponder(orden);
+      onResponder(todosLosLi().map((li) => li.dataset.elemento));
     });
     return;
   }
 
   if (item.formato === "clasificar") {
-    const bandeja = root.querySelector("#bandeja-elementos");
+    const listaElementos = root.querySelector("#lista-elementos");
+    const listaCategorias = root.querySelector("#lista-categorias");
     const asignacion = {};
     let seleccionado = null;
 
-    // Si el ítem se pinta con una respuesta previa (revisión tras "atrás"), las
-    // fichas ya vienen colocadas en su caja-contenido (ver html()): se relee ese
-    // estado inicial en vez de asumir que todo empieza vacío.
-    root.querySelectorAll(".caja-contenido").forEach((contenido) => {
-      contenido.querySelectorAll(".ficha").forEach((f) => {
-        asignacion[f.dataset.elemento] = contenido.dataset.categoria;
-      });
+    // Si el ítem se pinta con una respuesta previa (revisión tras "atrás"), los
+    // elementos ya vienen marcados con su categoría asignada (ver html()): se
+    // relee ese estado inicial en vez de asumir que todo empieza sin asignar.
+    listaElementos.querySelectorAll(".elemento-clasificar").forEach((el) => {
+      if (el.dataset.categoriaAsignada) asignacion[el.dataset.elemento] = el.dataset.categoriaAsignada;
     });
 
-    const marcarSeleccion = (ficha) => {
-      root.querySelectorAll(".ficha").forEach((f) => f.classList.remove("ficha-seleccionada"));
-      seleccionado = ficha;
-      if (ficha) ficha.classList.add("ficha-seleccionada");
+    const marcarSeleccion = (elemento) => {
+      listaElementos.querySelectorAll(".elemento-clasificar").forEach((el) => el.classList.remove("elemento-seleccionado"));
+      seleccionado = elemento;
+      if (elemento) elemento.classList.add("elemento-seleccionado");
     };
 
-    const colocarEnCaja = (caja) => {
-      if (!seleccionado) return;
-      const categoria = caja.dataset.categoria;
-      const contenido = caja.querySelector(".caja-contenido");
-      contenido.appendChild(seleccionado);
-      seleccionado.classList.remove("ficha-seleccionada");
-      asignacion[seleccionado.dataset.elemento] = categoria;
-      seleccionado = null;
+    // A diferencia de la "bandeja" anterior, el elemento no cambia de columna
+    // al asignarse: se queda en su sitio en la columna de elementos y solo
+    // cambia su estado (marca + etiqueta con la categoría). "categoria" a null
+    // desasigna (equivalente a tocar/soltar sobre "Sin asignar").
+    const asignar = (elemento, categoria) => {
+      const etiqueta = elemento.querySelector(".elemento-clasificar-categoria");
+      if (categoria) {
+        elemento.classList.add("elemento-asignado");
+        elemento.dataset.categoriaAsignada = categoria;
+        etiqueta.textContent = categoria;
+        asignacion[elemento.dataset.elemento] = categoria;
+      } else {
+        elemento.classList.remove("elemento-asignado");
+        delete elemento.dataset.categoriaAsignada;
+        etiqueta.textContent = "";
+        delete asignacion[elemento.dataset.elemento];
+      }
     };
 
-    // El clic en la caja solo se atiende cuando cae directamente sobre su fondo:
-    // si cae sobre una ficha ya colocada dentro (fichas y cajas están anidadas),
-    // el evento burbujea desde la ficha hasta aquí y, sin este filtro, dispara
-    // los dos listeners para el mismo clic — eso desincronizaba `asignacion`
-    // (bug: una ficha recién seleccionada se perdía en silencio si el siguiente
-    // clic caía sobre una ficha ya colocada en la caja destino).
-    root.querySelectorAll(".caja").forEach((caja) => {
-      caja.addEventListener("click", (ev) => {
-        if (ev.target.closest(".ficha")) return;
-        colocarEnCaja(caja);
+    listaCategorias.querySelectorAll(".categoria-clasificar").forEach((categoria) => {
+      categoria.addEventListener("click", () => {
+        if (!seleccionado) return;
+        asignar(seleccionado, categoria.dataset.categoria || null);
+        marcarSeleccion(null);
       });
     });
 
@@ -320,85 +344,89 @@ export function attachListeners(root, item, onResponder) {
     let offsetX = 0;
     let offsetY = 0;
 
-    root.querySelectorAll(".ficha").forEach((ficha) => {
-      ficha.addEventListener("pointerdown", (ev) => {
-        arrastrando = ficha;
+    listaElementos.querySelectorAll(".elemento-clasificar").forEach((elemento) => {
+      elemento.addEventListener("pointerdown", (ev) => {
+        arrastrando = elemento;
         arrastroRealizado = false;
         inicioX = ev.clientX;
         inicioY = ev.clientY;
-        const rect = ficha.getBoundingClientRect();
+        const rect = elemento.getBoundingClientRect();
         offsetX = ev.clientX - rect.left;
         offsetY = ev.clientY - rect.top;
-        ficha.setPointerCapture(ev.pointerId);
+        elemento.setPointerCapture(ev.pointerId);
       });
 
-      ficha.addEventListener("pointermove", (ev) => {
-        if (arrastrando !== ficha) return;
+      elemento.addEventListener("pointermove", (ev) => {
+        if (arrastrando !== elemento) return;
         if (!arrastroRealizado) {
           if (Math.hypot(ev.clientX - inicioX, ev.clientY - inicioY) < 6) return;
           arrastroRealizado = true;
-          const rect = ficha.getBoundingClientRect();
-          ficha.classList.add("ficha-arrastrando");
-          ficha.style.position = "fixed";
-          ficha.style.width = `${rect.width}px`;
-          ficha.style.pointerEvents = "none";
+          const rect = elemento.getBoundingClientRect();
+          elemento.classList.add("elemento-arrastrando");
+          elemento.style.position = "fixed";
+          elemento.style.width = `${rect.width}px`;
+          elemento.style.left = `${rect.left}px`;
+          elemento.style.top = `${rect.top}px`;
+          elemento.style.pointerEvents = "none";
         }
-        ficha.style.left = `${ev.clientX - offsetX}px`;
-        ficha.style.top = `${ev.clientY - offsetY}px`;
+        elemento.style.left = `${ev.clientX - offsetX}px`;
+        elemento.style.top = `${ev.clientY - offsetY}px`;
+        listaCategorias.querySelectorAll(".categoria-objetivo").forEach((c) => c.classList.remove("categoria-objetivo"));
+        const destino = document.elementFromPoint(ev.clientX, ev.clientY);
+        const categoria = destino ? destino.closest(".categoria-clasificar") : null;
+        if (categoria) categoria.classList.add("categoria-objetivo");
       });
 
       const soltar = (ev) => {
-        if (arrastrando !== ficha) return;
-        ficha.releasePointerCapture(ev.pointerId);
+        if (arrastrando !== elemento) return;
+        elemento.releasePointerCapture(ev.pointerId);
         arrastrando = null;
+        listaCategorias.querySelectorAll(".categoria-objetivo").forEach((c) => c.classList.remove("categoria-objetivo"));
         if (!arrastroRealizado) return; // deja que "click" gestione la selección por toque
 
-        ficha.classList.remove("ficha-arrastrando");
-        ficha.style.position = "";
-        ficha.style.left = "";
-        ficha.style.top = "";
-        ficha.style.width = "";
-        ficha.style.pointerEvents = "";
+        elemento.classList.remove("elemento-arrastrando");
+        elemento.style.position = "";
+        elemento.style.left = "";
+        elemento.style.top = "";
+        elemento.style.width = "";
+        elemento.style.pointerEvents = "";
 
         const destino = document.elementFromPoint(ev.clientX, ev.clientY);
-        const caja = destino ? destino.closest(".caja") : null;
-        const vuelveABandeja = destino ? destino.closest("#bandeja-elementos") : null;
+        const categoria = destino ? destino.closest(".categoria-clasificar") : null;
+        const vuelveAElementos = destino ? destino.closest("#lista-elementos") : null;
 
-        if (caja) {
-          caja.querySelector(".caja-contenido").appendChild(ficha);
-          asignacion[ficha.dataset.elemento] = caja.dataset.categoria;
-        } else if (vuelveABandeja) {
-          bandeja.appendChild(ficha);
-          delete asignacion[ficha.dataset.elemento];
+        if (categoria) {
+          asignar(elemento, categoria.dataset.categoria || null);
+        } else if (vuelveAElementos) {
+          asignar(elemento, null);
         }
         marcarSeleccion(null);
       };
-      ficha.addEventListener("pointerup", soltar);
-      ficha.addEventListener("pointercancel", soltar);
+      elemento.addEventListener("pointerup", soltar);
+      elemento.addEventListener("pointercancel", soltar);
 
-      ficha.addEventListener("click", () => {
+      elemento.addEventListener("click", () => {
         if (arrastroRealizado) {
           arrastroRealizado = false;
           return;
         }
-        // Un clic sobre una ficha solo cambia SU selección, nunca coloca la
-        // ficha que estuviera pendiente de otra selección anterior: si el
-        // usuario tenía una ficha seleccionada y el clic cae por error sobre
-        // otra ficha ya colocada (en vez de en el fondo vacío de la caja
-        // destino), lo peor que puede pasar es que esa ficha se quede sin
-        // colocar (recuperable), nunca que se coloque en la caja equivocada.
-        if (seleccionado === ficha) {
+        // Un clic sobre un elemento solo cambia SU selección, nunca reasigna
+        // el elemento que estuviera seleccionado antes: si el usuario tenía
+        // uno seleccionado y el clic cae por error sobre otro ya asignado, lo
+        // peor que puede pasar es que el primero se quede sin asignar
+        // (recuperable), nunca que se asigne a la categoría equivocada.
+        if (seleccionado === elemento) {
           marcarSeleccion(null);
         } else {
-          marcarSeleccion(ficha);
+          marcarSeleccion(elemento);
         }
       });
     });
 
     // A diferencia de los otros formatos, "clasificar" permite enviar sin
-    // colocar todas las fichas: los elementos que falten cuentan como
-    // incorrectos con el sistema de puntuación fraccionaria (puntuarClasificar
-    // en worker/src/puntuacion.ts ya los trata como fallo, sin cambios extra).
+    // asignar todos los elementos: los que falten cuentan como incorrectos
+    // con el sistema de puntuación fraccionaria (puntuarClasificar en
+    // worker/src/puntuacion.ts ya los trata como fallo, sin cambios extra).
     boton.addEventListener("click", () => onResponder({ ...asignacion }));
     return;
   }

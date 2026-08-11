@@ -299,7 +299,11 @@ function renderItemActual(
       </div>
       ${item.texto ? `<p class="texto-lectura">${escaparHtml(item.texto)}</p>` : ""}
       <h2>${escaparHtml(item.enunciado)}</h2>
-      ${NOTAS_PARCIALES[item.formato] ? `<p class="nota-formato">${NOTAS_PARCIALES[item.formato]}</p>` : ""}
+      ${
+        NOTAS_PARCIALES[item.formato] && !item.nota_parcial_desactivada
+          ? `<p class="nota-formato">${NOTAS_PARCIALES[item.formato]}</p>`
+          : ""
+      }
       <div id="zona-respuesta">${renderItem.html(item, respuestaPrevia)}</div>
     </section>`);
 
