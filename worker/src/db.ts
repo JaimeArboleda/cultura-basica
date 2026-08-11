@@ -1,5 +1,7 @@
 // Acceso a D1. Sin lógica de negocio: cada función es una operación de lectura o
 // escritura directa sobre el esquema de schema/schema.sql.
+import { bancoItems, paraDataset } from "./items";
+import type { FilaItemDataset } from "./items";
 import type { AsignacionItem } from "./sorteo";
 import type { Demografia, Env } from "./tipos";
 
@@ -303,14 +305,18 @@ export interface FilaRespuestaAdmin {
 }
 
 // Dataset completo para la consola de estadísticas avanzadas (§4.5): sesiones,
-// respuestas y tokens (solo id+descripción, para poder etiquetar remesas sin
-// exponer nada más de la tabla tokens). Deliberadamente NO incluye
-// solicitudes_acceso: esa tabla guarda un dato de contacto voluntario y no
-// forma parte del dataset anónimo del estudio (README §5, schema/schema.sql).
+// respuestas, tokens (solo id+descripción, para poder etiquetar remesas sin
+// exponer nada más de la tabla tokens) e items (banco de ítems completo, con
+// enunciado y respuesta correcta — para poder cruzar por item_id con
+// "respuestas" y analizar en qué ítems/formatos hay más error). Deliberadamente
+// NO incluye solicitudes_acceso: esa tabla guarda un dato de contacto
+// voluntario y no forma parte del dataset anónimo del estudio (README §5,
+// schema/schema.sql).
 export interface DatasetCompleto {
   sesiones: FilaSesionAdmin[];
   respuestas: FilaRespuestaAdmin[];
   tokens: { id: string; descripcion: string }[];
+  items: FilaItemDataset[];
 }
 
 export async function obtenerDatasetCompleto(env: Env, tokenId?: string): Promise<DatasetCompleto> {
@@ -338,7 +344,12 @@ export async function obtenerDatasetCompleto(env: Env, tokenId?: string): Promis
     env.DB.prepare("SELECT id, descripcion FROM tokens").all<{ id: string; descripcion: string }>(),
   ]);
 
-  return { sesiones: sesiones.results, respuestas: respuestas.results, tokens: tokens.results };
+  return {
+    sesiones: sesiones.results,
+    respuestas: respuestas.results,
+    tokens: tokens.results,
+    items: bancoItems.map(paraDataset),
+  };
 }
 
 async function contarSesionesPorColumna(
