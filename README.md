@@ -227,8 +227,10 @@ Otras medidas:
   va al final, el cansancio se disfraza de ignorancia sobre ese tema.
 - **Guardar cada respuesta según se envía**, no al final. Los abandonos son un dato en
   sí mismo y deben quedar registrados.
-- **Sin navegación hacia atrás**: evita revisar respuestas tras haber visto pistas en
-  ítems posteriores.
+- **Navegación hacia atrás permitida, con revisión final antes de enviar.** Se
+  priorizó poder corregir errores de toque/interpretación sobre el riesgo de
+  usar pistas de ítems posteriores; `t_ms` por ítem sigue registrado y permite
+  detectar a posteriori revisiones con calma anómala.
 - `localStorage` para reanudar si se cierra el navegador.
 
 ---
