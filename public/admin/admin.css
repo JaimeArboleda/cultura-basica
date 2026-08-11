@@ -217,6 +217,11 @@ td {
   border: 1px solid var(--color-borde);
   border-radius: var(--radio);
   overflow: hidden;
+  /* Flex item dentro de .consola-celdas (columna con scroll propio): sin esto,
+     los navegadores encogen los items para caber en el alto disponible en vez
+     de desbordar y dejar que el contenedor haga scroll — la celda quedaba
+     recortada a la mitad en vez de mostrarse entera (ver overflow-y de abajo). */
+  flex-shrink: 0;
 }
 
 .celda-codigo,
@@ -238,6 +243,11 @@ td {
   background: var(--color-superficie);
   color: var(--color-texto);
   border-top: 1px solid var(--color-borde);
+  /* Una salida (p.ej. sesiones.describe() o un print largo) puede ser mucho
+     más alta que la pantalla: scroll propio para no obligar a desplazarse por
+     toda la consola para ver el resto de celdas. */
+  max-height: 16rem;
+  overflow-y: auto;
 }
 
 .celda-resultado {
