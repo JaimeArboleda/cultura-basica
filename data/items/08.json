@@ -1,19 +1,18 @@
 {
-  "id": "F11",
+  "id": "08",
   "tipo": "trivia",
   "dificultad": "facil",
   "formato": "abierto",
-  "enunciado": "¿Quién pintó Las Meninas?",
+  "enunciado": "¿Cómo se denomina en economía al crecimiento sostenido de los precios?",
   "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,
   "clasificacion_correcta": null,
-  "respuesta_canonica": "Diego Velázquez",
+  "respuesta_canonica": "Inflación",
   "alias": [
-    "velazquez",
-    "diego velazquez",
-    "velasquez"
+    "inflacion",
+    "la inflacion"
   ],
   "alias_parcial": null,
   "tolerancia_edicion": 1,

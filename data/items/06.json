@@ -1,18 +1,18 @@
 {
-  "id": "F04",
+  "id": "06",
   "tipo": "trivia",
   "dificultad": "facil",
   "formato": "abierto",
-  "enunciado": "¿Cuál es la obra cumbre de Dante?",
+  "enunciado": "¿Qué reacción química permite transformar la energía del sol en glucosa?",
   "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,
   "clasificacion_correcta": null,
-  "respuesta_canonica": "La Divina Comedia",
+  "respuesta_canonica": "Fotosíntesis",
   "alias": [
-    "la divina comedia",
-    "divina comedia"
+    "fotosintesis",
+    "la fotosintesis"
   ],
   "alias_parcial": null,
   "tolerancia_edicion": 1,

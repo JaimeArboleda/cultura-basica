@@ -55,6 +55,10 @@ Cada ítem de tipo `trivia` se etiqueta como `facil` o `dificil` (el ítem de ti
 
 > **Regla de análisis: NO agregar fáciles y difíciles en una única nota global.**
 > Son dos estudios distintos conviviendo en el mismo instrumento. Se reportan por separado.
+> Esta regla aplica al **análisis** científico (§7): la nota global 0-10 que ve el
+> usuario al terminar el test (§1.5) es una cifra de gamificación para dar feedback
+> inmediato, no una variable de análisis — el análisis real sigue usando el ítem como
+> unidad y TRI a nivel persona, nunca esa suma.
 > (El banco tuvo originalmente un tercer nivel, `medio`: se eliminó porque en la
 > práctica esos ítems no cumplían ninguno de los dos papeles — ni suficientemente
 > fáciles para ser titular, ni suficientemente difíciles para discriminar.)
@@ -101,33 +105,39 @@ una, frente a un banco grande muestreado en parte al azar.
   caja de la categoría a la que pertenece, en vez de resolver varias preguntas de
   opción múltiple independientes sobre el mismo elemento. La corrección es una
   igualdad exacta elemento a elemento contra `clasificacion_correcta` (sin tolerancia).
-  El banco actual de 25 ítems no incluye ninguno de este formato, pero el código lo
-  sigue soportando end-to-end.
 
 Restricciones:
 - **Máximo ~40% de ítems `abierto`**, repartidos a lo largo del test (no agrupados).
   Escribir en el móvil tiene coste y aumenta el abandono. Los ítems `ordenar` y
   `clasificar` **no cuentan para este tope**: no hay tecleo, el coste de fricción es
   más parecido al de MC.
-- **No sumar formatos en una misma puntuación bruta.** Un ítem `opcion_multiple` tiene
-  suelo de azar (16,7% con 6 opciones); un ítem `abierto` no tiene suelo; un ítem
-  `ordenar` tampoco (el azar de acertar una permutación completa al azar es
-  despreciable), ni un ítem `clasificar` ni `seleccion_multiple` (el azar de acertar
-  una selección exacta entre varias opciones también lo es), así que a efectos de TRI
-  se tratan junto con `abierto` (sin parámetro de pseudo-azar) en vez de junto con
-  `opcion_multiple`. Para calibrarse todos juntos se usa TRI 3PL, que absorbe el suelo
-  de MC en el parámetro de pseudo-azar.
+- **No sumar formatos en una misma puntuación bruta (a efectos de análisis, §7).** Un
+  ítem `opcion_multiple` tiene suelo de azar (16,7% con 6 opciones); un ítem `abierto`
+  no tiene suelo; un ítem `ordenar` tampoco (el azar de acertar una permutación
+  completa al azar es despreciable), ni un ítem `clasificar` ni `seleccion_multiple`
+  (el azar de acertar una selección exacta entre varias opciones también lo es), así
+  que a efectos de TRI se tratan junto con `abierto` (sin parámetro de pseudo-azar) en
+  vez de junto con `opcion_multiple`. Para calibrarse todos juntos se usa TRI 3PL, que
+  absorbe el suelo de MC en el parámetro de pseudo-azar. Esta regla es sobre el
+  **modelo de calibración del análisis**, distinta de la nota global 0-10 que ve el
+  usuario (más abajo), que sí mezcla formatos porque es solo gamificación.
 - Los distractores de los ítems de opción múltiple y selección múltiple deben ser
   **plausibles**. Seis opciones donde cinco son absurdas equivalen a una pregunta de
   dos opciones.
 
-**Puntuación mostrada al usuario:** el Worker calcula internamente una puntuación
-ponderada (peso 4 por acierto fácil, 2 por acierto difícil, 3 por el comentario de
-texto — ver `worker/src/puntuacion.ts`), pero **nunca se le enseña esa cifra en
-bruto**. Al terminar el test, la única cifra que se muestra es el **percentil**
-empírico frente a las demás sesiones ya completadas (§3, `GET /api/resultado/:id`):
-una pequeña recompensa simbólica, no un resultado analítico. El análisis real usa la
-respuesta cruda por ítem, no esta puntuación ponderada (§7).
+**Puntuación mostrada al usuario:** el Worker calcula, para cada ítem respondido, una
+puntuación fraccionaria en `[0,1]` (`worker/src/puntuacion.ts`): binaria (0 o 1) para
+`abierto`/`opcion_multiple`; para `seleccion_multiple` y `clasificar`, la fracción de
+sub-decisiones correctas (por opción o por elemento clasificado, respectivamente); y
+para `ordenar`, la fracción de parejas de elementos en el orden relativo correcto
+(de las `C(k,2)` parejas posibles). Sumando las 25 fracciones se obtiene una
+**puntuación total en `[0,25]`**, que se muestra al usuario como **nota global en
+escala 0-10** (`puntuacion_total / 25 * 10`) — el resultado destacado de la pantalla
+de finalización. El **percentil** empírico frente a las demás sesiones ya completadas
+(§3, `GET /api/resultado/:id`), calculado sobre esa misma puntuación total, se muestra
+como dato secundario ("Lo has hecho mejor que el X % de participantes"). Ninguna de
+las dos cifras distingue fácil/difícil ni se usa en el análisis real, que sigue
+utilizando la respuesta cruda por ítem (§7).
 
 ### 1.6 Corrección automática del texto libre
 
@@ -240,7 +250,7 @@ a CSV.
 │   ├── src/index.ts
 │   └── wrangler.toml
 ├── data/
-│   ├── items/            # Banco de ítems, un JSON por ítem, en faciles/dificiles/comentario_texto (fuente de verdad)
+│   ├── items/            # Banco de ítems, un JSON por ítem (01.json..25.json, fuente de verdad)
 │   ├── items.json         # Generado: `npm run build:items` fusiona data/items/
 │   ├── build-items.mjs
 │   └── validate-items.mjs
@@ -260,10 +270,10 @@ CREATE TABLE sesiones (
   consentimiento    INTEGER NOT NULL,        -- 0/1
   compromiso_honestidad INTEGER NOT NULL,
   completo          INTEGER DEFAULT 0,       -- terminó los 25 ítems
-  -- Puntuación ponderada interna (0-75, peso 4/2/3 fácil/difícil/comentario de texto,
-  -- ver worker/src/puntuacion.ts). Nunca se muestra al usuario: solo sirve para
-  -- calcular el percentil de la pantalla de resultado (§1.5, §4.3).
-  puntuacion_ponderada REAL,
+  -- Puntuación total (0-25): suma de la puntuación fraccionaria [0,1] de cada ítem
+  -- (ver worker/src/puntuacion.ts). Se muestra al usuario como nota global 0-10 y
+  -- alimenta el percentil de la pantalla de resultado (§1.5, §4.3).
+  puntuacion_total REAL,
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
   -- demografía
   anio_nacimiento   INTEGER,
@@ -321,17 +331,23 @@ CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
 
 ### 4.2 Formato del banco de ítems (`data/items.json`)
 
+Los 25 ítems viven cada uno en su propio fichero bajo `data/items/*.json` (p. ej.
+`data/items/02.json`), fusionados por `data/build-items.mjs` en `data/items.json`. El
+campo **`id`** es una cadena numérica correlativa con cero a la izquierda, `"01"` a
+`"25"`, sin relación con la dificultad ni el formato — solo un identificador estable
+y ordenable. La dificultad de cada ítem se declara aparte, en `dificultad`.
+
 ```jsonc
 [
   {
-    "id": "F02",
+    "id": "02",
     "tipo": "trivia",                // trivia | comentario_texto
     "dificultad": "facil",           // facil | dificil | null (null solo si tipo=comentario_texto)
     "formato": "abierto",            // abierto | opcion_multiple | seleccion_multiple | ordenar | clasificar
-    "enunciado": "¿Quién reinaba en Castilla cuando Cristóbal Colón llegó a América?",
+    "enunciado": "¿Qué dos monarcas financiaron el viaje de Cristóbal Colón a América?",
     "texto": null,                   // opcional: pasaje de 2-3 párrafos (tipo comentario_texto, ver más abajo)
-    "respuesta_canonica": "Isabel la Católica",
-    "alias": ["isabel la catolica", "isabel i", "isabel i de castilla"],
+    "respuesta_canonica": "Isabel de Castilla y Fernando de Aragón",
+    "alias": ["isabel de castilla y fernando de aragon", "isabel y fernando", "los reyes catolicos"],
     "alias_parcial": null,           // opcional: respuestas de conocimiento parcial (§1.6)
     "tolerancia_edicion": 1,
     "opciones": null,
@@ -339,7 +355,7 @@ CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
     "opciones_correctas": null
   },
   {
-    "id": "D04",
+    "id": "16",
     "tipo": "trivia",
     "dificultad": "dificil",
     "formato": "opcion_multiple",
@@ -354,7 +370,7 @@ CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
     "opciones_correctas": null
   },
   {
-    "id": "D06",
+    "id": "18",
     "tipo": "trivia",
     "dificultad": "dificil",
     "formato": "seleccion_multiple",
@@ -366,7 +382,7 @@ CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
     "alias": null
   },
   {
-    "id": "F03",
+    "id": "03",
     "tipo": "trivia",
     "dificultad": "facil",
     "formato": "ordenar",
@@ -380,7 +396,22 @@ CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
     "opciones_correctas": null
   },
   {
-    "id": "CT-01",
+    "id": "04",
+    "tipo": "trivia",
+    "dificultad": "facil",
+    "formato": "clasificar",
+    "enunciado": "Asigna estas obras artísticas a sus correspondientes creadores",
+    "elementos": ["La Divina Comedia", "Macbeth", "…"],
+    "categorias": ["Dante Alighieri", "William Shakespeare", "…", "Rubens"],
+    "clasificacion_correcta": { "La Divina Comedia": "Dante Alighieri", "Macbeth": "William Shakespeare" },
+    "respuesta_canonica": null,
+    "alias": null,
+    "opciones": null,
+    "indice_correcto": null,
+    "opciones_correctas": null
+  },
+  {
+    "id": "25",
     "tipo": "comentario_texto",
     "dificultad": null,
     "formato": "opcion_multiple",
@@ -399,7 +430,8 @@ El campo **`tipo`** distingue los 24 ítems de trivia normales (`trivia`, con
 `dificultad` obligatoria `facil`/`dificil`) del único ítem de comprensión lectora
 (`comentario_texto`, con `dificultad` a `null`): no pertenece al cupo fácil/difícil ni
 a su misma lógica de titular/varianza (§1.3), es una prueba de comprensión lectora
-aparte con su propio peso en la puntuación interna (§1.5).
+aparte. La `dificultad` es metadato para el análisis (§1.3, §7); no influye en la
+nota global que ve el usuario (§1.5) ni en el `id` del ítem.
 
 El campo **`texto`** (opcional, `null` salvo que se indique lo contrario) es el pasaje
 que precede a la pregunta. Solo se usa en el ítem de tipo `comentario_texto`, donde es
@@ -428,7 +460,10 @@ fijo), `elementos` es la bandeja de fichas a repartir (orden de presentación fi
 (fuente de verdad, hace el papel de `respuesta_canonica`). La respuesta enviada
 (qué elemento quedó en qué caja) se compara elemento a elemento contra
 `clasificacion_correcta`; hace falta acertar la asignación completa para contar como
-acierto. El banco actual no incluye ningún ítem de este formato (§1.5).
+acierto (a efectos del acierto binario del ítem, §1.5) — la nota global sí da
+puntuación parcial por elemento correctamente clasificado (§1.5). Una categoría sin
+ningún elemento asignado es válida (un distractor deliberado, p. ej. un autor de más
+entre las opciones de clasificación): el validador solo avisa, no bloquea el build.
 
 **Invariantes que el código debe validar al arrancar:**
 - Exactamente 25 ítems: 12 `trivia`/`facil` + 12 `trivia`/`dificil` + 1
@@ -446,8 +481,8 @@ acierto. El banco actual no incluye ningún ítem de este formato (§1.5).
   `elementos`).
 - Todo ítem `clasificar` tiene `categorias` (≥2, sin duplicados), `elementos` (≥4, sin
   duplicados) y `clasificacion_correcta` con exactamente una entrada por elemento, cada
-  una apuntando a una categoría existente, y con las `categorias` usadas al menos una
-  vez cada una.
+  una apuntando a una categoría existente. Una categoría sin ningún elemento asignado
+  (distractor deliberado) solo genera un aviso, no un error.
 
 ### 4.3 Endpoints del Worker
 

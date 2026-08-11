@@ -1,0 +1,33 @@
+{
+  "id": "14",
+  "tipo": "trivia",
+  "dificultad": "dificil",
+  "formato": "seleccion_multiple",
+  "enunciado": "¿Cuáles de estas afirmaciones sobre la Guerra de los Treinta Años son correctas?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": [
+    "Terminó con la Paz de Westfalia.",
+    "Enfrentó principalmente a España e Inglaterra por el control de los mares.",
+    "Tuvo lugar en el siglo XVII.",
+    "Puso fin a la dinastía de los Austrias en España.",
+    "Francia intervino del lado protestante por rivalidad con los Habsburgo.",
+    "Tuvo lugar en el siglo XVIII.",
+    "Enfrentó inicialmente a católicos y protestantes dentro del Sacro Imperio Romano Germánico.",
+    "Terminó fortaleciendo el poder del Emperador sobre los príncipes alemanes."
+  ],
+  "opciones_correctas": [
+    0,
+    2,
+    4,
+    6
+  ],
+  "indice_correcto": null
+}

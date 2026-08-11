@@ -381,18 +381,19 @@ h2 {
   gap: 0.9rem;
 }
 
-.resumen-percentil {
+.resumen-percentil,
+.resumen-nota-global {
   align-items: center;
   text-align: center;
 }
 
-.percentil-etiqueta {
+.resumen-etiqueta {
   font-size: 0.8rem;
   color: var(--color-texto-tenue);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.percentil-valor-grande {
+.resumen-valor-grande {
   font-size: 3rem;
   font-weight: 700;
   color: var(--color-primario);

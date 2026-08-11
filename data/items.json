@@ -1,6 +1,6 @@
 [
   {
-    "id": "F01",
+    "id": "01",
     "tipo": "trivia",
     "dificultad": "facil",
     "formato": "abierto",
@@ -21,26 +21,27 @@
     "indice_correcto": null
   },
   {
-    "id": "F02",
+    "id": "02",
     "tipo": "trivia",
     "dificultad": "facil",
     "formato": "abierto",
-    "enunciado": "¿Quién reinaba en Castilla cuando Cristóbal Colón llegó a América?",
+    "enunciado": "¿Qué dos monarcas financiaron el viaje de Cristóbal Colón a América?",
     "texto": null,
     "elementos": null,
     "elementos_ordenados": null,
     "categorias": null,
     "clasificacion_correcta": null,
-    "respuesta_canonica": "Isabel la Católica",
+    "respuesta_canonica": "Isabel de Castilla y Fernando de Aragón",
     "alias": [
-      "isabel la catolica",
-      "isabel i",
-      "isabel i de castilla",
-      "isabel de castilla",
-      "los reyes catolicos",
-      "reyes catolicos",
+      "isabel de castilla y fernando de aragon",
+      "isabel y fernando",
+      "isabel i y fernando",
       "fernando e isabel",
-      "isabel y fernando"
+      "fernando y isabel",
+      "isabel i de castilla y fernando ii de aragon",
+      "fernando ii de aragon e isabel i de castilla",
+      "los reyes catolicos",
+      "reyes catolicos"
     ],
     "alias_parcial": null,
     "tolerancia_edicion": 1,
@@ -48,7 +49,7 @@
     "indice_correcto": null
   },
   {
-    "id": "F03",
+    "id": "03",
     "tipo": "trivia",
     "dificultad": "facil",
     "formato": "ordenar",
@@ -86,28 +87,55 @@
     "indice_correcto": null
   },
   {
-    "id": "F04",
+    "id": "04",
     "tipo": "trivia",
     "dificultad": "facil",
-    "formato": "abierto",
-    "enunciado": "¿Cuál es la obra cumbre de Dante?",
+    "formato": "clasificar",
+    "enunciado": "Asigna estas obras artísticas a sus correspondientes creadores",
     "texto": null,
-    "elementos": null,
-    "elementos_ordenados": null,
-    "categorias": null,
-    "clasificacion_correcta": null,
-    "respuesta_canonica": "La Divina Comedia",
-    "alias": [
-      "la divina comedia",
-      "divina comedia"
+    "elementos": [
+      "El entierro del Conde Orgaz",
+      "Ana Karenina",
+      "La Divina Comedia",
+      "La maja desnuda",
+      "Macbeth",
+      "La Piedad",
+      "Las señoritas de Avignon",
+      "La Regenta"
     ],
+    "elementos_ordenados": null,
+    "categorias": [
+      "Lev Tolstói",
+      "El Greco",
+      "Rembrandt",
+      "Pablo Picasso",
+      "Dante Alighieri",
+      "Fiódor Dostoyevski",
+      "Miguel Ángel",
+      "William Shakespeare",
+      "Rubens",
+      "Francisco de Goya",
+      "Leopoldo Alas \"Clarín\""
+    ],
+    "clasificacion_correcta": {
+      "El entierro del Conde Orgaz": "El Greco",
+      "Ana Karenina": "Lev Tolstói",
+      "La Divina Comedia": "Dante Alighieri",
+      "La maja desnuda": "Francisco de Goya",
+      "Macbeth": "William Shakespeare",
+      "La Piedad": "Miguel Ángel",
+      "Las señoritas de Avignon": "Pablo Picasso",
+      "La Regenta": "Leopoldo Alas \"Clarín\""
+    },
+    "respuesta_canonica": null,
+    "alias": null,
     "alias_parcial": null,
-    "tolerancia_edicion": 1,
+    "tolerancia_edicion": null,
     "opciones": null,
     "indice_correcto": null
   },
   {
-    "id": "F05",
+    "id": "05",
     "tipo": "trivia",
     "dificultad": "facil",
     "formato": "opcion_multiple",
@@ -132,7 +160,7 @@
     "indice_correcto": 4
   },
   {
-    "id": "F06",
+    "id": "06",
     "tipo": "trivia",
     "dificultad": "facil",
     "formato": "abierto",
@@ -153,7 +181,7 @@
     "indice_correcto": null
   },
   {
-    "id": "F07",
+    "id": "07",
     "tipo": "trivia",
     "dificultad": "facil",
     "formato": "abierto",
@@ -175,7 +203,7 @@
     "indice_correcto": null
   },
   {
-    "id": "F08",
+    "id": "08",
     "tipo": "trivia",
     "dificultad": "facil",
     "formato": "abierto",
@@ -196,7 +224,7 @@
     "indice_correcto": null
   },
   {
-    "id": "F09",
+    "id": "09",
     "tipo": "trivia",
     "dificultad": "facil",
     "formato": "seleccion_multiple",
@@ -226,7 +254,7 @@
     "indice_correcto": null
   },
   {
-    "id": "F10",
+    "id": "10",
     "tipo": "trivia",
     "dificultad": "facil",
     "formato": "abierto",
@@ -248,7 +276,7 @@
     "indice_correcto": null
   },
   {
-    "id": "F11",
+    "id": "11",
     "tipo": "trivia",
     "dificultad": "facil",
     "formato": "abierto",
@@ -270,7 +298,7 @@
     "indice_correcto": null
   },
   {
-    "id": "F12",
+    "id": "12",
     "tipo": "trivia",
     "dificultad": "facil",
     "formato": "opcion_multiple",
@@ -295,7 +323,7 @@
     "indice_correcto": 4
   },
   {
-    "id": "D01",
+    "id": "13",
     "tipo": "trivia",
     "dificultad": "dificil",
     "formato": "opcion_multiple",
@@ -320,35 +348,40 @@
     "indice_correcto": 5
   },
   {
-    "id": "D02",
+    "id": "14",
     "tipo": "trivia",
     "dificultad": "dificil",
-    "formato": "abierto",
-    "enunciado": "¿Cómo se llamó a la paz que puso fin a la Guerra de los Treinta Años?",
+    "formato": "seleccion_multiple",
+    "enunciado": "¿Cuáles de estas afirmaciones sobre la Guerra de los Treinta Años son correctas?",
     "texto": null,
     "elementos": null,
     "elementos_ordenados": null,
     "categorias": null,
     "clasificacion_correcta": null,
-    "respuesta_canonica": "Paz de Westfalia",
-    "alias": [
-      "paz de westfalia",
-      "westfalia",
-      "tratado de westfalia",
-      "tratados de westfalia"
+    "respuesta_canonica": null,
+    "alias": null,
+    "alias_parcial": null,
+    "tolerancia_edicion": null,
+    "opciones": [
+      "Terminó con la Paz de Westfalia.",
+      "Enfrentó principalmente a España e Inglaterra por el control de los mares.",
+      "Tuvo lugar en el siglo XVII.",
+      "Puso fin a la dinastía de los Austrias en España.",
+      "Francia intervino del lado protestante por rivalidad con los Habsburgo.",
+      "Tuvo lugar en el siglo XVIII.",
+      "Enfrentó inicialmente a católicos y protestantes dentro del Sacro Imperio Romano Germánico.",
+      "Terminó fortaleciendo el poder del Emperador sobre los príncipes alemanes."
     ],
-    "alias_parcial": [
-      "munster",
-      "münster",
-      "osnabruck",
-      "osnabrück"
+    "opciones_correctas": [
+      0,
+      2,
+      4,
+      6
     ],
-    "tolerancia_edicion": 1,
-    "opciones": null,
     "indice_correcto": null
   },
   {
-    "id": "D03",
+    "id": "15",
     "tipo": "trivia",
     "dificultad": "dificil",
     "formato": "ordenar",
@@ -388,7 +421,7 @@
     "indice_correcto": null
   },
   {
-    "id": "D04",
+    "id": "16",
     "tipo": "trivia",
     "dificultad": "dificil",
     "formato": "opcion_multiple",
@@ -413,7 +446,7 @@
     "indice_correcto": 2
   },
   {
-    "id": "D05",
+    "id": "17",
     "tipo": "trivia",
     "dificultad": "dificil",
     "formato": "opcion_multiple",
@@ -438,7 +471,7 @@
     "indice_correcto": 2
   },
   {
-    "id": "D06",
+    "id": "18",
     "tipo": "trivia",
     "dificultad": "dificil",
     "formato": "seleccion_multiple",
@@ -472,7 +505,7 @@
     "indice_correcto": null
   },
   {
-    "id": "D07",
+    "id": "19",
     "tipo": "trivia",
     "dificultad": "dificil",
     "formato": "abierto",
@@ -494,7 +527,7 @@
     "indice_correcto": null
   },
   {
-    "id": "D08",
+    "id": "20",
     "tipo": "trivia",
     "dificultad": "dificil",
     "formato": "opcion_multiple",
@@ -519,7 +552,7 @@
     "indice_correcto": 1
   },
   {
-    "id": "D09",
+    "id": "21",
     "tipo": "trivia",
     "dificultad": "dificil",
     "formato": "opcion_multiple",
@@ -544,39 +577,53 @@
     "indice_correcto": 5
   },
   {
-    "id": "D10",
+    "id": "22",
     "tipo": "trivia",
     "dificultad": "dificil",
-    "formato": "seleccion_multiple",
-    "enunciado": "¿Qué compositores fueron los más destacados de la llamada Primera Escuela de Viena?",
+    "formato": "clasificar",
+    "enunciado": "Clasifica estos compositores según su estilo musical",
     "texto": null,
-    "elementos": null,
+    "elementos": [
+      "Debussy",
+      "Palestrina",
+      "Beethoven",
+      "Chopin",
+      "Handel",
+      "Tomás Luis de Victoria",
+      "Ravel",
+      "Bach",
+      "Liszt",
+      "Mozart"
+    ],
     "elementos_ordenados": null,
-    "categorias": null,
-    "clasificacion_correcta": null,
+    "categorias": [
+      "impresionismo",
+      "renacentista",
+      "clasicismo",
+      "barroco",
+      "romanticismo"
+    ],
+    "clasificacion_correcta": {
+      "Bach": "barroco",
+      "Handel": "barroco",
+      "Mozart": "clasicismo",
+      "Beethoven": "clasicismo",
+      "Liszt": "romanticismo",
+      "Chopin": "romanticismo",
+      "Ravel": "impresionismo",
+      "Debussy": "impresionismo",
+      "Palestrina": "renacentista",
+      "Tomás Luis de Victoria": "renacentista"
+    },
     "respuesta_canonica": null,
     "alias": null,
     "alias_parcial": null,
     "tolerancia_edicion": null,
-    "opciones": [
-      "Bach",
-      "Beethoven",
-      "Handel",
-      "Mozart",
-      "Brahms",
-      "Haydn",
-      "Chopin",
-      "Strauss"
-    ],
-    "opciones_correctas": [
-      1,
-      3,
-      5
-    ],
+    "opciones": null,
     "indice_correcto": null
   },
   {
-    "id": "D11",
+    "id": "23",
     "tipo": "trivia",
     "dificultad": "dificil",
     "formato": "opcion_multiple",
@@ -601,7 +648,7 @@
     "indice_correcto": 2
   },
   {
-    "id": "D12",
+    "id": "24",
     "tipo": "trivia",
     "dificultad": "dificil",
     "formato": "seleccion_multiple",
@@ -633,7 +680,7 @@
     "indice_correcto": null
   },
   {
-    "id": "CT-01",
+    "id": "25",
     "tipo": "comentario_texto",
     "dificultad": null,
     "formato": "opcion_multiple",

@@ -1,22 +1,22 @@
 {
-  "id": "F07",
+  "id": "10",
   "tipo": "trivia",
   "dificultad": "facil",
   "formato": "abierto",
-  "enunciado": "¿De qué tipo de moléculas están compuestas las proteínas?",
+  "enunciado": "¿Cuánto es la mitad de 1/3 + 1/5? Escribe el resultado como fracción.",
   "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,
   "clasificacion_correcta": null,
-  "respuesta_canonica": "Aminoácidos",
+  "respuesta_canonica": "4/15",
   "alias": [
-    "aminoacidos",
-    "amino acidos",
-    "los aminoacidos"
+    "4/15",
+    "4 quinceavos",
+    "cuatro quinceavos"
   ],
   "alias_parcial": null,
-  "tolerancia_edicion": 1,
+  "tolerancia_edicion": 0,
   "opciones": null,
   "indice_correcto": null
 }

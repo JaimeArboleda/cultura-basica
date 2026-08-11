@@ -1,18 +1,19 @@
 {
-  "id": "F06",
+  "id": "11",
   "tipo": "trivia",
   "dificultad": "facil",
   "formato": "abierto",
-  "enunciado": "¿Qué reacción química permite transformar la energía del sol en glucosa?",
+  "enunciado": "¿Quién pintó Las Meninas?",
   "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,
   "clasificacion_correcta": null,
-  "respuesta_canonica": "Fotosíntesis",
+  "respuesta_canonica": "Diego Velázquez",
   "alias": [
-    "fotosintesis",
-    "la fotosintesis"
+    "velazquez",
+    "diego velazquez",
+    "velasquez"
   ],
   "alias_parcial": null,
   "tolerancia_edicion": 1,

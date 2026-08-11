@@ -34,11 +34,13 @@ export async function getResultado(sesionId: string, env: Env): Promise<Response
     return json(env, { estado: "en_progreso", items_pendientes: pendientes });
   }
 
-  // La puntuación ponderada en bruto (worker/src/puntuacion.ts) nunca se expone al
-  // cliente: solo sirve como métrica interna para calcular el percentil, que es la
-  // única cifra que se enseña al terminar el test.
+  // Puntuación total (worker/src/puntuacion.ts): suma fraccionaria [0, N] de todos
+  // los ítems del banco. Se muestra al usuario como nota global 0-10 (resultado
+  // destacado) y alimenta el percentil (dato secundario).
   const otras = await obtenerPuntuacionesCompletadas(env, sesionId);
-  const puntuacion = sesion.puntuacion_ponderada ?? 0;
+  const puntuacionTotal = sesion.puntuacion_total ?? 0;
+  const totalItems = itemsPorId.size;
+  const notaGlobal = Math.round((puntuacionTotal / totalItems) * 10 * 10) / 10;
 
   // Revisión completa (README §3, pantalla "ver respuestas"): a diferencia del
   // percentil, esto solo se calcula bajo demanda del cliente, no cambia el
@@ -55,8 +57,13 @@ export async function getResultado(sesionId: string, env: Env): Promise<Response
     estado: "completo",
     resultado:
       otras.length === 0
-        ? { primera: true }
-        : { primera: false, percentil: calcularPercentil(puntuacion, otras) },
+        ? { primera: true, puntuacion_total: puntuacionTotal, nota_global: notaGlobal }
+        : {
+            primera: false,
+            puntuacion_total: puntuacionTotal,
+            nota_global: notaGlobal,
+            percentil: calcularPercentil(puntuacionTotal, otras),
+          },
     revision,
   });
 }

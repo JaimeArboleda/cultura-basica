@@ -1,0 +1,48 @@
+{
+  "id": "04",
+  "tipo": "trivia",
+  "dificultad": "facil",
+  "formato": "clasificar",
+  "enunciado": "Asigna estas obras artísticas a sus correspondientes creadores",
+  "texto": null,
+  "elementos": [
+    "El entierro del Conde Orgaz",
+    "Ana Karenina",
+    "La Divina Comedia",
+    "La maja desnuda",
+    "Macbeth",
+    "La Piedad",
+    "Las señoritas de Avignon",
+    "La Regenta"
+  ],
+  "elementos_ordenados": null,
+  "categorias": [
+    "Lev Tolstói",
+    "El Greco",
+    "Rembrandt",
+    "Pablo Picasso",
+    "Dante Alighieri",
+    "Fiódor Dostoyevski",
+    "Miguel Ángel",
+    "William Shakespeare",
+    "Rubens",
+    "Francisco de Goya",
+    "Leopoldo Alas \"Clarín\""
+  ],
+  "clasificacion_correcta": {
+    "El entierro del Conde Orgaz": "El Greco",
+    "Ana Karenina": "Lev Tolstói",
+    "La Divina Comedia": "Dante Alighieri",
+    "La maja desnuda": "Francisco de Goya",
+    "Macbeth": "William Shakespeare",
+    "La Piedad": "Miguel Ángel",
+    "Las señoritas de Avignon": "Pablo Picasso",
+    "La Regenta": "Leopoldo Alas \"Clarín\""
+  },
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": null,
+  "indice_correcto": null
+}

@@ -1,0 +1,28 @@
+{
+  "id": "02",
+  "tipo": "trivia",
+  "dificultad": "facil",
+  "formato": "abierto",
+  "enunciado": "¿Qué dos monarcas financiaron el viaje de Cristóbal Colón a América?",
+  "texto": null,
+  "elementos": null,
+  "elementos_ordenados": null,
+  "categorias": null,
+  "clasificacion_correcta": null,
+  "respuesta_canonica": "Isabel de Castilla y Fernando de Aragón",
+  "alias": [
+    "isabel de castilla y fernando de aragon",
+    "isabel y fernando",
+    "isabel i y fernando",
+    "fernando e isabel",
+    "fernando y isabel",
+    "isabel i de castilla y fernando ii de aragon",
+    "fernando ii de aragon e isabel i de castilla",
+    "los reyes catolicos",
+    "reyes catolicos"
+  ],
+  "alias_parcial": null,
+  "tolerancia_edicion": 1,
+  "opciones": null,
+  "indice_correcto": null
+}

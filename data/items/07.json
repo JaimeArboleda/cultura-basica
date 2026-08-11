@@ -1,18 +1,19 @@
 {
-  "id": "F01",
+  "id": "07",
   "tipo": "trivia",
   "dificultad": "facil",
   "formato": "abierto",
-  "enunciado": "¿Quién es considerado el padre del psicoanálisis?",
+  "enunciado": "¿De qué tipo de moléculas están compuestas las proteínas?",
   "texto": null,
   "elementos": null,
   "elementos_ordenados": null,
   "categorias": null,
   "clasificacion_correcta": null,
-  "respuesta_canonica": "Sigmund Freud",
+  "respuesta_canonica": "Aminoácidos",
   "alias": [
-    "freud",
-    "sigmund freud"
+    "aminoacidos",
+    "amino acidos",
+    "los aminoacidos"
   ],
   "alias_parcial": null,
   "tolerancia_edicion": 1,

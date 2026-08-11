@@ -7,10 +7,12 @@ CREATE TABLE sesiones (
   consentimiento    INTEGER NOT NULL,        -- 0/1
   compromiso_honestidad INTEGER NOT NULL,
   completo          INTEGER DEFAULT 0,       -- terminó los 25 ítems
-  -- Puntuación ponderada interna (0-75), ver worker/src/puntuacion.ts (peso 4/2/3
-  -- fácil/difícil/comentario de texto). Nunca se muestra al usuario: solo sirve para
-  -- calcular el percentil de la pantalla de resultado.
-  puntuacion_ponderada REAL,
+  -- Puntuación total (0-N, N = nº de ítems del banco, hoy 25): suma de la
+  -- puntuación fraccionaria [0,1] de cada ítem (binaria para abierto/opcion_multiple,
+  -- parcial para seleccion_multiple/clasificar/ordenar — ver worker/src/puntuacion.ts).
+  -- Se muestra al usuario como nota global 0-10 (puntuacion_total/N*10) y alimenta
+  -- el percentil de la pantalla de resultado.
+  puntuacion_total REAL,
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
   -- demografía
   anio_nacimiento   INTEGER,
