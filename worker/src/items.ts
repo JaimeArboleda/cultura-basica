@@ -30,6 +30,7 @@ export function paraCliente(item: Item): ItemPublico {
         : null,
     elementos: item.formato === "ordenar" || item.formato === "clasificar" ? item.elementos : null,
     categorias: item.formato === "clasificar" ? item.categorias : null,
+    nota_parcial_desactivada: item.nota_parcial_desactivada === true,
   };
 }
 

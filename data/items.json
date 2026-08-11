@@ -256,7 +256,8 @@
       0,
       1
     ],
-    "indice_correcto": null
+    "indice_correcto": null,
+    "nota_parcial_desactivada": true
   },
   {
     "id": "10",

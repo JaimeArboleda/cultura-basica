@@ -28,6 +28,13 @@ export interface Item {
   elementos_ordenados: string[] | null;
   categorias: string[] | null;
   clasificacion_correcta: Record<string, string> | null;
+  // Opcional (solo presente en algún ítem puntual): suprime la nota genérica
+  // "Rellena las que sepas..." (NOTAS_PARCIALES en public/app.js) cuando el
+  // propio enunciado ya pide un número concreto de respuestas y la nota
+  // resultaría engañosa (p. ej. data/items/09.json, que pregunta "qué DOS
+  // continentes..."). Solo tiene sentido en formatos con puntuación
+  // fraccionaria (seleccion_multiple, clasificar, ordenar).
+  nota_parcial_desactivada?: boolean;
 }
 
 // Vista del ítem que sale hacia el cliente: nunca contiene la respuesta correcta.
@@ -40,6 +47,9 @@ export interface ItemPublico {
   opciones: string[] | null;
   elementos: string[] | null;
   categorias: string[] | null;
+  // Ver Item.nota_parcial_desactivada. Siempre presente (boolean, no opcional)
+  // para que el cliente no tenga que distinguir "false" de "ausente".
+  nota_parcial_desactivada: boolean;
 }
 
 // Vista de un ítem para la pantalla "ver respuestas" tras completar el test: a
