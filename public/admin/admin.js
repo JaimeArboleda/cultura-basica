@@ -359,6 +359,147 @@ function renderCeldaHtml({ codigo, salida }) {
     </div>`;
 }
 
+// --- Descarga del dataset como CSV dentro de un .zip ---
+//
+// Alternativa a la consola para "quiero llevarme los datos y ya está" (Excel,
+// otro Python local, etc.), sin depender de cargar Pyodide: construye el zip
+// a mano en JS (formato ZIP method STORE, sin comprimir — los CSV del piloto
+// son pequeños) para no añadir ninguna librería nueva al proyecto.
+
+// Mismo orden de columnas que las interfaces de worker/src/db.ts
+// (FilaSesionAdmin, FilaRespuestaAdmin) y la fila de tokens del dataset, para
+// que la cabecera del CSV sea estable incluso si el array viene vacío.
+const COLUMNAS_CSV = {
+  "sesiones.csv": [
+    "id", "creada_en", "actualizada_en", "completo", "puntuacion_total", "user_agent_clase", "token_id",
+    "anio_nacimiento", "sexo", "ccaa_educacion_secundaria", "nivel_estudios", "area_estudios",
+    "estudios_mayor_progenitor", "libros_en_casa",
+  ],
+  "respuestas.csv": [
+    "sesion_id", "item_id", "respuesta_cruda", "opcion_elegida", "acierto", "estado_correccion", "t_ms",
+    "orden_presentacion", "perdio_foco", "enviada_en",
+  ],
+  "tokens.csv": ["id", "descripcion"],
+};
+
+function escaparCsv(valor) {
+  if (valor === null || valor === undefined) return "";
+  const texto = String(valor);
+  return /["\n,]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
+}
+
+function aCsv(filas, columnas) {
+  const lineas = [columnas.join(",")];
+  for (const fila of filas) lineas.push(columnas.map((c) => escaparCsv(fila[c])).join(","));
+  return lineas.join("\r\n") + "\r\n";
+}
+
+// Tabla de CRC32 (algoritmo estándar de zlib/PKZIP), calculada una vez.
+const TABLA_CRC32 = (() => {
+  const tabla = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    tabla[n] = c >>> 0;
+  }
+  return tabla;
+})();
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) crc = TABLA_CRC32[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+// Construye un .zip mínimo (un único disco, entradas sin comprimir) a partir
+// de [{ nombre, contenido: Uint8Array }]. Formato: PKZIP local file headers +
+// central directory + end of central directory — ver la especificación de
+// APPNOTE.TXT de PKWARE para el detalle de cada campo.
+function construirZip(archivos) {
+  const codificador = new TextEncoder();
+  const ahora = new Date();
+  const horaDos = ((ahora.getHours() << 11) | (ahora.getMinutes() << 5) | (ahora.getSeconds() >> 1)) & 0xffff;
+  const fechaDos = (((ahora.getFullYear() - 1980) << 9) | ((ahora.getMonth() + 1) << 5) | ahora.getDate()) & 0xffff;
+
+  const partesLocales = [];
+  const partesCentral = [];
+  let offset = 0;
+
+  for (const { nombre, contenido } of archivos) {
+    const nombreBytes = codificador.encode(nombre);
+    const crc = crc32(contenido);
+
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true);
+    local.setUint16(4, 20, true);
+    local.setUint16(6, 0, true);
+    local.setUint16(8, 0, true);
+    local.setUint16(10, horaDos, true);
+    local.setUint16(12, fechaDos, true);
+    local.setUint32(14, crc, true);
+    local.setUint32(18, contenido.length, true);
+    local.setUint32(22, contenido.length, true);
+    local.setUint16(26, nombreBytes.length, true);
+    local.setUint16(28, 0, true);
+    partesLocales.push(new Uint8Array(local.buffer), nombreBytes, contenido);
+
+    const central = new DataView(new ArrayBuffer(46));
+    central.setUint32(0, 0x02014b50, true);
+    central.setUint16(4, 20, true);
+    central.setUint16(6, 20, true);
+    central.setUint16(8, 0, true);
+    central.setUint16(10, 0, true);
+    central.setUint16(12, horaDos, true);
+    central.setUint16(14, fechaDos, true);
+    central.setUint32(16, crc, true);
+    central.setUint32(20, contenido.length, true);
+    central.setUint32(24, contenido.length, true);
+    central.setUint16(28, nombreBytes.length, true);
+    central.setUint16(30, 0, true);
+    central.setUint16(32, 0, true);
+    central.setUint16(34, 0, true);
+    central.setUint16(36, 0, true);
+    central.setUint32(38, 0, true);
+    central.setUint32(42, offset, true);
+    partesCentral.push(new Uint8Array(central.buffer), nombreBytes);
+
+    offset += 30 + nombreBytes.length + contenido.length;
+  }
+
+  const inicioCentral = offset;
+  const tamCentral = partesCentral.reduce((n, p) => n + p.length, 0);
+
+  const fin = new DataView(new ArrayBuffer(22));
+  fin.setUint32(0, 0x06054b50, true);
+  fin.setUint16(4, 0, true);
+  fin.setUint16(6, 0, true);
+  fin.setUint16(8, archivos.length, true);
+  fin.setUint16(10, archivos.length, true);
+  fin.setUint32(12, tamCentral, true);
+  fin.setUint32(16, inicioCentral, true);
+  fin.setUint16(20, 0, true);
+
+  return new Blob([...partesLocales, ...partesCentral, new Uint8Array(fin.buffer)], { type: "application/zip" });
+}
+
+async function descargarDatasetZip(tokenId) {
+  const dataset = await api.dataset(tokenId ? `token_id=${encodeURIComponent(tokenId)}` : "");
+  const codificador = new TextEncoder();
+  const archivos = Object.entries(COLUMNAS_CSV).map(([nombre, columnas]) => ({
+    nombre,
+    contenido: codificador.encode(aCsv(dataset[nombre.replace(".csv", "")], columnas)),
+  }));
+  const blob = construirZip(archivos);
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = `cultura-basica-dataset-${new Date().toISOString().slice(0, 10)}.zip`;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+}
+
 async function renderAvanzado(contenedor) {
   const { tokens } = await api.tokens();
   contenedor.innerHTML = `
@@ -374,9 +515,14 @@ async function renderAvanzado(contenedor) {
         ${tokens.map((t) => `<option value="${t.id}">${escaparHtml(t.descripcion)}</option>`).join("")}
       </select>
     </label>
-    <button type="button" class="boton-principal boton-ancho-auto" id="boton-cargar-kernel">
-      ${promesaPyodide ? "Recargar con este filtro" : "Cargar entorno"}
-    </button>
+    <div class="botones-celda">
+      <button type="button" class="boton-principal boton-ancho-auto" id="boton-cargar-kernel">
+        ${promesaPyodide ? "Recargar con este filtro" : "Cargar entorno"}
+      </button>
+      <button type="button" class="boton-secundario boton-ancho-auto" id="boton-descargar-zip">
+        Descargar CSV (.zip)
+      </button>
+    </div>
     <p id="estado-kernel" class="nota-formato"></p>
     <div id="consola-celdas" class="consola-celdas"></div>
     <form id="form-celda" class="formulario-celda" hidden>
@@ -451,6 +597,20 @@ async function renderAvanzado(contenedor) {
   }
 
   botonCargar.addEventListener("click", () => iniciar(selectToken.value || undefined));
+  const botonDescargarZip = contenedor.querySelector("#boton-descargar-zip");
+  botonDescargarZip.addEventListener("click", async () => {
+    botonDescargarZip.disabled = true;
+    const textoOriginal = botonDescargarZip.textContent;
+    botonDescargarZip.textContent = "Generando…";
+    try {
+      await descargarDatasetZip(selectToken.value || undefined);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      botonDescargarZip.disabled = false;
+      botonDescargarZip.textContent = textoOriginal;
+    }
+  });
   formCelda.addEventListener("submit", (ev) => {
     ev.preventDefault();
     ejecutar();

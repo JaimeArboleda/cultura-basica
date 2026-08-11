@@ -762,6 +762,12 @@ el navegador del admin:
 - Todo ocurre en el navegador del admin: el dataset no pasa por ningún servidor
   intermedio ni se envía a un backend Python, y el código que se ejecuta nunca
   sale de esa pestaña.
+- **"Descargar CSV (.zip)"** en la misma pestaña: para quien solo quiere los
+  datos en Excel/otro sitio sin pasar por la consola. Construye el `.zip` a
+  mano en JS (formato PKZIP, entradas sin comprimir — el dataset del piloto es
+  pequeño) para no añadir ninguna librería nueva; no depende de que Pyodide
+  esté cargado. Descarga `sesiones.csv`, `respuestas.csv` y `tokens.csv`,
+  respetando el filtro por token si hay uno seleccionado.
 
 **Papelera (borrado definitivo, sobre todo para limpiar datos de prueba):**
 "Borrar token" en la pestaña Tokens borra el token entero además de todas sus
