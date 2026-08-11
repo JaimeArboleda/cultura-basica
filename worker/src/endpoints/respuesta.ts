@@ -17,7 +17,7 @@ import {
 } from "../correccion";
 import { error, json } from "../http";
 import { itemsPorId, obtenerItem } from "../items";
-import { calcularPuntuacionPonderada } from "../puntuacion";
+import { puntuarSesion } from "../puntuacion";
 import type { Env, Item } from "../tipos";
 
 function corregir(item: Item, respuesta: unknown): ResultadoCorreccion | null {
@@ -88,8 +88,8 @@ export async function postRespuesta(request: Request, env: Env): Promise<Respons
     const totalRespondidas = await contarRespuestas(env, sesionId);
     if (totalRespondidas >= totalAsignados) {
       const respuestas = await obtenerRespuestasParaResultado(env, sesionId);
-      const puntuacion = calcularPuntuacionPonderada(respuestas, (id) => itemsPorId.get(id));
-      await marcarCompleto(env, sesionId, puntuacion);
+      const puntuacionTotal = puntuarSesion(respuestas, (id) => itemsPorId.get(id));
+      await marcarCompleto(env, sesionId, puntuacionTotal);
     }
   }
 

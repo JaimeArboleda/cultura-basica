@@ -157,9 +157,12 @@ for (const it of items) {
           err(`${ctx} clasificacion_correcta asigna "${el}" a una categoría inexistente: ${cat}`);
         }
       }
+      // Una categoría sin elementos puede ser un distractor deliberado (p. ej. un
+      // autor de más entre las opciones de clasificación), así que solo avisa en
+      // vez de bloquear el build.
       const categoriasUsadas = new Set(Object.values(it.clasificacion_correcta));
       if (it.categorias.some((c) => !categoriasUsadas.has(c))) {
-        err(`${ctx} clasificar tiene alguna categoría sin ningún elemento asignado`);
+        warn(`${ctx} clasificar tiene alguna categoría sin ningún elemento asignado (posible distractor deliberado o error tipográfico)`);
       }
     }
   }

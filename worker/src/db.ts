@@ -9,7 +9,7 @@ export interface FilaSesion {
   consentimiento: number;
   compromiso_honestidad: number;
   completo: number;
-  puntuacion_ponderada: number | null;
+  puntuacion_total: number | null;
 }
 
 export async function crearSesion(
@@ -127,12 +127,12 @@ export async function contarRespuestas(env: Env, sesionId: string): Promise<numb
 export async function marcarCompleto(
   env: Env,
   sesionId: string,
-  puntuacionPonderada: number
+  puntuacionTotal: number
 ): Promise<void> {
   await env.DB.prepare(
-    "UPDATE sesiones SET completo = 1, actualizada_en = ?, puntuacion_ponderada = ? WHERE id = ?"
+    "UPDATE sesiones SET completo = 1, actualizada_en = ?, puntuacion_total = ? WHERE id = ?"
   )
-    .bind(new Date().toISOString(), puntuacionPonderada, sesionId)
+    .bind(new Date().toISOString(), puntuacionTotal, sesionId)
     .run();
 }
 
@@ -144,29 +144,22 @@ export async function obtenerPuntuacionesCompletadas(
   excluirSesionId: string
 ): Promise<number[]> {
   const { results } = await env.DB.prepare(
-    "SELECT puntuacion_ponderada AS p FROM sesiones WHERE completo = 1 AND id != ? AND puntuacion_ponderada IS NOT NULL"
+    "SELECT puntuacion_total AS p FROM sesiones WHERE completo = 1 AND id != ? AND puntuacion_total IS NOT NULL"
   )
     .bind(excluirSesionId)
     .all<{ p: number }>();
   return results.map((r) => r.p);
 }
 
-export interface FilaResultado {
-  item_id: string;
-  bloque: string;
-  dificultad_declarada: string; // se recalcula con el banco real en el endpoint
-  acierto: number;
-}
-
 export async function obtenerRespuestasParaResultado(
   env: Env,
   sesionId: string
-): Promise<{ item_id: string; acierto: number }[]> {
+): Promise<{ item_id: string; respuesta_cruda: string | null }[]> {
   const { results } = await env.DB.prepare(
-    `SELECT item_id, acierto FROM respuestas WHERE sesion_id = ?`
+    `SELECT item_id, respuesta_cruda FROM respuestas WHERE sesion_id = ?`
   )
     .bind(sesionId)
-    .all<{ item_id: string; acierto: number }>();
+    .all<{ item_id: string; respuesta_cruda: string | null }>();
   return results;
 }
 

@@ -228,14 +228,14 @@ function mostrarSegunEstado(sesionId, resultado, intento = 0) {
   pantallaResultado(resultado.resultado, resultado.revision);
 }
 
-// No se muestra ninguna puntuación en bruto ni desglose por dificultad: el único
-// dato que se enseña al terminar es el percentil (una "golosina" simbólica), que el
-// Worker ya calcula sin exponer la puntuación ponderada interna (ver
-// worker/src/endpoints/resultado.ts). El detalle pregunta a pregunta sí se enseña,
-// pero solo bajo demanda (enlace "Ver mis respuestas"), como feedback para quien lo
-// quiera y no como parte del resumen principal.
+// El resultado destacado al terminar es la nota global (0-10), una cifra de
+// gamificación para dar feedback inmediato; el percentil queda como dato
+// secundario. Ninguno de los dos desglosa por dificultad ni expone la puntuación
+// en bruto por ítem (ver worker/src/endpoints/resultado.ts). El detalle pregunta a
+// pregunta sí se enseña, pero solo bajo demanda (enlace "Ver mis respuestas"), como
+// feedback para quien lo quiera y no como parte del resumen principal.
 function pantallaResultado(resultado, revision) {
-  const { primera, percentil } = resultado;
+  const { primera, percentil, nota_global } = resultado;
 
   const root = montar(`
     <section class="pantalla">
@@ -247,14 +247,17 @@ function pantallaResultado(resultado, revision) {
         </p>
       </div>
 
+      <div class="resumen resumen-nota-global">
+        <div class="resumen-etiqueta">Tu nota global</div>
+        <div class="resumen-valor-grande">${nota_global.toFixed(1)}</div>
+        <p class="resumen-nota">Sobre 10, a partir de las ${revision.length} preguntas del test.</p>
+      </div>
+
       <div class="resumen resumen-percentil">
         ${
           primera
             ? `<p class="resumen-nota">Eres de las primeras personas en completar el test, así que todavía no hay con quién comparar tu resultado.</p>`
-            : `
-          <div class="percentil-etiqueta">Tu percentil</div>
-          <div class="percentil-valor-grande">${percentil}</div>
-          <p class="resumen-nota">Tu resultado global queda por encima del <strong>${percentil} %</strong> de quienes han completado el test hasta ahora.</p>`
+            : `<p class="resumen-nota">Lo has hecho mejor que el <strong>${percentil} %</strong> de participantes.</p>`
         }
       </div>
 
@@ -264,18 +267,16 @@ function pantallaResultado(resultado, revision) {
     </section>`);
 
   root.querySelector("#boton-ver-respuestas").addEventListener("click", () => {
-    pantallaRevision(revision, () => pantallaResultado(resultado, revision));
+    pantallaRevision(revision, resultado, () => pantallaResultado(resultado, revision));
   });
 }
 
-function pantallaRevision(revision, onVolver) {
-  const aciertos = revision.filter((it) => it.acierto).length;
-
+function pantallaRevision(revision, resultado, onVolver) {
   const root = montar(`
     <section class="pantalla">
       <div class="cabecera-revision">
         <button type="button" class="boton-atras" id="boton-volver-revision">← Volver</button>
-        <p class="contador">${aciertos} / ${revision.length} correctas</p>
+        <p class="contador">${resultado.puntuacion_total.toFixed(1)} puntos (máximo de ${revision.length})</p>
       </div>
       <h1>Tus respuestas</h1>
       <div class="lista-revision">

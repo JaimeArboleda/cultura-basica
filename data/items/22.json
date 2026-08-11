@@ -1,0 +1,46 @@
+{
+  "id": "22",
+  "tipo": "trivia",
+  "dificultad": "dificil",
+  "formato": "clasificar",
+  "enunciado": "Clasifica estos compositores según su estilo musical",
+  "texto": null,
+  "elementos": [
+    "Debussy",
+    "Palestrina",
+    "Beethoven",
+    "Chopin",
+    "Handel",
+    "Tomás Luis de Victoria",
+    "Ravel",
+    "Bach",
+    "Liszt",
+    "Mozart"
+  ],
+  "elementos_ordenados": null,
+  "categorias": [
+    "impresionismo",
+    "renacentista",
+    "clasicismo",
+    "barroco",
+    "romanticismo"
+  ],
+  "clasificacion_correcta": {
+    "Bach": "barroco",
+    "Handel": "barroco",
+    "Mozart": "clasicismo",
+    "Beethoven": "clasicismo",
+    "Liszt": "romanticismo",
+    "Chopin": "romanticismo",
+    "Ravel": "impresionismo",
+    "Debussy": "impresionismo",
+    "Palestrina": "renacentista",
+    "Tomás Luis de Victoria": "renacentista"
+  },
+  "respuesta_canonica": null,
+  "alias": null,
+  "alias_parcial": null,
+  "tolerancia_edicion": null,
+  "opciones": null,
+  "indice_correcto": null
+}
