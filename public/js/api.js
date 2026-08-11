@@ -25,10 +25,10 @@ async function peticion(path, opciones = {}) {
   return res.json();
 }
 
-export function crearSesion({ consentimiento, compromiso_honestidad, demografia, user_agent_clase }) {
+export function crearSesion({ token, consentimiento, compromiso_honestidad, demografia, user_agent_clase }) {
   return peticion("/api/sesion", {
     method: "POST",
-    body: JSON.stringify({ consentimiento, compromiso_honestidad, demografia, user_agent_clase }),
+    body: JSON.stringify({ token, consentimiento, compromiso_honestidad, demografia, user_agent_clase }),
   });
 }
 
@@ -41,4 +41,17 @@ export function enviarRespuesta({ sesion_id, item_id, respuesta, t_ms, perdio_fo
 
 export function obtenerResultado(sesionId) {
   return peticion(`/api/resultado/${encodeURIComponent(sesionId)}`);
+}
+
+// Comprobación previa del token de acceso (issue #2), antes de mostrar la
+// pantalla de consentimiento: distingue "caducado" de "sin acceso".
+export function tokenValido(token) {
+  return peticion(`/api/token-valido?token=${encodeURIComponent(token)}`);
+}
+
+export function solicitarAcceso({ contacto, motivo }) {
+  return peticion("/api/solicitud-acceso", {
+    method: "POST",
+    body: JSON.stringify({ contacto, motivo }),
+  });
 }

@@ -1,0 +1,140 @@
+/* Estilos propios del panel de admin, encima de ../styles.css (mismas variables
+   de color/espaciado, ver :root ahí). Aparte porque el panel necesita un ancho
+   de página mayor y tablas, cosas que la app del test no usa. */
+
+body.panel-admin #app {
+  max-width: 960px;
+}
+
+/* La pantalla de login usa <a class="boton-principal"> (README §4.6: el login es
+   una navegación real a /api/admin/auth/login, no un fetch), así que necesita lo
+   que .boton-principal en ../styles.css da por hecho al ser un <button>. */
+a.boton-principal {
+  display: block;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.panel-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.panel-sesion {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--color-texto-tenue);
+}
+
+.panel-sesion .boton-secundario {
+  width: auto;
+  padding: 0.4rem 0.75rem;
+}
+
+.panel-pestanas {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--color-borde);
+  padding-bottom: 0.5rem;
+}
+
+.pestana {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.pestana.activa {
+  background: var(--color-primario);
+  color: var(--color-primario-texto);
+  border-color: var(--color-primario);
+}
+
+.tabla-scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--color-borde);
+  white-space: nowrap;
+}
+
+.acciones-tabla {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.boton-tabla {
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radio);
+  border: 1px solid var(--color-borde);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.boton-peligro {
+  color: var(--color-fallo);
+  border-color: var(--color-fallo);
+}
+
+.etiqueta-caducado {
+  color: var(--color-fallo);
+  font-size: 0.75rem;
+}
+
+.stats-resumen {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.filtros-sesiones {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.filtros-sesiones .campo {
+  min-width: 12rem;
+}
+
+.distribucion {
+  margin-top: 0.5rem;
+}
+.distribucion summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.distribucion ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.mensaje-error {
+  color: var(--color-fallo);
+  background: var(--color-fallo-fondo);
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radio);
+}

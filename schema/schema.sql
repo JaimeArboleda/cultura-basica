@@ -1,5 +1,40 @@
 -- DDL de D1 (SQLite). Fuente: README.md §4.1
 
+-- Administradores del panel (README §4.5): quien esté aquí puede entrar a
+-- /admin autenticándose con esa cuenta de Gmail vía OAuth. Sembrada con los
+-- admins iniciales en el despliegue (README §4.6); gestionable desde el
+-- propio panel a partir de ahí.
+CREATE TABLE admins (
+  email       TEXT PRIMARY KEY,
+  anadido_por TEXT,               -- email de quien lo dio de alta; NULL para la siembra inicial
+  anadido_en  TEXT NOT NULL       -- ISO 8601 UTC
+);
+
+-- Tokens de acceso al test (README §4.5, issue #2): cada uno identifica una
+-- *remesa* de invitación (no a la persona que responde), con descripción
+-- libre puesta por quien lo crea para poder rastrear después de dónde
+-- vinieron las respuestas. Sin límite de usos: válido para cualquier número
+-- de personas mientras no caduque.
+CREATE TABLE tokens (
+  id          TEXT PRIMARY KEY,    -- código compartido en la URL (?token=)
+  descripcion TEXT NOT NULL,       -- p. ej. "familia de Gerardo"
+  creado_por  TEXT NOT NULL,       -- email del admin que lo creó
+  creado_en   TEXT NOT NULL,       -- ISO 8601 UTC
+  expira_en   TEXT NOT NULL        -- ISO 8601 UTC; pasada esta fecha, POST /api/sesion lo rechaza
+);
+
+-- Solicitudes de acceso de quien llega sin token válido (README §4.5): solo
+-- se guarda un dato de contacto que la propia persona decide dar
+-- voluntariamente para pedir acceso; no forma parte del dataset anónimo del
+-- estudio (§5) y se gestiona aparte, visible desde el panel de admin.
+CREATE TABLE solicitudes_acceso (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  contacto  TEXT NOT NULL,
+  motivo    TEXT,
+  creada_en TEXT NOT NULL,          -- ISO 8601 UTC
+  atendida  INTEGER DEFAULT 0       -- 0/1, marcada a mano desde el panel
+);
+
 CREATE TABLE sesiones (
   id                TEXT PRIMARY KEY,        -- UUID generado en cliente
   creada_en         TEXT NOT NULL,           -- ISO 8601 UTC
@@ -14,6 +49,9 @@ CREATE TABLE sesiones (
   -- el percentil de la pantalla de resultado.
   puntuacion_total REAL,
   user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
+  -- Token de acceso (remesa) con el que se creó esta sesión (README §4.5). NULL
+  -- solo en sesiones creadas antes de este control de acceso.
+  token_id          TEXT REFERENCES tokens(id),
   -- demografía
   anio_nacimiento   INTEGER,
   sexo              TEXT,
@@ -23,6 +61,8 @@ CREATE TABLE sesiones (
   estudios_mayor_progenitor TEXT,
   libros_en_casa    TEXT
 );
+
+CREATE INDEX idx_sesiones_token ON sesiones(token_id);
 
 CREATE TABLE respuestas (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,

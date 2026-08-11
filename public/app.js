@@ -33,7 +33,7 @@ function pantallaError(mensaje) {
     </section>`);
 }
 
-function pantallaConsentimiento() {
+function pantallaConsentimiento(token) {
   montar(`
     <section class="pantalla">
       <h1>Test de cultura general</h1>
@@ -53,10 +53,10 @@ function pantallaConsentimiento() {
   const check = document.getElementById("check-consentimiento");
   const boton = document.getElementById("boton-continuar");
   check.addEventListener("change", () => (boton.disabled = !check.checked));
-  boton.addEventListener("click", () => pantallaHonestidad());
+  boton.addEventListener("click", () => pantallaHonestidad(token));
 }
 
-function pantallaHonestidad() {
+function pantallaHonestidad(token) {
   montar(`
     <section class="pantalla">
       <h1>Antes de empezar</h1>
@@ -74,10 +74,10 @@ function pantallaHonestidad() {
   const check = document.getElementById("check-honestidad");
   const boton = document.getElementById("boton-continuar");
   check.addEventListener("change", () => (boton.disabled = !check.checked));
-  boton.addEventListener("click", () => pantallaDemografia());
+  boton.addEventListener("click", () => pantallaDemografia(token));
 }
 
-function pantallaDemografia() {
+function pantallaDemografia(token) {
   montar(`
     <section class="pantalla">
       <h1>Unas preguntas antes de empezar</h1>
@@ -88,6 +88,7 @@ function pantallaDemografia() {
     montar(`<section class="pantalla"><p>Preparando el test…</p></section>`);
     try {
       const { sesion_id, items } = await api.crearSesion({
+        token,
         consentimiento: true,
         compromiso_honestidad: true,
         demografia: datosDemografia,
@@ -99,6 +100,82 @@ function pantallaDemografia() {
       pantallaError(e.message);
     }
   });
+}
+
+// --- Control de acceso por token (issue #2) ---
+// El token identifica una *remesa* de invitación compartida por varias
+// personas, no a quien responde (README §4.5): solo hace falta para poder
+// CREAR una sesión nueva. Ver un resultado ya existente (§ enlace permanente
+// más abajo) nunca depende de él.
+
+function pantallaTokenCaducado() {
+  montar(`
+    <section class="pantalla">
+      <h1>El enlace ha caducado</h1>
+      <p>
+        El enlace de invitación que has usado ya no es válido. Pide a quien te lo
+        compartió que te envíe uno nuevo.
+      </p>
+    </section>`);
+}
+
+function pantallaSinAcceso() {
+  const root = montar(`
+    <section class="pantalla">
+      <h1>No tienes acceso al test</h1>
+      <p>
+        Este test solo está disponible con invitación. Si crees que deberías
+        tener acceso, dinos cómo contactarte y te avisaremos si podemos dártelo.
+      </p>
+      <form id="form-solicitud-acceso" class="formulario">
+        <label class="campo">
+          <span>Cómo contactarte (email, teléfono…)</span>
+          <input type="text" id="campo-contacto" required maxlength="200" />
+        </label>
+        <label class="campo">
+          <span>¿Algo que quieras contarnos? (opcional)</span>
+          <textarea id="campo-motivo" maxlength="500"></textarea>
+        </label>
+        <button type="submit" class="boton-principal">Solicitar acceso</button>
+      </form>
+    </section>`);
+
+  root.querySelector("#form-solicitud-acceso").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const contacto = root.querySelector("#campo-contacto").value.trim();
+    const motivo = root.querySelector("#campo-motivo").value.trim();
+    if (!contacto) return;
+    try {
+      await api.solicitarAcceso({ contacto, motivo: motivo || undefined });
+      montar(`
+        <section class="pantalla">
+          <h1>Solicitud enviada</h1>
+          <p>Gracias. Nos pondremos en contacto contigo si podemos darte acceso.</p>
+        </section>`);
+    } catch (e) {
+      pantallaError(e.message);
+    }
+  });
+}
+
+async function iniciarConToken(token) {
+  montar(`<section class="pantalla"><p>Comprobando acceso…</p></section>`);
+  let estado;
+  try {
+    estado = await api.tokenValido(token);
+  } catch (e) {
+    pantallaError(e.message);
+    return;
+  }
+  if (!estado.valido) {
+    if (estado.motivo === "caducado") {
+      pantallaTokenCaducado();
+    } else {
+      pantallaSinAcceso();
+    }
+    return;
+  }
+  pantallaConsentimiento(token);
 }
 
 // --- Ejecución del test (25 ítems fijos) ---
@@ -364,7 +441,7 @@ function mostrarSegunEstado(sesionId, resultado, intento = 0) {
     ejecutarTest(sesionId, resultado.items_pendientes);
     return;
   }
-  pantallaResultado(resultado.resultado, resultado.revision);
+  pantallaResultado(resultado.resultado, resultado.revision, sesionId);
 }
 
 // El resultado destacado al terminar es la nota global (0-10), una cifra de
@@ -373,8 +450,15 @@ function mostrarSegunEstado(sesionId, resultado, intento = 0) {
 // en bruto por ítem (ver worker/src/endpoints/resultado.ts). El detalle pregunta a
 // pregunta sí se enseña, pero solo bajo demanda (enlace "Ver mis respuestas"), como
 // feedback para quien lo quiera y no como parte del resumen principal.
-function pantallaResultado(resultado, revision) {
+//
+// Esta pantalla también se usa para el enlace permanente "?resultado=" (§ init):
+// alguien puede llegar aquí sin haber hecho el test él mismo (p. ej. un amigo al
+// que se le compartió el resultado), así que la llamada a "hacer tú el test" solo
+// se muestra si esta sesión NO es la que hay en localStorage de este navegador.
+function pantallaResultado(resultado, revision, sesionId) {
   const { primera, percentil, nota_global } = resultado;
+  const enlacePermanente = `${location.origin}${location.pathname}?resultado=${encodeURIComponent(sesionId)}`;
+  const esPropia = localStorage.getItem(CLAVE_SESION) === sesionId;
 
   const root = montar(`
     <section class="pantalla">
@@ -402,12 +486,64 @@ function pantallaResultado(resultado, revision) {
 
       <button type="button" class="enlace-ver-respuestas" id="boton-ver-respuestas">Ver mis respuestas →</button>
 
+      <div class="bloque-compartir">
+        <button type="button" class="boton-secundario" id="boton-compartir">
+          ${esPropia ? "Compartir tus resultados" : "Compartir este resultado"}
+        </button>
+        ${
+          esPropia
+            ? `<p class="nota-formato">
+                 Guarda este enlace para volver a ver tu resultado cuando quieras, aunque el
+                 enlace de invitación haya caducado: <code id="enlace-permanente">${enlacePermanente}</code>
+               </p>`
+            : ""
+        }
+      </div>
+
+      ${
+        esPropia
+          ? ""
+          : `<div class="bloque-invitar">
+               <p>¿Te gustaría hacer tú también el test?</p>
+               <button type="button" class="enlace-ver-respuestas" id="boton-solicitar-acceso">Solicitar acceso →</button>
+             </div>`
+      }
+
       <footer class="cierre">Puedes cerrar esta página cuando quieras. No se guarda ningún dato identificativo.</footer>
     </section>`);
 
   root.querySelector("#boton-ver-respuestas").addEventListener("click", () => {
-    pantallaRevision(revision, resultado, () => pantallaResultado(resultado, revision));
+    pantallaRevision(revision, resultado, () => pantallaResultado(resultado, revision, sesionId));
   });
+
+  root.querySelector("#boton-compartir").addEventListener("click", async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Test de cultura general",
+          text: `He sacado un ${nota_global.toFixed(1)} sobre 10 en el test de cultura general básica.`,
+          url: enlacePermanente,
+        });
+      } catch {
+        // el usuario canceló el diálogo de compartir; no hace falta hacer nada
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(enlacePermanente);
+      const boton = root.querySelector("#boton-compartir");
+      const textoOriginal = boton.textContent;
+      boton.textContent = "¡Enlace copiado!";
+      setTimeout(() => (boton.textContent = textoOriginal), 2000);
+    } catch {
+      // portapapeles no disponible: no hay más que ofrecer en ese caso
+    }
+  });
+
+  const botonSolicitar = root.querySelector("#boton-solicitar-acceso");
+  if (botonSolicitar) {
+    botonSolicitar.addEventListener("click", () => pantallaSinAcceso());
+  }
 }
 
 function pantallaRevision(revision, resultado, onVolver) {
@@ -442,27 +578,70 @@ function pantallaRevision(revision, resultado, onVolver) {
   root.querySelector("#boton-volver-revision").addEventListener("click", onVolver);
 }
 
-// --- Arranque: reanudar sesión si existe, si no, empezar de cero ---
+// --- Arranque (issue #2) ---
+// Prioridad: (1) enlace permanente de resultado, funciona pase lo que pase con
+// el token; (2) sesión en curso en este navegador (localStorage); (3) enlace de
+// invitación con token, para empezar de cero; (4) sin nada de lo anterior, no
+// hay forma de entrar: pantalla "sin acceso" con el formulario de solicitud.
 
-async function init() {
-  const sesionId = localStorage.getItem(CLAVE_SESION);
-  if (!sesionId) {
-    pantallaConsentimiento();
-    return;
+async function mostrarResultadoPermanente(sesionId) {
+  montar(`<section class="pantalla"><p>Cargando resultado…</p></section>`);
+  try {
+    const resultado = await api.obtenerResultado(sesionId);
+    mostrarSegunEstado(sesionId, resultado);
+  } catch (e) {
+    if (e.status === 404) {
+      pantallaError("Este enlace de resultados ya no está disponible.");
+    } else {
+      pantallaError(e.message);
+    }
   }
+}
 
+async function reanudarSesion(sesionId) {
   montar(`<section class="pantalla"><p>Reanudando…</p></section>`);
   try {
     const resultado = await api.obtenerResultado(sesionId);
     mostrarSegunEstado(sesionId, resultado);
   } catch (e) {
     if (e.status === 404) {
+      // La sesión ya no existe (p. ej. un admin borró sus datos, README §4.5):
+      // se limpia el localStorage y, si sigue teniendo el enlace de invitación
+      // a mano, puede volver a empezar con él.
       localStorage.removeItem(CLAVE_SESION);
-      pantallaConsentimiento();
+      const token = new URLSearchParams(location.search).get("token");
+      if (token) {
+        await iniciarConToken(token);
+      } else {
+        pantallaSinAcceso();
+      }
     } else {
       pantallaError(e.message);
     }
   }
+}
+
+async function init() {
+  const params = new URLSearchParams(location.search);
+  const resultadoId = params.get("resultado");
+  if (resultadoId) {
+    await mostrarResultadoPermanente(resultadoId);
+    return;
+  }
+
+  const sesionId = localStorage.getItem(CLAVE_SESION);
+  if (sesionId) {
+    await reanudarSesion(sesionId);
+    return;
+  }
+
+  const token = params.get("token");
+  if (token) {
+    await iniciarConToken(token);
+    return;
+  }
+
+  pantallaSinAcceso();
 }
 
 init();

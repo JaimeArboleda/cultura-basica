@@ -13,7 +13,8 @@
     "Macbeth",
     "La Piedad",
     "Las señoritas de Avignon",
-    "La Regenta"
+    "La Regenta",
+    "Analectas"
   ],
   "elementos_ordenados": null,
   "categorias": [
@@ -27,7 +28,8 @@
     "William Shakespeare",
     "Rubens",
     "Francisco de Goya",
-    "Leopoldo Alas \"Clarín\""
+    "Leopoldo Alas \"Clarín\"",
+    "Confucio"
   ],
   "clasificacion_correcta": {
     "El entierro del Conde Orgaz": "El Greco",
@@ -37,7 +39,8 @@
     "Macbeth": "William Shakespeare",
     "La Piedad": "Miguel Ángel",
     "Las señoritas de Avignon": "Pablo Picasso",
-    "La Regenta": "Leopoldo Alas \"Clarín\""
+    "La Regenta": "Leopoldo Alas \"Clarín\"",
+    "Analectas": "Confucio"
   },
   "respuesta_canonica": null,
   "alias": null,
