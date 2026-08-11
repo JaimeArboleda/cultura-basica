@@ -1,30 +1,27 @@
-// Orden de presentación del test (README §1.4). El banco es fijo (36 ítems, uno por
-// bloque y dificultad): no hay selección que hacer, solo aleatorizar el orden en que
-// se presentan para que los bloques no queden agrupados por tema (README §3).
+// Orden de presentación del test (README §1.4). Antes se aleatorizaba por sesión;
+// ahora es fijo e igual para todas las sesiones, definido en data/orden-test.json
+// (README §4.2, §8) — un array con los 25 ids del banco en el orden en que se
+// presentan. Editar ese fichero (y redesplegar el Worker) para cambiar el orden.
+import ordenIdsRaw from "../../data/orden-test.json";
 import type { Item } from "./tipos";
 
-export type Rng = () => number; // en [0, 1)
-
-export function rngCriptografico(): number {
-  const buf = new Uint32Array(1);
-  crypto.getRandomValues(buf);
-  return buf[0] / 2 ** 32;
-}
-
-function shuffle<T>(arr: T[], rng: Rng): T[] {
-  const copia = [...arr];
-  for (let i = copia.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [copia[i], copia[j]] = [copia[j], copia[i]];
-  }
-  return copia;
-}
+const ordenIds = ordenIdsRaw as string[];
 
 export interface AsignacionItem {
   item_id: string;
   orden_presentacion: number;
 }
 
-export function ordenarTest(banco: Item[], rng: Rng = rngCriptografico): AsignacionItem[] {
-  return shuffle(banco, rng).map((item, i) => ({ item_id: item.id, orden_presentacion: i }));
+export function ordenarTest(banco: Item[]): AsignacionItem[] {
+  const idsBanco = new Set(banco.map((item) => item.id));
+  const orden = ordenIds.filter((id) => idsBanco.has(id));
+
+  // Defensivo por si el banco y data/orden-test.json se desincronizan (un ítem
+  // nuevo aún no añadido al orden fijo, o uno retirado del banco que sigue en
+  // el fichero): los ids del banco que falten en el orden fijo se añaden al
+  // final, en vez de perderlos o romper el sorteo.
+  const vistos = new Set(orden);
+  const faltantes = banco.map((item) => item.id).filter((id) => !vistos.has(id));
+
+  return [...orden, ...faltantes].map((item_id, i) => ({ item_id, orden_presentacion: i }));
 }

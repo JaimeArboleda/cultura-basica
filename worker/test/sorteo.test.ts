@@ -1,22 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { ordenarTest, type Rng } from "../src/sorteo";
+import { ordenarTest } from "../src/sorteo";
 import { bancoItems } from "../src/items";
-
-// RNG determinista basado en semilla, para tests reproducibles (mulberry32).
-function rngConSemilla(semilla: number): Rng {
-  let a = semilla;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+import ordenIds from "../../data/orden-test.json";
 
 describe("ordenarTest", () => {
   it("devuelve exactamente los 25 ítems del banco", () => {
-    const asignaciones = ordenarTest(bancoItems, rngConSemilla(1));
+    const asignaciones = ordenarTest(bancoItems);
     expect(asignaciones.length).toBe(25);
     const ids = asignaciones.map((a) => a.item_id);
     expect(new Set(ids).size).toBe(25);
@@ -26,18 +15,19 @@ describe("ordenarTest", () => {
   });
 
   it("orden_presentacion es una permutación de 0..24", () => {
-    const asignaciones = ordenarTest(bancoItems, rngConSemilla(3));
+    const asignaciones = ordenarTest(bancoItems);
     const ordenes = asignaciones.map((a) => a.orden_presentacion).sort((a, b) => a - b);
     expect(ordenes).toEqual(Array.from({ length: 25 }, (_, i) => i));
   });
 
-  it("el orden de presentación varía entre sorteos con distinta semilla", () => {
-    const primerosVistos = new Set<string>();
-    for (let semilla = 0; semilla < 10; semilla++) {
-      const asignaciones = ordenarTest(bancoItems, rngConSemilla(semilla));
-      const primero = asignaciones.find((a) => a.orden_presentacion === 0)!;
-      primerosVistos.add(primero.item_id);
-    }
-    expect(primerosVistos.size).toBeGreaterThan(1);
+  it("el orden es fijo e igual al de data/orden-test.json, no aleatorio por sesión", () => {
+    const asignaciones1 = ordenarTest(bancoItems);
+    const asignaciones2 = ordenarTest(bancoItems);
+    expect(asignaciones1).toEqual(asignaciones2);
+
+    const idsEnOrden = [...asignaciones1]
+      .sort((a, b) => a.orden_presentacion - b.orden_presentacion)
+      .map((a) => a.item_id);
+    expect(idsEnOrden).toEqual(ordenIds);
   });
 });

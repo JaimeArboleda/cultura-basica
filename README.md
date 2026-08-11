@@ -71,7 +71,7 @@ redacta un test estima mal la dificultad de sus propios ítems. Tras el piloto s
 
 **Todo el mundo hace el mismo test: los 25 ítems del banco, sin sorteo de
 contenido.** No hay banco de reserva ni fase de extensión: el banco entero es el
-test. Lo único que se aleatoriza es el **orden de presentación** (§3).
+test, y también se presenta a todo el mundo en el mismo **orden fijo** (§3, §4.2).
 
 Esto simplifica la comparabilidad entre participantes (todos ven exactamente los
 mismos 25 ítems, así que no hace falta un subconjunto de anclaje para poner las
@@ -223,8 +223,11 @@ permiten marcar (no necesariamente descartar) respuestas sospechosas. Añadir ad
 sale gratis.
 
 Otras medidas:
-- **Aleatorizar el orden de presentación de los 25 ítems.** Si un ítem concreto siempre
-  va al final, el cansancio se disfraza de ignorancia sobre ese tema.
+- **Orden de presentación fijo e igual para todas las sesiones** (`data/orden-test.json`,
+  §4.2), no aleatorizado por sesión: se prioriza la comparabilidad exacta entre
+  participantes (todos ven el mismo ítem en la misma posición, así que el cansancio
+  al final del test pesa igual para todos) sobre repartir el efecto del cansancio
+  entre distintos ítems.
 - **Guardar cada respuesta según se envía**, no al final. Los abandonos son un dato en
   sí mismo y deben quedar registrados.
 - **Navegación hacia atrás permitida, con revisión final antes de enviar.** Se
@@ -486,20 +489,38 @@ entre las opciones de clasificación): el validador solo avisa, no bloquea el bu
   una apuntando a una categoría existente. Una categoría sin ningún elemento asignado
   (distractor deliberado) solo genera un aviso, no un error.
 
+**Orden de presentación (`data/orden-test.json`).** Un array plano con los 25 `id`
+del banco, en el orden fijo en que se presentan a todo el mundo (§1.4, §3):
+
+```jsonc
+["01", "05", "16", "03", "13", "11", "22", "09", "24", "20", "25", "14", "02", "18", "07", "21", "04", "15", "10", "23", "06", "19", "12", "17", "08"]
+```
+
+`worker/src/sorteo.ts` lo importa como módulo estático (igual que `data/items.json`,
+ver §4.3/§4.4) y traduce cada `id` a su `orden_presentacion`; un `id` del banco que
+falte en el fichero se añade al final en vez de perderse. El orden inicial se generó
+con el criterio: 5 ítems fáciles + 5 difíciles barajados al principio (empezando por
+2 fáciles), luego el ítem `comentario_texto`, y el resto en un orden sin criterio
+particular — pensado como punto de partida editable a mano, no como una regla que el
+código deba volver a aplicar.
+
 ### 4.3 Endpoints del Worker
 
 ```
-POST /api/sesion            → crea sesión, devuelve id + los 25 ítems en orden aleatorio
+POST /api/sesion            → crea sesión, devuelve id + los 25 ítems en el orden fijo
 POST /api/respuesta         → guarda una respuesta (idempotente por sesion_id+item_id)
 GET  /api/resultado/:id     → devuelve el resultado de esa sesión
 GET  /api/export?token=…    → volcado CSV/JSON (protegido con secreto en env)
 ```
 
 Notas de implementación:
-- El orden de presentación se decide **en el servidor** y se persiste (tabla
-  `sesion_items`, §4.1), para que recargar la página no cambie el orden.
-  `POST /api/sesion` es idempotente: si la sesión ya existe, no se puede volver a
-  llamar (cada sesión se crea una sola vez); reanudar usa `GET /api/resultado/:id`.
+- El orden de presentación es **fijo** (`data/orden-test.json`, §4.2, igual para
+  todas las sesiones) y aun así se persiste por sesión **en el servidor** (tabla
+  `sesion_items`, §4.1), para que recargar la página no cambie el orden y para no
+  depender de que el fichero de configuración no cambie entre el alta de la sesión
+  y su resolución. `POST /api/sesion` es idempotente: si la sesión ya existe, no se
+  puede volver a llamar (cada sesión se crea una sola vez); reanudar usa
+  `GET /api/resultado/:id`.
 - `GET /api/resultado/:id` tiene dos formas de respuesta según el estado de la sesión:
   si `completo=0` (test en curso, típicamente tras recargar la página o volver más
   tarde), devuelve `{ estado: 'en_progreso', items_pendientes }` en vez de un
@@ -580,6 +601,12 @@ cd worker && npx wrangler deploy   # el Worker importa data/items.json como mód
                                     # estático (worker/src/items.ts), así que este
                                     # deploy es todo lo que hace falta
 ```
+
+**Cambiar el orden fijo del test**, tras editar `data/orden-test.json` (§4.2): basta con
+`cd worker && npx wrangler deploy` (se importa igual que `data/items.json`, sin paso de
+build previo porque ya es un array plano). El front-end (`public/`) no necesita
+redeploy en ninguno de los dos casos anteriores, por el mismo motivo que el resto de
+cambios de contenido: nunca contiene enunciados, respuestas ni el orden hardcodeados.
 
 Ningún paso de aquí toca D1: el banco de ítems nunca se replica en la base de
 datos (`schema/schema.sql`, tabla `sesion_items`), así que editar un ítem no
