@@ -1,6 +1,6 @@
 import { SELF, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { NOMBRE_COOKIE_SESION, firmarSesionAdmin } from "../src/adminAuth";
+import { firmarSesionAdmin } from "../src/adminAuth";
 import { AREA_ESTUDIOS, CCAA, LIBROS_EN_CASA, NIVEL_ESTUDIOS, SEXO } from "../src/tipos";
 
 const ADMIN_EMAIL = "admin@example.com";
@@ -17,17 +17,19 @@ function demografiaValida() {
   };
 }
 
-async function cookieAdmin(email = ADMIN_EMAIL): Promise<string> {
-  const valor = await firmarSesionAdmin(env, email);
-  return `${NOMBRE_COOKIE_SESION}=${valor}`;
+// El panel se autentica con `Authorization: Bearer <token firmado>`, no con
+// cookie (worker/src/adminAuth.ts): Pages y el Worker viven en dominios
+// distintos a efectos de cookies.
+async function tokenAdmin(email = ADMIN_EMAIL): Promise<string> {
+  return firmarSesionAdmin(env, email);
 }
 
-async function fetchAdmin(path: string, opciones: RequestInit = {}, cookie?: string) {
+async function fetchAdmin(path: string, opciones: RequestInit = {}, auth?: string) {
   return SELF.fetch(`http://worker.test${path}`, {
     ...opciones,
     headers: {
       "Content-Type": "application/json",
-      ...(cookie ? { Cookie: cookie } : {}),
+      ...(auth ? { Authorization: `Bearer ${auth}` } : {}),
       ...opciones.headers,
     },
   });
@@ -39,8 +41,8 @@ async function sembrarAdmin(email = ADMIN_EMAIL) {
     .run();
 }
 
-async function crearTokenViaAdmin(cookie: string, descripcion = "familia de Gerardo") {
-  const res = await fetchAdmin("/api/admin/tokens", { method: "POST", body: JSON.stringify({ descripcion }) }, cookie);
+async function crearTokenViaAdmin(auth: string, descripcion = "familia de Gerardo") {
+  const res = await fetchAdmin("/api/admin/tokens", { method: "POST", body: JSON.stringify({ descripcion }) }, auth);
   expect(res.status).toBe(201);
   return (await res.json()) as { id: string };
 }
@@ -65,20 +67,20 @@ beforeEach(async () => {
 });
 
 describe("Autenticación del panel de admin", () => {
-  it("401 en rutas protegidas sin cookie de sesión", async () => {
+  it("401 en rutas protegidas sin token de sesión", async () => {
     const res = await fetchAdmin("/api/admin/tokens");
     expect(res.status).toBe(401);
   });
 
-  it("401 con una cookie firmada pero cuyo email ya no está en admins", async () => {
-    const cookie = await cookieAdmin("ya-no-es-admin@example.com");
-    const res = await fetchAdmin("/api/admin/tokens", {}, cookie);
+  it("401 con un token firmado pero cuyo email ya no está en admins", async () => {
+    const auth = await tokenAdmin("ya-no-es-admin@example.com");
+    const res = await fetchAdmin("/api/admin/tokens", {}, auth);
     expect(res.status).toBe(401);
   });
 
   it("GET /api/admin/me devuelve el email autenticado", async () => {
-    const cookie = await cookieAdmin();
-    const res = await fetchAdmin("/api/admin/me", {}, cookie);
+    const auth = await tokenAdmin();
+    const res = await fetchAdmin("/api/admin/me", {}, auth);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ email: ADMIN_EMAIL });
   });
@@ -86,15 +88,15 @@ describe("Autenticación del panel de admin", () => {
 
 describe("Gestión de tokens", () => {
   it("crea, lista y revoca un token", async () => {
-    const cookie = await cookieAdmin();
-    const token = await crearTokenViaAdmin(cookie);
+    const auth = await tokenAdmin();
+    const token = await crearTokenViaAdmin(auth);
     expect(token.id).toBeTruthy();
 
-    const listado = await fetchAdmin("/api/admin/tokens", {}, cookie);
+    const listado = await fetchAdmin("/api/admin/tokens", {}, auth);
     const { tokens } = (await listado.json()) as { tokens: { id: string; n_sesiones: number }[] };
     expect(tokens.some((t) => t.id === token.id)).toBe(true);
 
-    const revocar = await fetchAdmin(`/api/admin/tokens/${token.id}`, { method: "DELETE" }, cookie);
+    const revocar = await fetchAdmin(`/api/admin/tokens/${token.id}`, { method: "DELETE" }, auth);
     expect(revocar.status).toBe(200);
 
     // Revocado = caducado de inmediato: ya no sirve para crear una sesión nueva.
@@ -112,32 +114,32 @@ describe("Gestión de tokens", () => {
   });
 
   it("rechaza crear un token sin descripción", async () => {
-    const cookie = await cookieAdmin();
-    const res = await fetchAdmin("/api/admin/tokens", { method: "POST", body: JSON.stringify({}) }, cookie);
+    const auth = await tokenAdmin();
+    const res = await fetchAdmin("/api/admin/tokens", { method: "POST", body: JSON.stringify({}) }, auth);
     expect(res.status).toBe(400);
   });
 
   it("permite fijar horas_validez dentro de rango (2h-10 días) y rechaza fuera de rango", async () => {
-    const cookie = await cookieAdmin();
+    const auth = await tokenAdmin();
 
     const valido = await fetchAdmin(
       "/api/admin/tokens",
       { method: "POST", body: JSON.stringify({ descripcion: "corto", horas_validez: 3 }) },
-      cookie
+      auth
     );
     expect(valido.status).toBe(201);
 
     const muyCorto = await fetchAdmin(
       "/api/admin/tokens",
       { method: "POST", body: JSON.stringify({ descripcion: "x", horas_validez: 1 }) },
-      cookie
+      auth
     );
     expect(muyCorto.status).toBe(400);
 
     const muyLargo = await fetchAdmin(
       "/api/admin/tokens",
       { method: "POST", body: JSON.stringify({ descripcion: "x", horas_validez: 241 }) },
-      cookie
+      auth
     );
     expect(muyLargo.status).toBe(400);
   });
@@ -145,11 +147,11 @@ describe("Gestión de tokens", () => {
 
 describe("Sesiones: borrado individual y por remesa", () => {
   it("borra una sesión individual y libera al usuario para repetir el test con el mismo token", async () => {
-    const cookie = await cookieAdmin();
-    const token = await crearTokenViaAdmin(cookie);
+    const auth = await tokenAdmin();
+    const token = await crearTokenViaAdmin(auth);
     const { sesion_id } = await crearSesionConToken(token.id);
 
-    const borrado = await fetchAdmin(`/api/admin/sesiones/${sesion_id}`, { method: "DELETE" }, cookie);
+    const borrado = await fetchAdmin(`/api/admin/sesiones/${sesion_id}`, { method: "DELETE" }, auth);
     expect(borrado.status).toBe(200);
 
     const resultado = await SELF.fetch(`http://worker.test/api/resultado/${sesion_id}`);
@@ -160,12 +162,12 @@ describe("Sesiones: borrado individual y por remesa", () => {
   });
 
   it("borra todas las sesiones de una remesa (token) sin revocar el token", async () => {
-    const cookie = await cookieAdmin();
-    const token = await crearTokenViaAdmin(cookie);
+    const auth = await tokenAdmin();
+    const token = await crearTokenViaAdmin(auth);
     const s1 = await crearSesionConToken(token.id);
     const s2 = await crearSesionConToken(token.id);
 
-    const borrado = await fetchAdmin(`/api/admin/tokens/${token.id}/sesiones`, { method: "DELETE" }, cookie);
+    const borrado = await fetchAdmin(`/api/admin/tokens/${token.id}/sesiones`, { method: "DELETE" }, auth);
     expect(borrado.status).toBe(200);
 
     expect((await SELF.fetch(`http://worker.test/api/resultado/${s1.sesion_id}`)).status).toBe(404);
@@ -177,11 +179,11 @@ describe("Sesiones: borrado individual y por remesa", () => {
   });
 
   it("lista sesiones filtrando por token y por estado", async () => {
-    const cookie = await cookieAdmin();
-    const token = await crearTokenViaAdmin(cookie);
+    const auth = await tokenAdmin();
+    const token = await crearTokenViaAdmin(auth);
     await crearSesionConToken(token.id);
 
-    const res = await fetchAdmin(`/api/admin/sesiones?token_id=${token.id}&estado=en_progreso`, {}, cookie);
+    const res = await fetchAdmin(`/api/admin/sesiones?token_id=${token.id}&estado=en_progreso`, {}, auth);
     const { sesiones } = (await res.json()) as { sesiones: { token_id: string; completo: number }[] };
     expect(sesiones.length).toBeGreaterThan(0);
     for (const s of sesiones) {
@@ -193,11 +195,11 @@ describe("Sesiones: borrado individual y por remesa", () => {
 
 describe("Estadísticas", () => {
   it("incluye el objetivo del piloto y agregados por token", async () => {
-    const cookie = await cookieAdmin();
-    const token = await crearTokenViaAdmin(cookie);
+    const auth = await tokenAdmin();
+    const token = await crearTokenViaAdmin(auth);
     await crearSesionConToken(token.id);
 
-    const res = await fetchAdmin(`/api/admin/stats?token_id=${token.id}`, {}, cookie);
+    const res = await fetchAdmin(`/api/admin/stats?token_id=${token.id}`, {}, auth);
     const stats = (await res.json()) as { total: number; objetivo_min: number; objetivo_max: number };
     expect(stats.total).toBeGreaterThanOrEqual(1);
     expect(stats.objetivo_min).toBe(100);
@@ -213,28 +215,28 @@ describe("Solicitudes de acceso", () => {
       body: JSON.stringify({ contacto: "amigo@example.com" }),
     });
 
-    const cookie = await cookieAdmin();
-    const listado = await fetchAdmin("/api/admin/solicitudes", {}, cookie);
+    const auth = await tokenAdmin();
+    const listado = await fetchAdmin("/api/admin/solicitudes", {}, auth);
     const { solicitudes } = (await listado.json()) as { solicitudes: { id: number; atendida: number }[] };
     const solicitud = solicitudes.find((s) => s.atendida === 0);
     expect(solicitud).toBeTruthy();
 
-    const marcar = await fetchAdmin(`/api/admin/solicitudes/${solicitud!.id}`, { method: "PATCH" }, cookie);
+    const marcar = await fetchAdmin(`/api/admin/solicitudes/${solicitud!.id}`, { method: "PATCH" }, auth);
     expect(marcar.status).toBe(200);
   });
 });
 
 describe("Gestión de administradores", () => {
   it("añade un admin nuevo y lo lista", async () => {
-    const cookie = await cookieAdmin();
+    const auth = await tokenAdmin();
     const res = await fetchAdmin(
       "/api/admin/admins",
       { method: "POST", body: JSON.stringify({ email: "nuevo@example.com" }) },
-      cookie
+      auth
     );
     expect(res.status).toBe(201);
 
-    const listado = await fetchAdmin("/api/admin/admins", {}, cookie);
+    const listado = await fetchAdmin("/api/admin/admins", {}, auth);
     const { admins } = (await listado.json()) as { admins: { email: string }[] };
     expect(admins.some((a) => a.email === "nuevo@example.com")).toBe(true);
   });
@@ -243,9 +245,9 @@ describe("Gestión de administradores", () => {
     // Aísla esta prueba: deja la tabla admins con un único email conocido.
     await env.DB.prepare("DELETE FROM admins").run();
     await sembrarAdmin("unico@example.com");
-    const cookie = await cookieAdmin("unico@example.com");
+    const auth = await tokenAdmin("unico@example.com");
 
-    const res = await fetchAdmin("/api/admin/admins/unico@example.com", { method: "DELETE" }, cookie);
+    const res = await fetchAdmin("/api/admin/admins/unico@example.com", { method: "DELETE" }, auth);
     expect(res.status).toBe(400);
   });
 });

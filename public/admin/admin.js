@@ -1,17 +1,26 @@
 // Panel de administración (README §4.5, issue #2). Vanilla JS sin build, igual
-// que public/app.js: no hay framework en este proyecto. Autenticación por
-// cookie httpOnly (worker/src/adminAuth.ts), de ahí `credentials: "include"`
-// en todas las peticiones.
+// que public/app.js: no hay framework en este proyecto.
+//
+// Autenticación por token firmado en `Authorization: Bearer` (worker/src/adminAuth.ts),
+// no por cookie: el panel se sirve desde Cloudflare Pages (*.pages.dev) y la
+// API desde el Worker (*.workers.dev), dominios distintos a efectos de
+// cookies. El token llega en el fragmento de la URL tras el login (ver init())
+// y se guarda en localStorage.
 //
 // API_BASE duplica intencionalmente la constante de ../js/api.js: son despliegues
 // separados y el front-end del test no debe depender del panel ni viceversa.
 const API_BASE = "https://cultura-basica.cultura-basica.workers.dev";
+const CLAVE_TOKEN_ADMIN = "cb_admin_token";
 
 async function peticion(path, opciones = {}) {
+  const token = localStorage.getItem(CLAVE_TOKEN_ADMIN);
   const res = await fetch(`${API_BASE}${path}`, {
     ...opciones,
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...opciones.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...opciones.headers,
+    },
   });
   if (!res.ok) {
     let mensaje = `Error ${res.status}`;
@@ -31,7 +40,6 @@ async function peticion(path, opciones = {}) {
 
 const api = {
   yo: () => peticion("/api/admin/me"),
-  logout: () => peticion("/api/admin/auth/logout", { method: "POST" }),
   tokens: () => peticion("/api/admin/tokens"),
   crearToken: (body) => peticion("/api/admin/tokens", { method: "POST", body: JSON.stringify(body) }),
   revocarToken: (id) => peticion(`/api/admin/tokens/${encodeURIComponent(id)}`, { method: "DELETE" }),
@@ -110,8 +118,10 @@ async function pantallaPanel(email, pestanaActivaId = "stats") {
       <div id="panel-contenido"><p>Cargando…</p></div>
     </section>`);
 
-  root.querySelector("#boton-salir").addEventListener("click", async () => {
-    await api.logout();
+  root.querySelector("#boton-salir").addEventListener("click", () => {
+    // Sesión stateless (§ cabecera del fichero): "salir" es solo olvidar el
+    // token en este navegador, no hay nada que invalidar en el servidor.
+    localStorage.removeItem(CLAVE_TOKEN_ADMIN);
     location.reload();
   });
 
@@ -438,10 +448,17 @@ async function renderAdmins(contenedor, recargar) {
 // --- Arranque ---
 
 async function init() {
+  // Tras el login, el callback redirige aquí con #token=... (nunca query
+  // string: el fragmento no sale del navegador en la petición HTTP). Se lee
+  // una vez, se guarda y se retira de la URL de inmediato.
+  const tokenRecibido = new URLSearchParams(location.hash.replace(/^#/, "")).get("token");
+  if (tokenRecibido) {
+    localStorage.setItem(CLAVE_TOKEN_ADMIN, tokenRecibido);
+  }
+  history.replaceState(null, "", location.pathname + (tokenRecibido ? "" : location.search));
+
   try {
     const yo = await api.yo();
-    // Limpia ?error= de la URL si el login tuvo éxito en un intento anterior.
-    history.replaceState(null, "", location.pathname);
     await pantallaPanel(yo.email);
   } catch {
     pantallaLogin();

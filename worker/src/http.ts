@@ -4,11 +4,10 @@ export function corsHeaders(env: Env): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN,
     "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    // El panel de admin (worker/src/adminAuth.ts) se autentica con cookie
-    // httpOnly: hace falta esta cabecera para que el navegador la envíe si
-    // Pages y el Worker no comparten dominio (§4.6).
-    "Access-Control-Allow-Credentials": "true",
+    // Authorization: el panel de admin (worker/src/adminAuth.ts) manda su
+    // token de sesión como `Authorization: Bearer …`, no como cookie — Pages
+    // y el Worker viven en dominios distintos (*.pages.dev / *.workers.dev).
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
 }
 

@@ -1,12 +1,11 @@
 import {
-  cookieSesion,
-  cookieSesionBorrada,
   cookieState,
   cookieStateBorrada,
   firmarSesionAdmin,
   intercambiarCodigoPorEmail,
-  leerCookieSesion,
   leerCookieState,
+  leerTokenAutorizacion,
+  redirectUriDesde,
   urlAutorizacionGoogle,
   verificarSesionAdmin,
 } from "../../adminAuth";
@@ -14,11 +13,11 @@ import { esAdmin } from "../../db";
 import { error, json } from "../../http";
 import type { Env } from "../../tipos";
 
-export function getAdminLogin(env: Env): Response {
+export function getAdminLogin(request: Request, env: Env): Response {
   const state = crypto.randomUUID();
   const headers = new Headers();
   headers.append("Set-Cookie", cookieState(env, state));
-  headers.set("Location", urlAutorizacionGoogle(env, state));
+  headers.set("Location", urlAutorizacionGoogle(env, state, redirectUriDesde(request)));
   return new Response(null, { status: 302, headers });
 }
 
@@ -40,7 +39,7 @@ export async function getAdminCallback(request: Request, env: Env): Promise<Resp
     return redirigirConError(env, "state");
   }
 
-  const email = await intercambiarCodigoPorEmail(env, code);
+  const email = await intercambiarCodigoPorEmail(env, code, redirectUriDesde(request));
   if (!email) {
     return redirigirConError(env, "google");
   }
@@ -48,23 +47,20 @@ export async function getAdminCallback(request: Request, env: Env): Promise<Resp
     return redirigirConError(env, "no_autorizado");
   }
 
-  const cookieValor = await firmarSesionAdmin(env, email);
+  // El token de sesión viaja en el fragmento (#token=...) de la URL de
+  // redirección, no en la query string: el fragmento nunca sale del
+  // navegador en la petición HTTP (no llega a logs de servidor ni de CDN), y
+  // admin.js lo retira de la barra de direcciones nada más leerlo.
+  const tokenSesion = await firmarSesionAdmin(env, email);
   const headers = new Headers();
-  headers.append("Set-Cookie", cookieSesion(env, cookieValor));
   headers.append("Set-Cookie", cookieStateBorrada(env));
-  headers.set("Location", `${env.ALLOWED_ORIGIN}/admin/`);
+  headers.set("Location", `${env.ALLOWED_ORIGIN}/admin/#token=${encodeURIComponent(tokenSesion)}`);
   return new Response(null, { status: 302, headers });
 }
 
-export function postAdminLogout(env: Env): Response {
-  const headers = new Headers();
-  headers.append("Set-Cookie", cookieSesionBorrada(env));
-  return new Response(null, { status: 204, headers });
-}
-
 export async function getAdminYo(request: Request, env: Env): Promise<Response> {
-  const cookie = leerCookieSesion(request);
-  const email = cookie ? await verificarSesionAdmin(env, cookie) : null;
+  const token = leerTokenAutorizacion(request);
+  const email = token ? await verificarSesionAdmin(env, token) : null;
   if (!email) return error(env, 401, "No autenticado");
   return json(env, { email });
 }

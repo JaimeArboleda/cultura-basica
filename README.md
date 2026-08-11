@@ -740,25 +740,47 @@ Gmail — más simple que poner Cloudflare Access delante:
 - Flujo: `GET /api/admin/auth/login` redirige a Google (Authorization Code);
   `GET /api/admin/auth/callback` intercambia el código por el email verificado
   (`https://www.googleapis.com/oauth2/v3/userinfo`, sin verificar el JWT del
-  `id_token` a mano), comprueba que esté en `admins` y, si lo está, fija una cookie
-  httpOnly firmada con HMAC-SHA256 (`worker/src/adminAuth.ts`, secreto
-  `ADMIN_SESSION_SECRET`) válida 7 días. Cualquier fallo redirige a
-  `/admin/?error=…` con un mensaje legible en vez de un JSON crudo.
-- Cada petición a `/api/admin/*` (salvo `auth/login`/`auth/callback`) revalida la
-  cookie **y** que el email siga en `admins`: quitar a alguien del panel corta su
-  acceso de inmediato, sin esperar a que caduque su cookie.
-- No hay verificación CSRF de formulario (no hace falta: las mutaciones van por
-  `fetch` con `Content-Type: application/json`, no por formularios cross-site) pero
-  sí un parámetro `state` de un solo uso en el propio login OAuth.
+  `id_token` a mano), comprueba que esté en `admins` y, si lo está, redirige a
+  `${ALLOWED_ORIGIN}/admin/#token=…` con un token firmado con HMAC-SHA256
+  (`worker/src/adminAuth.ts`, secreto `ADMIN_SESSION_SECRET`), válido 7 días.
+  Cualquier fallo redirige en su lugar a `/admin/?error=…` con un mensaje legible.
+- **No es una cookie, es un token en `Authorization: Bearer` guardado en
+  `localStorage`** (`public/admin/admin.js`): el panel se sirve desde Cloudflare
+  Pages (`*.pages.dev`) y la API desde el Worker (`*.workers.dev`), dos dominios
+  distintos a efectos de cookies (ambos son sufijos públicos en la lista de
+  Mozilla/Chrome, así que ni compartiendo el prefijo `cultura-basica` cuentan como
+  el mismo sitio) — una cookie httpOnly no viajaría en las peticiones `fetch` del
+  panel. El token va en el **fragmento** de la URL de redirección (`#token=…`, no
+  query string) para que no quede en logs de servidor/CDN; `admin.js` lo lee una
+  vez, lo guarda en `localStorage` y lo retira de la barra de direcciones. "Salir"
+  es solo borrar ese token en el navegador: no hay estado de sesión en el
+  servidor que invalidar.
+- Cada petición a `/api/admin/*` (salvo `auth/login`/`auth/callback`/`me`) revalida
+  la firma del token **y** que el email siga en `admins`: quitar a alguien del
+  panel corta su acceso de inmediato, sin esperar a que caduque su token.
+- El `state` de CSRF del login OAuth sí es una cookie (`worker/src/adminAuth.ts`):
+  se fija y se lee siempre en el dominio del Worker, nunca cruza a Pages, así que
+  no tiene el problema anterior.
+- Si en el futuro se configura un dominio propio con `/api/*` enrutado al Worker
+  bajo el mismo dominio que Pages (README §4.4, "para que el front-end pueda
+  llamar al Worker sin CORS"), este mecanismo sigue funcionando sin cambios: la
+  `redirect_uri` de Google se deriva del origen real de la petición
+  (`worker/src/adminAuth.ts::redirectUriDesde`), no de un valor fijo.
 
 ### 4.6 Desplegar el control de acceso (issue #2)
 
 Añade a los pasos de despliegue de §4.4:
 
 **Credenciales OAuth de Google** (una vez, en [Google Cloud Console](https://console.cloud.google.com/apis/credentials)):
-crear un "OAuth 2.0 Client ID" de tipo *Web application*, con
-`https://<dominio-de-pages>/api/admin/auth/callback` como *Authorized redirect URI*
-(el mismo valor que `ALLOWED_ORIGIN` en `worker/wrangler.toml` + `/api/admin/auth/callback`).
+crear un "OAuth 2.0 Client ID" de tipo *Web application*, con esta *Authorized
+redirect URI* — el dominio donde vive de verdad `/api/admin/auth/callback` (hoy el
+`*.workers.dev` del Worker, **no** el `*.pages.dev` de Pages donde vive el panel,
+ver el aviso de arriba sobre dominios distintos):
+
+```
+https://<subdominio-del-worker>.workers.dev/api/admin/auth/callback
+```
+
 Copiar el Client ID a `GOOGLE_CLIENT_ID` en `worker/wrangler.toml` `[vars]`, y el
 Client Secret como secret:
 

@@ -1,12 +1,15 @@
 // Autenticación del panel de admin (README §4.5, issue #2): OAuth de Google
-// como único medio, sin login propio. La sesión de admin es una cookie
-// httpOnly firmada con HMAC-SHA256 (sin dependencias externas, con Web
-// Crypto), no un JWT de librería: solo lleva email + expiración, y su validez
-// se revalida contra la tabla `admins` en cada petición (revocar un admin
-// surte efecto de inmediato, no hay que esperar a que caduque la cookie).
+// como único medio, sin login propio. La sesión de admin es un token firmado
+// con HMAC-SHA256 (sin dependencias externas, con Web Crypto) transportado
+// como cabecera `Authorization: Bearer` — no una cookie: el panel se sirve
+// desde Cloudflare Pages (*.pages.dev) y la API desde el Worker
+// (*.workers.dev), dominios distintos a efectos de cookies (ambos son
+// sufijos públicos), así que una cookie httpOnly no viajaría entre ellos en
+// peticiones fetch. El token solo lleva email + expiración, y su validez se
+// revalida contra la tabla `admins` en cada petición (revocar un admin surte
+// efecto de inmediato, no hay que esperar a que caduque el token).
 import type { Env } from "./tipos";
 
-export const NOMBRE_COOKIE_SESION = "cb_admin_sesion";
 const NOMBRE_COOKIE_STATE = "cb_admin_oauth_state";
 const DURACION_SESION_SEG = 7 * 24 * 60 * 60; // 7 días
 const DURACION_STATE_SEG = 10 * 60; // 10 minutos: solo dura lo que tarda el login
@@ -42,12 +45,12 @@ export async function firmarSesionAdmin(env: Env, email: string): Promise<string
   return `${payload}.${base64UrlCodificar(new Uint8Array(firma))}`;
 }
 
-// Devuelve el email si la cookie es válida (firma correcta y no caducada), o
+// Devuelve el email si el token es válido (firma correcta y no caducado), o
 // null en cualquier otro caso. No comprueba aquí que el email siga en la
 // tabla `admins`: eso lo hace cada endpoint protegido, para que revocar un
-// admin surta efecto sin esperar a que expire su cookie.
-export async function verificarSesionAdmin(env: Env, cookieValue: string): Promise<string | null> {
-  const [payload, firma] = cookieValue.split(".");
+// admin surta efecto sin esperar a que caduque su token.
+export async function verificarSesionAdmin(env: Env, valorToken: string): Promise<string | null> {
+  const [payload, firma] = valorToken.split(".");
   if (!payload || !firma) return null;
 
   const clave = await claveHmac(env.ADMIN_SESSION_SECRET);
@@ -75,6 +78,17 @@ export async function verificarSesionAdmin(env: Env, cookieValue: string): Promi
   }
 }
 
+// El token de sesión viaja como `Authorization: Bearer <token>` (ver cabecera
+// del fichero), nunca como cookie.
+export function leerTokenAutorizacion(request: Request): string | null {
+  const cabecera = request.headers.get("Authorization");
+  if (!cabecera?.startsWith("Bearer ")) return null;
+  return cabecera.slice("Bearer ".length);
+}
+
+// El `state` de CSRF del login OAuth sí puede ir en cookie: se fija y se lee
+// siempre en el mismo dominio (el del Worker, vía redirects del servidor),
+// nunca cruza a Pages.
 function leerCookie(request: Request, nombre: string): string | null {
   const cabecera = request.headers.get("Cookie");
   if (!cabecera) return null;
@@ -85,47 +99,37 @@ function leerCookie(request: Request, nombre: string): string | null {
   return null;
 }
 
-export function leerCookieSesion(request: Request): string | null {
-  return leerCookie(request, NOMBRE_COOKIE_SESION);
-}
-
 export function leerCookieState(request: Request): string | null {
   return leerCookie(request, NOMBRE_COOKIE_STATE);
 }
 
-// Solo Secure en producción (https); en `wrangler dev` local (http) rechazaría
-// la cookie si se marca Secure siempre.
-function atributosCookie(env: Env): string {
+function atributosCookieState(env: Env): string {
   const segura = env.ALLOWED_ORIGIN.startsWith("https://") ? "; Secure" : "";
-  return `Path=/api/admin; HttpOnly${segura}; SameSite=Lax`;
-}
-
-export function cookieSesion(env: Env, valor: string): string {
-  return `${NOMBRE_COOKIE_SESION}=${valor}; ${atributosCookie(env)}; Max-Age=${DURACION_SESION_SEG}`;
-}
-
-export function cookieSesionBorrada(env: Env): string {
-  return `${NOMBRE_COOKIE_SESION}=; ${atributosCookie(env)}; Max-Age=0`;
+  return `Path=/api/admin/auth; HttpOnly${segura}; SameSite=Lax`;
 }
 
 export function cookieState(env: Env, valor: string): string {
-  return `${NOMBRE_COOKIE_STATE}=${valor}; ${atributosCookie(env)}; Max-Age=${DURACION_STATE_SEG}`;
+  return `${NOMBRE_COOKIE_STATE}=${valor}; ${atributosCookieState(env)}; Max-Age=${DURACION_STATE_SEG}`;
 }
 
 export function cookieStateBorrada(env: Env): string {
-  return `${NOMBRE_COOKIE_STATE}=; ${atributosCookie(env)}; Max-Age=0`;
+  return `${NOMBRE_COOKIE_STATE}=; ${atributosCookieState(env)}; Max-Age=0`;
 }
 
 // --- OAuth de Google (Authorization Code), sin librerías ---
+// redirectUri se deriva del origin real de la petición entrante (request.url),
+// no de ALLOWED_ORIGIN: la ruta /api/admin/auth/callback solo existe en el
+// dominio donde vive el Worker (hoy *.workers.dev; ALLOWED_ORIGIN es el
+// dominio de Pages donde vive el panel, un origen distinto — ver cabecera).
 
-export function urlRedireccionCallback(env: Env): string {
-  return `${env.ALLOWED_ORIGIN}/api/admin/auth/callback`;
+export function redirectUriDesde(request: Request): string {
+  return `${new URL(request.url).origin}/api/admin/auth/callback`;
 }
 
-export function urlAutorizacionGoogle(env: Env, state: string): string {
+export function urlAutorizacionGoogle(env: Env, state: string, redirectUri: string): string {
   const params = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID,
-    redirect_uri: urlRedireccionCallback(env),
+    redirect_uri: redirectUri,
     response_type: "code",
     scope: "openid email",
     state,
@@ -137,7 +141,11 @@ export function urlAutorizacionGoogle(env: Env, state: string): string {
 // Intercambia el "code" del callback por el email verificado de la cuenta de
 // Google. Usa el endpoint userinfo con el access_token en vez de validar la
 // firma del id_token a mano, para no tener que implementar verificación JWK.
-export async function intercambiarCodigoPorEmail(env: Env, code: string): Promise<string | null> {
+export async function intercambiarCodigoPorEmail(
+  env: Env,
+  code: string,
+  redirectUri: string
+): Promise<string | null> {
   const resToken = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -145,7 +153,7 @@ export async function intercambiarCodigoPorEmail(env: Env, code: string): Promis
       code,
       client_id: env.GOOGLE_CLIENT_ID,
       client_secret: env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: urlRedireccionCallback(env),
+      redirect_uri: redirectUri,
       grant_type: "authorization_code",
     }),
   });
