@@ -44,7 +44,7 @@ export function html(item, respuestaPrevia) {
             )
             .join("")}
         </div>
-        <button type="button" class="boton-principal" id="boton-responder" ${elegida === null ? "disabled" : ""}>Responder</button>`;
+        <button type="button" class="boton-principal" id="boton-responder">Responder</button>`;
     }
 
     case "seleccion_multiple": {
@@ -144,15 +144,12 @@ export function attachListeners(root, item, onResponder) {
 
   if (item.formato === "opcion_multiple") {
     const radios = [...root.querySelectorAll('input[type="radio"]')];
-    radios.forEach((radio) => {
-      radio.addEventListener("change", () => {
-        boton.disabled = false;
-      });
-    });
+    // -1: "sin respuesta", igual que el resto de formatos (abierto vacío, selección
+    // múltiple sin marcar…) permiten enviar sin haber elegido nada. corregirOpcionMultiple
+    // (worker/src/correccion.ts) nunca la marca como acierto porque ningún índice real es -1.
     boton.addEventListener("click", () => {
       const elegida = radios.find((radio) => radio.checked);
-      if (!elegida) return;
-      onResponder(Number(elegida.dataset.indice));
+      onResponder(elegida ? Number(elegida.dataset.indice) : -1);
     });
     return;
   }
