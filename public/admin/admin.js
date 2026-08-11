@@ -50,6 +50,7 @@ const api = {
   sesiones: (query) => peticion(`/api/admin/sesiones?${query}`),
   borrarSesion: (id) => peticion(`/api/admin/sesiones/${encodeURIComponent(id)}`, { method: "DELETE" }),
   stats: (query) => peticion(`/api/admin/stats?${query}`),
+  dataset: (query) => peticion(`/api/admin/dataset?${query}`),
   solicitudes: () => peticion("/api/admin/solicitudes"),
   marcarSolicitud: (id) => peticion(`/api/admin/solicitudes/${id}`, { method: "PATCH" }),
   borrarSolicitud: (id) => peticion(`/api/admin/solicitudes/${id}`, { method: "DELETE" }),
@@ -142,6 +143,7 @@ function pantallaLogin() {
 
 const PESTANAS = [
   { id: "stats", etiqueta: "Estadísticas", render: renderStats },
+  { id: "avanzado", etiqueta: "Estadísticas avanzadas", render: renderAvanzado },
   { id: "tokens", etiqueta: "Tokens", render: renderTokens },
   { id: "sesiones", etiqueta: "Sesiones", render: renderSesiones },
   { id: "solicitudes", etiqueta: "Solicitudes de acceso", render: renderSolicitudes },
@@ -238,6 +240,239 @@ async function renderStats(contenedor) {
   };
   contenedor.querySelector("#filtro-token-stats").addEventListener("change", cargar);
   await cargar();
+}
+
+// --- Pestaña: Estadísticas avanzadas ---
+//
+// Consola de Python en el propio navegador vía Pyodide (WebAssembly): sin
+// backend Python ni estadísticas precalculadas, para poder explorar
+// libremente el dataset completo (GET /api/admin/dataset) con pandas,
+// matplotlib y scikit-learn. El "kernel" (Pyodide + el dataset ya cargado
+// como DataFrames) se guarda a nivel de módulo, así que sobrevive a cambiar
+// de pestaña dentro del panel y solo se descarga una vez por visita.
+//
+// No es un notebook Jupyter real (protocolo de kernel, celdas reordenables,
+// etc.): cada "celda" se ejecuta con exec()/eval() sobre un único espacio de
+// nombres compartido (igual que una consola de Python), que es justo lo que
+// hace falta para "sesiones.groupby(...)", "plt.plot(...)" o un
+// LinearRegression de sklearn sin tener que montar toda la UI de Jupyter.
+
+const PYODIDE_VERSION = "314.0.3";
+const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
+
+// Ejecuta código arbitrario en el espacio de nombres persistente del kernel:
+// si la última sentencia es una expresión (como en una consola de Python),
+// se evalúa aparte y su repr() se devuelve como "resultado" (auto-display,
+// igual que Jupyter/IPython) en vez de perderse. Las figuras de matplotlib
+// abiertas al terminar se capturan como PNG en base64 (backend "Agg": no hay
+// canvas del navegador de por medio) y se cierran, para no arrastrarlas a la
+// siguiente celda.
+const PRELUDIO_PYTHON = `
+import ast, base64, contextlib, io, json, traceback
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+
+_globales_celda = globals()
+
+def _ejecutar_celda(codigo):
+    salida = io.StringIO()
+    resultado = None
+    error = None
+    try:
+        arbol = ast.parse(codigo, mode="exec")
+        ultima = None
+        if arbol.body and isinstance(arbol.body[-1], ast.Expr):
+            ultima = arbol.body.pop()
+        with contextlib.redirect_stdout(salida), contextlib.redirect_stderr(salida):
+            exec(compile(arbol, "<celda>", "exec"), _globales_celda)
+            if ultima is not None:
+                valor = eval(compile(ast.Expression(ultima.value), "<celda>", "eval"), _globales_celda)
+                if valor is not None:
+                    resultado = repr(valor)
+    except Exception:
+        error = traceback.format_exc()
+
+    figuras = []
+    for num in plt.get_fignums():
+        buf = io.BytesIO()
+        plt.figure(num).savefig(buf, format="png", bbox_inches="tight")
+        figuras.append(base64.b64encode(buf.getvalue()).decode("ascii"))
+    plt.close("all")
+
+    return json.dumps({"stdout": salida.getvalue(), "resultado": resultado, "error": error, "figuras": figuras})
+`;
+
+// Carga el dataset (ya en el kernel como JSON) en tres DataFrames. Un print()
+// en vez de dejar el mensaje como expresión final: así queda en "stdout" sin
+// el escapado de comillas de repr() sobre un f-string.
+const CODIGO_CARGA_DATASET = [
+  "sesiones = pd.DataFrame(json.loads(_dataset_json)['sesiones'])",
+  "respuestas = pd.DataFrame(json.loads(_dataset_json)['respuestas'])",
+  "tokens = pd.DataFrame(json.loads(_dataset_json)['tokens'])",
+  "print(f'sesiones: {len(sesiones)} filas · respuestas: {len(respuestas)} filas · tokens: {len(tokens)} filas')",
+].join("\n");
+
+let promesaPyodide = null;
+// Clave del token con el que está cargado el dataset en el kernel ahora mismo
+// ("" = todos los tokens); null = todavía no se ha cargado nada.
+let datasetCargadoPara = null;
+// [{codigo, salida}], sobrevive a cambiar de pestaña (no a recargar la página).
+let historialCeldas = [];
+
+async function cargarPyodide(avisar) {
+  if (!promesaPyodide) {
+    promesaPyodide = (async () => {
+      avisar("Descargando Pyodide…");
+      const { loadPyodide } = await import(`${PYODIDE_INDEX_URL}pyodide.mjs`);
+      const pyodide = await loadPyodide({ indexURL: PYODIDE_INDEX_URL });
+      avisar("Cargando pandas, matplotlib y scikit-learn…");
+      await pyodide.loadPackage(["pandas", "matplotlib", "scikit-learn"]);
+      await pyodide.runPythonAsync(PRELUDIO_PYTHON);
+      return pyodide;
+    })();
+  }
+  return promesaPyodide;
+}
+
+async function ejecutarCelda(pyodide, codigo) {
+  // pyodide.globals.set hace la conversión JS->Python del string (comillas,
+  // saltos de línea, unicode…) sin tener que escapar nada a mano aquí.
+  pyodide.globals.set("_codigo_celda", codigo);
+  const textoJson = await pyodide.runPythonAsync("_ejecutar_celda(_codigo_celda)");
+  return JSON.parse(textoJson);
+}
+
+function renderCeldaHtml({ codigo, salida }) {
+  const figuras = (salida.figuras ?? [])
+    .map((b64) => `<img class="celda-figura" src="data:image/png;base64,${b64}" alt="Gráfico" />`)
+    .join("");
+  return `
+    <div class="celda">
+      <pre class="celda-codigo">${escaparHtml(codigo)}</pre>
+      ${salida.stdout ? `<pre class="celda-salida">${escaparHtml(salida.stdout)}</pre>` : ""}
+      ${salida.resultado != null ? `<pre class="celda-salida celda-resultado">${escaparHtml(salida.resultado)}</pre>` : ""}
+      ${figuras}
+      ${salida.error ? `<pre class="celda-salida celda-salida-error">${escaparHtml(salida.error)}</pre>` : ""}
+    </div>`;
+}
+
+async function renderAvanzado(contenedor) {
+  const { tokens } = await api.tokens();
+  contenedor.innerHTML = `
+    <p class="nota-formato">
+      Consola de Python en tu propio navegador (<a href="https://pyodide.org" target="_blank" rel="noopener">Pyodide</a>):
+      pandas, matplotlib y scikit-learn sobre el dataset completo de sesiones y respuestas. No hay backend Python:
+      nada de esto sale de este navegador.
+    </p>
+    <label class="campo">
+      <span>Cargar dataset filtrado por token</span>
+      <select id="filtro-token-avanzado">
+        <option value="">Todos</option>
+        ${tokens.map((t) => `<option value="${t.id}">${escaparHtml(t.descripcion)}</option>`).join("")}
+      </select>
+    </label>
+    <button type="button" class="boton-principal boton-ancho-auto" id="boton-cargar-kernel">
+      ${promesaPyodide ? "Recargar con este filtro" : "Cargar entorno"}
+    </button>
+    <p id="estado-kernel" class="nota-formato"></p>
+    <div id="consola-celdas" class="consola-celdas"></div>
+    <form id="form-celda" class="formulario-celda" hidden>
+      <textarea id="campo-codigo" rows="6" spellcheck="false" placeholder="sesiones.describe()"></textarea>
+      <div class="botones-celda">
+        <button type="submit" class="boton-principal boton-ancho-auto">Ejecutar (Ctrl+Enter)</button>
+        <button type="button" class="boton-secundario boton-ancho-auto" id="boton-reiniciar-kernel">Reiniciar entorno</button>
+      </div>
+    </form>`;
+
+  const botonCargar = contenedor.querySelector("#boton-cargar-kernel");
+  const estadoKernel = contenedor.querySelector("#estado-kernel");
+  const consolaCeldas = contenedor.querySelector("#consola-celdas");
+  const formCelda = contenedor.querySelector("#form-celda");
+  const campoCodigo = contenedor.querySelector("#campo-codigo");
+  const selectToken = contenedor.querySelector("#filtro-token-avanzado");
+  if (datasetCargadoPara) selectToken.value = datasetCargadoPara;
+
+  function pintarHistorial() {
+    consolaCeldas.innerHTML = historialCeldas.map(renderCeldaHtml).join("");
+    consolaCeldas.scrollTop = consolaCeldas.scrollHeight;
+  }
+
+  async function iniciar(tokenId) {
+    const claveToken = tokenId ?? "";
+    if (datasetCargadoPara !== null && datasetCargadoPara !== claveToken && historialCeldas.length > 1) {
+      if (!confirm("Cambiar de token recarga el dataset y borra las celdas ya ejecutadas. ¿Continuar?")) {
+        selectToken.value = datasetCargadoPara;
+        return;
+      }
+    }
+    botonCargar.disabled = true;
+    selectToken.disabled = true;
+    try {
+      const pyodide = await cargarPyodide((msg) => (estadoKernel.textContent = msg));
+      if (datasetCargadoPara !== claveToken) {
+        estadoKernel.textContent = "Cargando el dataset…";
+        const dataset = await api.dataset(tokenId ? `token_id=${encodeURIComponent(tokenId)}` : "");
+        pyodide.globals.set("_dataset_json", JSON.stringify(dataset));
+        const salida = await ejecutarCelda(pyodide, CODIGO_CARGA_DATASET);
+        historialCeldas = [{ codigo: CODIGO_CARGA_DATASET, salida }];
+        datasetCargadoPara = claveToken;
+      }
+      estadoKernel.textContent = "";
+      botonCargar.textContent = "Recargar con este filtro";
+      formCelda.hidden = false;
+      pintarHistorial();
+      campoCodigo.focus();
+    } catch (e) {
+      estadoKernel.textContent = `Error cargando el entorno: ${e.message}`;
+    } finally {
+      botonCargar.disabled = false;
+      selectToken.disabled = false;
+    }
+  }
+
+  async function ejecutar() {
+    const codigo = campoCodigo.value;
+    if (!codigo.trim()) return;
+    const pyodide = await promesaPyodide;
+    const botonEjecutar = formCelda.querySelector('button[type="submit"]');
+    botonEjecutar.disabled = true;
+    try {
+      const salida = await ejecutarCelda(pyodide, codigo);
+      historialCeldas.push({ codigo, salida });
+      pintarHistorial();
+      campoCodigo.value = "";
+    } finally {
+      botonEjecutar.disabled = false;
+      campoCodigo.focus();
+    }
+  }
+
+  botonCargar.addEventListener("click", () => iniciar(selectToken.value || undefined));
+  formCelda.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    ejecutar();
+  });
+  campoCodigo.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+      ev.preventDefault();
+      ejecutar();
+    }
+  });
+  contenedor.querySelector("#boton-reiniciar-kernel").addEventListener("click", async () => {
+    if (!confirm("¿Reiniciar el entorno? Se perderán las variables definidas y el historial de celdas.")) return;
+    promesaPyodide = null;
+    datasetCargadoPara = null;
+    historialCeldas = [];
+    formCelda.hidden = true;
+    await iniciar(selectToken.value || undefined);
+  });
+
+  // Si el kernel ya estaba cargado de una visita anterior a esta pestaña, se
+  // reengancha solo (sin volver a descargar Pyodide ni el dataset).
+  if (promesaPyodide) await iniciar(selectToken.value || undefined);
 }
 
 // --- Pestaña: Tokens ---

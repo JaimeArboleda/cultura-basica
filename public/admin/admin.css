@@ -195,3 +195,85 @@ td {
   padding: 0.6rem 0.8rem;
   border-radius: var(--radio);
 }
+
+/* Botones que no deben ocupar el 100% del ancho (.boton-principal/.boton-secundario
+   son block de ancho completo por defecto en ../styles.css, pensado para el
+   flujo del test en móvil; aquí conviven varios en una fila). */
+.boton-ancho-auto {
+  width: auto;
+}
+
+/* Pestaña "Estadísticas avanzadas": consola Pyodide (ver admin.js) */
+.consola-celdas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 28rem;
+  overflow-y: auto;
+  margin: 0.75rem 0;
+}
+
+.celda {
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  overflow: hidden;
+}
+
+.celda-codigo,
+.celda-salida {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.celda-codigo {
+  background: var(--color-secundario);
+  color: var(--color-texto);
+}
+
+.celda-salida {
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  border-top: 1px solid var(--color-borde);
+}
+
+.celda-resultado {
+  color: var(--color-texto-tenue);
+}
+
+.celda-salida-error {
+  color: var(--color-fallo);
+  background: var(--color-fallo-fondo);
+}
+
+.celda-figura {
+  display: block;
+  max-width: 100%;
+  border-top: 1px solid var(--color-borde);
+}
+
+.formulario-celda {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.formulario-celda textarea {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.botones-celda {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
