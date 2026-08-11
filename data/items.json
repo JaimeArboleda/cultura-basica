@@ -58,6 +58,7 @@
     "elementos": [
       "Napoleón",
       "Julio César",
+      "Mao Zedong",
       "Alejandro Magno",
       "Isaac Newton",
       "Leonardo Da Vinci",
@@ -75,7 +76,8 @@
       "Leonardo Da Vinci",
       "Isaac Newton",
       "Napoleón",
-      "Karl Marx"
+      "Karl Marx",
+      "Mao Zedong"
     ],
     "categorias": null,
     "clasificacion_correcta": null,
@@ -101,7 +103,8 @@
       "Macbeth",
       "La Piedad",
       "Las señoritas de Avignon",
-      "La Regenta"
+      "La Regenta",
+      "Analectas"
     ],
     "elementos_ordenados": null,
     "categorias": [
@@ -115,7 +118,8 @@
       "William Shakespeare",
       "Rubens",
       "Francisco de Goya",
-      "Leopoldo Alas \"Clarín\""
+      "Leopoldo Alas \"Clarín\"",
+      "Confucio"
     ],
     "clasificacion_correcta": {
       "El entierro del Conde Orgaz": "El Greco",
@@ -125,7 +129,8 @@
       "Macbeth": "William Shakespeare",
       "La Piedad": "Miguel Ángel",
       "Las señoritas de Avignon": "Pablo Picasso",
-      "La Regenta": "Leopoldo Alas \"Clarín\""
+      "La Regenta": "Leopoldo Alas \"Clarín\"",
+      "Analectas": "Confucio"
     },
     "respuesta_canonica": null,
     "alias": null,
