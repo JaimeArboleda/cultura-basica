@@ -61,7 +61,7 @@ function campoSelect(id, etiqueta, opciones, { opcional = false } = {}) {
 
 export function html() {
   return `
-    <form id="form-demografia" novalidate>
+    <form id="form-demografia" class="formulario" novalidate>
       <label class="campo">
         <span>Año de nacimiento</span>
         <input id="anio_nacimiento" name="anio_nacimiento" type="number" inputmode="numeric"

@@ -75,7 +75,10 @@ export function html(item, respuestaPrevia) {
       // scroll de por medio; listas cortas se quedan en una sola columna, en
       // la que no aporta nada partir en dos. El número de posición se pinta
       // en línea con el propio texto (no en un badge aparte) para que las
-      // líneas que envuelven no queden indentadas bajo un hueco fijo.
+      // líneas que envuelven no queden indentadas bajo un hueco fijo. Las
+      // columnas se rebalancean tras cada arrastre (ver redistribuirColumnas
+      // en attachListeners) para que la mitad/mitad se mantenga siempre, en
+      // vez de permitir que una columna se quede vacía y la otra acumule todo.
       const mitad = Math.ceil(orden.length / 2);
       const columnas = orden.length > 4 ? [orden.slice(0, mitad), orden.slice(mitad)] : [orden];
       let numero = 0;
@@ -83,7 +86,6 @@ export function html(item, respuestaPrevia) {
         numero += 1;
         return `
             <li data-elemento="${escapar(el)}">
-              <span class="asa-arrastre" aria-hidden="true">⠿</span>
               <span class="texto-elemento"><span class="num-orden">${numero}.</span>${escapar(el)}</span>
             </li>`;
       };
@@ -105,9 +107,10 @@ export function html(item, respuestaPrevia) {
       // de una bandeja arriba y las cajas destino más abajo: evita el scroll
       // entre origen y destino que invitaba a rellenar deprisa y mal. Los
       // elementos no se mueven de la columna al asignarse (a diferencia de la
-      // "bandeja" anterior): se marcan con la categoría asignada y una entrada
-      // "Sin asignar" en la columna derecha permite desasignarlos igual que se
-      // asignan, con el mismo gesto de tocar/arrastrar.
+      // "bandeja" anterior): se marcan con la categoría asignada. Para
+      // desasignar no hay una entrada "Sin asignar" en la columna de categorías
+      // (ver attachListeners): basta con soltar el elemento de vuelta sobre la
+      // columna de elementos (arrastre) o tocarlo dos veces (toque).
       return `
         <div class="clasificar-columnas">
           <div class="clasificar-col">
@@ -128,7 +131,6 @@ export function html(item, respuestaPrevia) {
           <div class="clasificar-col">
             <h3 class="clasificar-col-titulo">Categorías</h3>
             <ul class="clasificar-lista" id="lista-categorias">
-              <li class="categoria-clasificar categoria-sin-asignar" data-categoria="">Sin asignar</li>
               ${item.categorias
                 .map((cat) => `<li class="categoria-clasificar" data-categoria="${escapar(cat)}">${escapar(cat)}</li>`)
                 .join("")}
@@ -194,6 +196,20 @@ export function attachListeners(root, item, onResponder) {
         n += 1;
         li.querySelector(".num-orden").textContent = `${n}.`;
       });
+    };
+
+    // Tras cada arrastre, reparte de nuevo los elementos a mitades iguales
+    // entre las dos columnas (misma proporción que el reparto inicial en
+    // html()), en vez de dejar que el usuario apile todo en una columna y
+    // vacíe la otra: toma el orden ya resultante del arrastre (izquierda→derecha,
+    // arriba→abajo) y reasigna esa secuencia a las columnas por mitades,
+    // preservando el orden relativo entre elementos.
+    const redistribuirColumnas = () => {
+      if (columnas.length < 2) return;
+      const enOrden = todosLosLi();
+      const mitad = Math.ceil(enOrden.length / 2);
+      columnas[0].append(...enOrden.slice(0, mitad));
+      columnas[1].append(...enOrden.slice(mitad));
     };
 
     // Arrastre con Pointer Events (funciona con ratón y con dedo, a diferencia
@@ -276,6 +292,7 @@ export function attachListeners(root, item, onResponder) {
         hueco.remove();
         hueco = null;
         arrastrando = null;
+        redistribuirColumnas();
         actualizarNumeros();
       };
       li.addEventListener("pointerup", soltar);
@@ -416,6 +433,10 @@ export function attachListeners(root, item, onResponder) {
         // peor que puede pasar es que el primero se quede sin asignar
         // (recuperable), nunca que se asigne a la categoría equivocada.
         if (seleccionado === elemento) {
+          // Segundo toque sobre el mismo elemento ya seleccionado: si estaba
+          // asignado, lo desasigna (no hay entrada "Sin asignar" en categorías
+          // para tocar como destino; ver comentario en html()).
+          if (elemento.classList.contains("elemento-asignado")) asignar(elemento, null);
           marcarSeleccion(null);
         } else {
           marcarSeleccion(elemento);
