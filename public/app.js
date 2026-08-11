@@ -139,7 +139,7 @@ function ejecutarTest(sesionId, itemsPendientes) {
         respuestas[item.id] = respuestaEnviada;
         if (editandoDesdeRevision) {
           editandoDesdeRevision = false;
-          mostrarRevisionFinal();
+          mostrarRevisionFinal(pos);
           return;
         }
         pos++;
@@ -161,16 +161,13 @@ function ejecutarTest(sesionId, itemsPendientes) {
           mostrarActual();
         }
       },
-      onVolverRevision: editandoDesdeRevision
-        ? () => {
-            editandoDesdeRevision = false;
-            mostrarRevisionFinal();
-          }
-        : null,
     });
   }
 
-  function mostrarRevisionFinal() {
+  // indiceDestacado (opcional): al volver de editar una pregunta concreta, se
+  // hace scroll hasta su tarjeta en vez de dejar la vista general en lo alto,
+  // para que quede claro cuál se acaba de modificar.
+  function mostrarRevisionFinal(indiceDestacado) {
     pantallaRevisionRespuestas(items, respuestas, yaRespondidos, total, {
       onEditar: (indice) => {
         pos = indice;
@@ -178,11 +175,19 @@ function ejecutarTest(sesionId, itemsPendientes) {
         mostrarActual();
       },
       onConfirmar: () => onTestCompleto(sesionId),
+      indiceDestacado,
     });
   }
 
   mostrarActual();
 }
+
+// Formatos con puntuación fraccionaria por sub-respuesta (README §4.4,
+// worker/src/puntuacion.ts): a diferencia de "abierto"/"opcion_multiple"
+// (todo o nada), aquí cada asignación/selección/pareja de orden cuenta por
+// separado, así que merece la pena avisar de que no hace falta rellenarlo
+// todo para sumar puntos.
+const FORMATOS_CON_NOTA_PARCIAL = new Set(["seleccion_multiple", "clasificar", "ordenar"]);
 
 function renderItemActual(
   sesionId,
@@ -190,7 +195,7 @@ function renderItemActual(
   posicion,
   total,
   respuestaPrevia,
-  { puedeVolver, puedeAvanzar, modoEdicion, onSiguiente, onAtras, onAdelante, onVolverRevision }
+  { puedeVolver, puedeAvanzar, modoEdicion, onSiguiente, onAtras, onAdelante }
 ) {
   const root = montar(`
     <section class="pantalla pantalla-item">
@@ -212,6 +217,11 @@ function renderItemActual(
       </div>
       ${item.texto ? `<p class="texto-lectura">${escaparHtml(item.texto)}</p>` : ""}
       <h2>${escaparHtml(item.enunciado)}</h2>
+      ${
+        FORMATOS_CON_NOTA_PARCIAL.has(item.formato)
+          ? `<p class="nota-formato">Rellena las que sepas; se puntúa cada asignación correcta por separado.</p>`
+          : ""
+      }
       <div id="zona-respuesta">${renderItem.html(item, respuestaPrevia)}</div>
     </section>`);
 
@@ -223,9 +233,12 @@ function renderItemActual(
   document.addEventListener("visibilitychange", onVisibility);
 
   if (modoEdicion) {
+    // "Volver a la revisión" guarda igual que "Responder" (dispara el mismo
+    // botón: todos los formatos permiten enviar en cualquier estado, ver
+    // attachListeners en render-item.js) en vez de descartar la edición, para
+    // que no se pierda un cambio hecho sin llegar a pulsar "Responder".
     root.querySelector("#boton-volver-revision").addEventListener("click", () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      onVolverRevision();
+      root.querySelector("#boton-responder").click();
     });
   } else if (puedeVolver) {
     root.querySelector("#boton-atras").addEventListener("click", () => {
@@ -266,7 +279,7 @@ function renderItemActual(
 // puedan corregir. "Confirmar y enviar" es lo que dispara el cálculo del
 // resultado (onTestCompleto); no reenvía nada por sí solo porque cada
 // respuesta ya se guardó al pulsar "Responder" en su momento.
-function pantallaRevisionRespuestas(items, respuestas, yaRespondidos, total, { onEditar, onConfirmar }) {
+function pantallaRevisionRespuestas(items, respuestas, yaRespondidos, total, { onEditar, onConfirmar, indiceDestacado }) {
   const root = montar(`
     <section class="pantalla">
       <h1>Revisa tus respuestas</h1>
@@ -295,6 +308,15 @@ function pantallaRevisionRespuestas(items, respuestas, yaRespondidos, total, { o
     boton.addEventListener("click", () => onEditar(Number(boton.dataset.indice)));
   });
   root.querySelector("#boton-confirmar-envio").addEventListener("click", onConfirmar);
+
+  if (indiceDestacado != null) {
+    const tarjeta = root.querySelectorAll(".pregunta-revision")[indiceDestacado];
+    if (tarjeta) {
+      tarjeta.scrollIntoView({ block: "center" });
+      tarjeta.classList.add("pregunta-revision-destacada");
+      setTimeout(() => tarjeta.classList.remove("pregunta-revision-destacada"), 1500);
+    }
+  }
 }
 
 function escaparHtml(s) {
@@ -397,17 +419,21 @@ function pantallaRevision(revision, resultado, onVolver) {
       <h1>Tus respuestas</h1>
       <div class="lista-revision">
         ${revision
-          .map(
-            (item) => `
+          .map((item) => {
+            const estado = renderItem.estadoRespuesta(item);
+            const etiqueta =
+              estado === "sin_respuesta" ? "Sin respuesta" : estado === "acierto" ? "Correcta" : "Incorrecta";
+            const clase = estado === "sin_respuesta" ? "sin-respuesta" : estado;
+            return `
           <article class="pregunta-revision">
             <div class="pregunta-revision-cabecera">
               <h2 class="pregunta-revision-enunciado">${escaparHtml(item.enunciado)}</h2>
-              <span class="etiqueta-acierto ${item.acierto ? "acierto" : "fallo"}">${item.acierto ? "Correcta" : "Incorrecta"}</span>
+              <span class="etiqueta-acierto ${clase}">${etiqueta}</span>
             </div>
             ${item.texto ? `<p class="texto-lectura">${escaparHtml(item.texto)}</p>` : ""}
             ${renderItem.htmlRevision(item)}
-          </article>`
-          )
+          </article>`;
+          })
           .join("")}
       </div>
     </section>`);

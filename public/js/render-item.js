@@ -423,7 +423,9 @@ export function htmlResumen(item, respuesta) {
 
     case "seleccion_multiple": {
       const elegidas = Array.isArray(respuesta) ? respuesta.map((i) => item.opciones[i]).filter(Boolean) : [];
-      return `<p class="resumen-respuesta">${elegidas.length ? elegidas.map(escapar).join(", ") : "(sin respuesta)"}</p>`;
+      return elegidas.length
+        ? `<ul class="resumen-lista">${elegidas.map((el) => `<li>${escapar(el)}</li>`).join("")}</ul>`
+        : `<p class="resumen-respuesta">(sin respuesta)</p>`;
     }
 
     case "ordenar": {
@@ -444,7 +446,7 @@ export function htmlResumen(item, respuesta) {
                 ${
                   elementos.length
                     ? elementos.map((el) => `<span class="resumen-clasificar-elemento">${escapar(el)}</span>`).join("")
-                    : `<span class="resumen-clasificar-vacio">(sin clasificar)</span>`
+                    : `<span class="resumen-clasificar-vacio">(sin elementos)</span>`
                 }
               </div>`;
             })
@@ -455,6 +457,30 @@ export function htmlResumen(item, respuesta) {
     default:
       return "";
   }
+}
+
+// Estado del badge en la pantalla "ver mis respuestas" (README §3): además de
+// acierto/fallo (que vienen del Worker ya calculados), distingue "sin_respuesta"
+// cuando el usuario no llegó a contestar nada, para no confundirlo con un fallo
+// activo. "ordenar" nunca puede quedar sin respuesta: siempre envía una
+// permutación completa (aunque sea la de partida sin tocar).
+export function estadoRespuesta(item) {
+  const r = item.respuesta_usuario;
+  switch (item.formato) {
+    case "abierto":
+      if (typeof r !== "string" || r.trim() === "") return "sin_respuesta";
+      break;
+    case "opcion_multiple":
+      if (r == null || r === -1) return "sin_respuesta";
+      break;
+    case "seleccion_multiple":
+      if (!Array.isArray(r) || r.length === 0) return "sin_respuesta";
+      break;
+    case "clasificar":
+      if (!r || typeof r !== "object" || Array.isArray(r) || Object.keys(r).length === 0) return "sin_respuesta";
+      break;
+  }
+  return item.acierto ? "acierto" : "fallo";
 }
 
 // Renderizado de solo lectura para la pantalla "ver respuestas" (README §3): toma
