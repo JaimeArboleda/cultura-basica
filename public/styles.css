@@ -668,6 +668,13 @@ h2 {
   background: var(--color-fallo-fondo);
   color: var(--color-fallo);
 }
+.revision-clasificar-elemento.no-marcada {
+  border-style: dashed;
+}
+.revision-clasificar-elemento .marca {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
 
 @media (min-width: 700px) {
   .columna-ordenar li:hover {
