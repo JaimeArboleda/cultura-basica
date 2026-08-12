@@ -74,6 +74,12 @@ CREATE TABLE respuestas (
   respuesta_cruda   TEXT,
   opcion_elegida    INTEGER,                 -- índice 0-5, NULL si no es opcion_multiple
   acierto           INTEGER,                 -- 0/1
+  -- Puntuación fraccionaria [0,1] de esta respuesta (parcial para
+  -- seleccion_multiple/clasificar/ordenar, igual a `acierto` para el resto — ver
+  -- worker/src/puntuacion.ts). Es el sumando de sesiones.puntuacion_total; se
+  -- persiste aquí para no depender de recalcularla contra un banco de ítems que
+  -- puede cambiar. NULL en filas anteriores a este campo.
+  puntuacion        REAL,
   estado_correccion TEXT DEFAULT 'auto',     -- 'auto'|'parcial'|'pendiente_revision'|'manual'
   t_ms              INTEGER,
   orden_presentacion INTEGER,

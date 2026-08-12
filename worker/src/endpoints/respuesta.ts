@@ -17,7 +17,7 @@ import {
 } from "../correccion";
 import { error, json } from "../http";
 import { itemsPorId, obtenerItem } from "../items";
-import { puntuarSesion } from "../puntuacion";
+import { puntuarItem, puntuarSesion } from "../puntuacion";
 import type { Env, Item } from "../tipos";
 
 function corregir(item: Item, respuesta: unknown): ResultadoCorreccion | null {
@@ -76,6 +76,7 @@ export async function postRespuesta(request: Request, env: Env): Promise<Respons
     respuestaCruda: JSON.stringify(b.respuesta),
     opcionElegida,
     acierto: resultado.acierto,
+    puntuacion: puntuarItem(item, b.respuesta),
     estadoCorreccion: resultado.estado_correccion,
     tMs,
     ordenPresentacion: asignacion.orden_presentacion,

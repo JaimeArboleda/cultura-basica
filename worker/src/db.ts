@@ -101,6 +101,7 @@ export interface RespuestaInput {
   respuestaCruda: string; // ya serializada con JSON.stringify por el endpoint
   opcionElegida: number | null;
   acierto: 0 | 1;
+  puntuacion: number;
   estadoCorreccion: string;
   tMs: number | null;
   ordenPresentacion: number;
@@ -111,13 +112,14 @@ export interface RespuestaInput {
 export async function upsertRespuesta(env: Env, r: RespuestaInput): Promise<void> {
   await env.DB.prepare(
     `INSERT INTO respuestas (
-       sesion_id, item_id, respuesta_cruda, opcion_elegida, acierto,
+       sesion_id, item_id, respuesta_cruda, opcion_elegida, acierto, puntuacion,
        estado_correccion, t_ms, orden_presentacion, perdio_foco, enviada_en
-     ) VALUES (?,?,?,?,?,?,?,?,?,?)
+     ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
      ON CONFLICT(sesion_id, item_id) DO UPDATE SET
        respuesta_cruda = excluded.respuesta_cruda,
        opcion_elegida = excluded.opcion_elegida,
        acierto = excluded.acierto,
+       puntuacion = excluded.puntuacion,
        estado_correccion = excluded.estado_correccion,
        t_ms = excluded.t_ms,
        orden_presentacion = excluded.orden_presentacion,
@@ -130,6 +132,7 @@ export async function upsertRespuesta(env: Env, r: RespuestaInput): Promise<void
       r.respuestaCruda,
       r.opcionElegida,
       r.acierto,
+      r.puntuacion,
       r.estadoCorreccion,
       r.tMs,
       r.ordenPresentacion,
@@ -297,6 +300,7 @@ export interface FilaRespuestaAdmin {
   respuesta_cruda: string | null;
   opcion_elegida: number | null;
   acierto: number | null;
+  puntuacion: number | null;
   estado_correccion: string;
   t_ms: number | null;
   orden_presentacion: number | null;
@@ -335,7 +339,7 @@ export async function obtenerDatasetCompleto(env: Env, tokenId?: string): Promis
       .bind(...bindsSesiones)
       .all<FilaSesionAdmin>(),
     env.DB.prepare(
-      `SELECT sesion_id, item_id, respuesta_cruda, opcion_elegida, acierto, estado_correccion, t_ms,
+      `SELECT sesion_id, item_id, respuesta_cruda, opcion_elegida, acierto, puntuacion, estado_correccion, t_ms,
               orden_presentacion, perdio_foco, enviada_en
        FROM respuestas ${condicionRespuestas} ORDER BY sesion_id, orden_presentacion`
     )
