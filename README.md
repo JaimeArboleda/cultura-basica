@@ -682,6 +682,15 @@ npx wrangler d1 execute cultura-basica --remote \
   --command="ALTER TABLE sesiones ADD COLUMN sexo TEXT"
 ```
 
+Ejemplo real ya aplicado: `respuestas.puntuacion` (puntuación fraccionaria [0,1] de
+cada respuesta, antes solo calculada al vuelo para la nota global y ahora también
+persistida por fila — `worker/src/puntuacion.ts`):
+
+```bash
+npx wrangler d1 execute cultura-basica --remote \
+  --command="ALTER TABLE respuestas ADD COLUMN puntuacion REAL"
+```
+
 ### 4.5 Control de acceso y panel de administración (issue #2)
 
 **Motivación:** publicado sin control, el test es vulnerable a respuestas fuera del

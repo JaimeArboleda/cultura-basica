@@ -378,7 +378,7 @@ const COLUMNAS_CSV = {
     "estudios_mayor_progenitor", "libros_en_casa",
   ],
   "respuestas.csv": [
-    "sesion_id", "item_id", "respuesta_cruda", "opcion_elegida", "acierto", "estado_correccion", "t_ms",
+    "sesion_id", "item_id", "respuesta_cruda", "opcion_elegida", "acierto", "puntuacion", "estado_correccion", "t_ms",
     "orden_presentacion", "perdio_foco", "enviada_en",
   ],
   "tokens.csv": ["id", "descripcion"],
