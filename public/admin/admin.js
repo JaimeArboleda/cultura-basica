@@ -748,6 +748,55 @@ async function renderTokens(contenedor, recargar) {
 
 // --- Pestaña: Sesiones ---
 
+// Modal genérico de solo lectura (a diferencia de pedirConfirmacionTexto, que
+// pide confirmación): se usa para "Ver datos demográficos".
+function mostrarModalInfo({ titulo, contenidoHtml }) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-caja" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+      <h2 id="modal-titulo">${escaparHtml(titulo)}</h2>
+      ${contenidoHtml}
+      <div class="modal-botones">
+        <button type="button" class="boton-principal" data-accion="cerrar">Cerrar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const cerrar = () => {
+    overlay.remove();
+    document.removeEventListener("keydown", alPulsarEscape);
+  };
+  function alPulsarEscape(ev) {
+    if (ev.key === "Escape") cerrar();
+  }
+  overlay.addEventListener("click", (ev) => {
+    if (ev.target === overlay) cerrar();
+  });
+  overlay.querySelector('[data-accion="cerrar"]').addEventListener("click", cerrar);
+  document.addEventListener("keydown", alPulsarEscape);
+}
+
+// Mismos campos que CATALOGOS en public/js/demografia.js, más año de nacimiento.
+const ETIQUETAS_DEMOGRAFIA = {
+  anio_nacimiento: "Año de nacimiento",
+  sexo: "Sexo",
+  ccaa_educacion_secundaria: "CCAA de educación secundaria",
+  nivel_estudios: "Nivel de estudios",
+  area_estudios: "Área de estudios",
+  estudios_mayor_progenitor: "Mayor nivel de estudios de su padre o madre",
+  libros_en_casa: "Libros en casa a los 15 años (aprox.)",
+};
+
+function mostrarDatosDemograficos(sesion) {
+  const filas = Object.entries(ETIQUETAS_DEMOGRAFIA)
+    .map(
+      ([clave, etiqueta]) => `<li><strong>${escaparHtml(etiqueta)}:</strong> ${escaparHtml(String(sesion[clave] ?? "—"))}</li>`
+    )
+    .join("");
+  mostrarModalInfo({ titulo: "Datos demográficos", contenidoHtml: `<ul class="lista-demografia">${filas}</ul>` });
+}
+
 async function renderSesiones(contenedor) {
   const { tokens } = await api.tokens();
   contenedor.innerHTML = `
@@ -794,7 +843,11 @@ async function renderSesiones(contenedor) {
                 <td>${s.puntuacion_total != null ? s.puntuacion_total.toFixed(1) : "—"}</td>
                 <td>${escaparHtml(s.sexo ?? "—")}</td>
                 <td>${escaparHtml(s.nivel_estudios ?? "—")}</td>
-                <td><button type="button" class="boton-tabla boton-peligro" data-borrar-sesion="${s.id}">Borrar</button></td>
+                <td class="acciones-tabla">
+                  <a class="boton-tabla" href="${location.origin}/?resultado=${encodeURIComponent(s.id)}" target="_blank" rel="noopener">Ver respuestas</a>
+                  <button type="button" class="boton-tabla" data-ver-demografia="${s.id}">Ver datos demográficos</button>
+                  <button type="button" class="boton-tabla boton-peligro" data-borrar-sesion="${s.id}">Borrar</button>
+                </td>
               </tr>`
               )
               .join("")}
@@ -802,6 +855,13 @@ async function renderSesiones(contenedor) {
         </table>
       </div>
       <p class="nota-formato">${sesiones.length} sesión(es)</p>`;
+
+    destino.querySelectorAll("[data-ver-demografia]").forEach((boton) => {
+      boton.addEventListener("click", () => {
+        const sesion = sesiones.find((s) => s.id === boton.dataset.verDemografia);
+        if (sesion) mostrarDatosDemograficos(sesion);
+      });
+    });
 
     destino.querySelectorAll("[data-borrar-sesion]").forEach((boton) => {
       boton.addEventListener("click", async () => {
