@@ -20,7 +20,7 @@
   "elementos_ordenados": null,
   "categorias": [
     "Impresionismo",
-    "Renacentista",
+    "Renacimiento",
     "Clasicismo",
     "Barroco",
     "Romanticismo"
@@ -34,8 +34,8 @@
     "Chopin": "Romanticismo",
     "Ravel": "Impresionismo",
     "Debussy": "Impresionismo",
-    "Palestrina": "Renacentista",
-    "Tomás Luis de Victoria": "Renacentista"
+    "Palestrina": "Renacimiento",
+    "Tomás Luis de Victoria": "Renacimiento"
   },
   "respuesta_canonica": null,
   "alias": null,
