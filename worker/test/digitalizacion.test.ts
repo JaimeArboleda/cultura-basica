@@ -130,12 +130,16 @@ describe("POST /api/admin/digitalizacion", () => {
       puntuacion_total: number;
       token_id: string;
       user_agent_clase: string | null;
+      version_papel: number | null;
     }>();
     expect(fila?.origen).toBe("papel");
     expect(fila?.completo).toBe(1);
     expect(fila?.token_id).toBe(token.id);
     expect(fila?.user_agent_clase).toBeNull();
     expect(fila?.puntuacion_total).toBeCloseTo(bancoItems.length, 5);
+    // Sin version_papel en el body (hoja de antes de que existiera este
+    // campo, o pipeline que no lo manda): se asume 1.
+    expect(fila?.version_papel).toBe(1);
 
     const conteoRespuestas = await env.DB.prepare("SELECT COUNT(*) AS n FROM respuestas WHERE sesion_id = ?")
       .bind(sesion_id)
@@ -152,6 +156,34 @@ describe("POST /api/admin/digitalizacion", () => {
     const { sesiones } = (await listado.json()) as { sesiones: { id: string; origen: string }[] };
     const sesionListada = sesiones.find((s) => s.id === sesion_id);
     expect(sesionListada?.origen).toBe("papel");
+  });
+
+  it("guarda la version_papel enviada por el cliente, para poder comparar pipelines en el dataset", async () => {
+    const auth = await tokenAdmin();
+    const token = await crearTokenViaAdmin(auth);
+
+    const res = await fetchAdmin(
+      "/api/admin/digitalizacion",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          token_id: token.id,
+          version_papel: 2,
+          consentimiento: true,
+          compromiso_honestidad: true,
+          demografia: demografiaValida(),
+          respuestas: todasLasRespuestasCorrectas(),
+        }),
+      },
+      auth
+    );
+    expect(res.status).toBe(201);
+    const { sesion_id } = (await res.json()) as { sesion_id: string };
+
+    const fila = await env.DB.prepare("SELECT version_papel FROM sesiones WHERE id = ?")
+      .bind(sesion_id)
+      .first<{ version_papel: number | null }>();
+    expect(fila?.version_papel).toBe(2);
   });
 
   it("deja en blanco (sin fila) un ítem ausente de 'respuestas', y la sesión queda en progreso", async () => {

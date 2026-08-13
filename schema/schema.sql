@@ -56,6 +56,13 @@ CREATE TABLE sesiones (
   -- en el panel de admin, README §4.7). DEFAULT 'web' para no requerir el campo en
   -- las inserciones existentes (worker/src/db.ts::crearSesion).
   origen            TEXT NOT NULL DEFAULT 'web',
+  -- Versión del pipeline de hoja/digitalización en papel (README §4.7/§4.9):
+  -- NULL si origen='web'. Permite que convivan varios diseños de hoja
+  -- (public/admin/papel/v1, v2...) y comparar en los datos cuál funciona
+  -- mejor, sin que el resto del backend (worker/src/correccion.ts) necesite
+  -- saber nada de versiones: la corrección ya opera sobre la respuesta
+  -- decodificada, no sobre cómo se capturó.
+  version_papel     INTEGER,
   -- demografía
   anio_nacimiento   INTEGER,
   sexo              TEXT,

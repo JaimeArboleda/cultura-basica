@@ -7,7 +7,7 @@
 // cookies. El token llega en el fragmento de la URL tras el login (ver init())
 // y se guarda en localStorage.
 //
-import { renderDigitalizar } from "./digitalizar.js";
+import { renderDigitalizar } from "./papel/v1/digitalizar.js";
 import { renderEditarSesion } from "./editarSesion.js";
 
 // API_BASE duplica intencionalmente la constante de ../js/api.js: son despliegues

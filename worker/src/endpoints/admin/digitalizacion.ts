@@ -2,7 +2,7 @@
 // genera una hoja de respuestas de tipo OMR (casillas a rellenar) + unos pocos
 // recuadros de texto libre para los ítems 'abierto', y esta pieza recibe ya la
 // interpretación hecha en el navegador del admin (bubbles decodificadas +
-// OCR de Tesseract.js sobre los recuadros de texto, public/admin/digitalizar.js)
+// OCR de Tesseract.js sobre los recuadros de texto, public/admin/papel/v1/digitalizar.js)
 // para convertirla en una sesión normal — misma corrección y puntuación que
 // una sesión respondida en la web, solo cambia de dónde vino la respuesta cruda.
 import { crearSesion, marcarCompleto, obtenerToken, upsertRespuesta } from "../../db";
@@ -16,7 +16,7 @@ import { validarDemografia } from "../../validacion";
 
 // GET /api/admin/items-impresion: el banco completo en el orden fijo de
 // presentación (README §1.4), sin respuestas correctas — para que
-// public/admin/hoja.js pueda generar la hoja imprimible. Reutiliza exactamente
+// public/admin/papel/v1/hoja.js pueda generar la hoja imprimible. Reutiliza exactamente
 // paraCliente()/ordenarTest(), los mismos que usa POST /api/sesion, así que la
 // hoja impresa siempre coincide con lo que ve quien hace el test en la web.
 export async function getItemsImpresion(env: Env): Promise<Response> {
@@ -66,6 +66,12 @@ export async function postDigitalizacion(request: Request, env: Env): Promise<Re
   }
   const mapaRespuestas = respuestasEntrada as Record<string, unknown>;
 
+  // Versión del pipeline de hoja/digitalización que generó esta respuesta
+  // (public/admin/papel/v1, v2...; README §4.9): la envía el propio cliente,
+  // leída del QR de la hoja escaneada. 1 si no viene (hojas de antes de que
+  // existiera este campo, o del primer pipeline).
+  const versionPapel = typeof b.version_papel === "number" ? b.version_papel : 1;
+
   const id = crypto.randomUUID();
   const asignaciones = ordenarTest(bancoItems);
   const creadaEn = new Date().toISOString();
@@ -78,6 +84,7 @@ export async function postDigitalizacion(request: Request, env: Env): Promise<Re
     asignaciones,
     tokenId,
     origen: "papel",
+    versionPapel,
   });
 
   // Igual que un abandono parcial en la web: un ítem que la persona dejó en

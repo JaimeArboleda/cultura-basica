@@ -254,8 +254,11 @@ a CSV.
 │   │   ├── index.html
 │   │   ├── admin.js
 │   │   ├── admin.css
-│   │   ├── hoja.js       # Maquetación de la hoja OMR (§4.7)
-│   │   ├── digitalizar.js # Impresión + escaneo/OCR de tests en papel (§4.7)
+│   │   ├── papel/
+│   │   │   ├── comun.js  # Helpers compartidos por TODAS las versiones del pipeline de papel (§4.9)
+│   │   │   └── v1/
+│   │   │       ├── hoja.js       # Maquetación de la hoja OMR v1 (§4.7)
+│   │   │       └── digitalizar.js # Impresión + escaneo/OCR v1 de tests en papel (§4.7)
 │   │   └── editarSesion.js # Edición de demografía/respuestas de cualquier sesión (§4.8)
 │   └── styles.css
 ├── worker/              # Cloudflare Worker (API)
@@ -904,41 +907,59 @@ esas respuestas en el mismo dataset que las sesiones web, bajo el mismo
 control de acceso por token (§4.5) — sin depender de una API de pago de
 visión, dado el volumen del piloto (300-400 sesiones, §6).
 
-**Decisión de diseño: la hoja es casi toda "rellena una burbuja", no letra
-manuscrita.** Opción múltiple y selección múltiple ya son burbujas/casillas
-de forma natural; `ordenar` y `clasificar` se resuelven igual, con una
-rejilla de burbujas por elemento (una burbuja por posición o por categoría,
-en vez de escribir un número o una letra a mano). Eso convierte la mayor
-parte de la hoja en un problema de **OMR** (reconocimiento de marcas:
-umbralizar cuánta tinta hay en una región conocida), que es determinista y no
-necesita ningún modelo — ni de pago ni local. Solo los ~10 ítems `abierto` y
-el año de nacimiento piden texto, y ahí se pide **MAYÚSCULAS de imprenta, una
-letra por casilla** para maximizar el acierto del OCR.
+**Pipeline versionado (`public/admin/papel/`): pueden convivir varios
+diseños de hoja.** `public/admin/papel/comun.js` reúne todo lo que no
+depende de cómo se marca una respuesta (geometría de página, paginado,
+homografía, OCR, QR, detección de fiduciales); cada versión concreta
+(`public/admin/papel/v1/`, y las que se añadan después) define solo su
+propio `hoja.js` (maquetación + CSS) y `digitalizar.js` (cómo se interpreta
+una marca). El propio QR de la hoja (§4.9) lleva la versión además del
+`token_id`, y esa versión se guarda en `sesiones.version_papel` — así se
+puede comparar en el dataset qué pipeline funciona mejor sin que el resto
+del backend necesite saber nada de versiones: `worker/src/correccion.ts` ya
+opera sobre la respuesta decodificada (número/array/objeto), no sobre cómo
+se capturó, así que es exactamente el mismo código para cualquier versión.
 
-**Pipeline, todo en el navegador del admin, sin coste:**
-1. **Impresión** (`public/admin/hoja.js`): construye la hoja a partir de
-   `GET /api/admin/items-impresion` (mismo `paraCliente()`/`ordenarTest()` que
-   ve la web, así que hoja y web nunca pueden divergir en contenido). El
-   maquetado usa HTML/CSS real (no canvas): cada bloque de ítem/demografía se
-   mide con `getBoundingClientRect()` en un contenedor oculto del mismo ancho
-   que la página impresa y se empaqueta vorazmente en páginas A4 sin partir
-   ningún bloque — el número de páginas es dinámico según cuánto ocupe el
-   banco en ese momento, no un valor fijo. La versión en PDF sale del propio
-   diálogo de impresión del navegador ("Guardar como PDF"): no hace falta
-   ninguna librería de generación de PDF.
-2. **Escaneo** (`public/admin/digitalizar.js`): el admin sube una foto/escaneo
-   por página y ajusta 4 puntos sobre las esquinas de la hoja. Con esas 4
-   correspondencias se resuelve una **homografía** (sistema lineal 8×8, sin
-   ninguna librería de visión) y se "endereza" la foto a un canvas del tamaño
-   exacto de la página de referencia (interpolación bilineal, warping
-   inverso). Sobre esa imagen ya alineada, cada burbuja se muestrea en la
-   coordenada exacta medida en el paso 1 (fracción de tinta en la región:
-   burbuja rellena si supera un umbral, ajustable en
-   `digitalizar.js::UMBRAL_MARCA`) y cada recuadro de texto libre se recorta y
-   se pasa por **[Tesseract.js](https://tesseract.projectnaptha.com/)** (WASM,
-   cargado bajo demanda desde CDN — mismo patrón que Pyodide en "Estadísticas
-   avanzadas", §4.5). Nada de esto sale del navegador salvo el resultado final
-   ya revisado, que se manda a `POST /api/admin/digitalizacion`.
+**v1 — decisión de diseño: la hoja es casi toda "rellena una burbuja", no
+letra manuscrita.** Opción múltiple y selección múltiple ya son
+burbujas/casillas de forma natural; `ordenar` y `clasificar` se resuelven
+igual, con una rejilla de burbujas por elemento (una burbuja por posición o
+por categoría, en vez de escribir un número o una letra a mano). Eso
+convierte la mayor parte de la hoja en un problema de **OMR** (reconocimiento
+de marcas: umbralizar cuánta tinta hay en una región conocida), que es
+determinista y no necesita ningún modelo — ni de pago ni local. Solo los ~10
+ítems `abierto` y el año de nacimiento piden texto, y ahí se pide
+**MAYÚSCULAS de imprenta, una letra por casilla** para maximizar el acierto
+del OCR (una única línea de casillas: de sobra para una respuesta breve tipo
+alias, sin ocupar más espacio del necesario).
+
+**Pipeline v1, todo en el navegador del admin, sin coste:**
+1. **Impresión** (`public/admin/papel/v1/hoja.js`): construye la hoja a
+   partir de `GET /api/admin/items-impresion` (mismo
+   `paraCliente()`/`ordenarTest()` que ve la web, así que hoja y web nunca
+   pueden divergir en contenido). El maquetado usa HTML/CSS real (no
+   canvas): cada bloque de ítem/demografía se mide con
+   `getBoundingClientRect()` en un contenedor oculto del mismo ancho que la
+   página impresa y se empaqueta vorazmente en páginas A4 sin partir ningún
+   bloque (`papel/comun.js::construirPaginas`) — el número de páginas es
+   dinámico según cuánto ocupe el banco en ese momento, no un valor fijo. La
+   versión en PDF sale del propio diálogo de impresión del navegador
+   ("Guardar como PDF"): no hace falta ninguna librería de generación de PDF.
+2. **Escaneo** (`public/admin/papel/v1/digitalizar.js`): el admin sube una
+   foto/escaneo por página y ajusta 4 puntos sobre las esquinas de la hoja.
+   Con esas 4 correspondencias se resuelve una **homografía** (sistema
+   lineal 8×8, sin ninguna librería de visión, `papel/comun.js`) y se
+   "endereza" la foto a un canvas del tamaño exacto de la página de
+   referencia (interpolación bilineal, warping inverso). Sobre esa imagen ya
+   alineada, cada burbuja se muestrea en la coordenada exacta medida en el
+   paso 1 (fracción de tinta en la región: burbuja rellena si supera un
+   umbral, ajustable en `papel/v1/digitalizar.js::UMBRAL_MARCA`) y cada
+   recuadro de texto libre se recorta y se pasa por
+   **[Tesseract.js](https://tesseract.projectnaptha.com/)** (WASM, cargado
+   bajo demanda desde CDN — mismo patrón que Pyodide en "Estadísticas
+   avanzadas", §4.5, ambos en `papel/comun.js`). Nada de esto sale del
+   navegador salvo el resultado final ya revisado, que se manda a `POST
+   /api/admin/digitalizacion`.
 3. **Confirmación mínima y traspaso a la edición (§4.8), no una revisión
    aparte de las 25 respuestas.** Tras escanear todas las páginas, la única
    pantalla propia de este flujo pide confirmar lo imprescindible para poder
@@ -951,7 +972,10 @@ letra por casilla** para maximizar el acierto del OCR.
    revisión sistemática del 5-10% de respuestas abiertas de la web (§1.6) —
    el admin puede corregir el 100% ahí mismo, porque el volumen de hojas en
    papel es bajo y el coste de revisar es prácticamente cero comparado con
-   dejar pasar un error de OCR/OMR sin detectar.
+   dejar pasar un error de OCR/OMR sin detectar. El año de nacimiento no
+   lleva bloque de Corrección propio (a diferencia de los ítems del test,
+   ver más abajo): un error ahí se resuelve también en esta revisión, igual
+   que el resto de demografía.
 
 **`POST /api/admin/digitalizacion`** crea la sesión igual que `POST
 /api/sesion` (mismo `ordenarTest()`, misma tabla `sesion_items`) pero:
@@ -961,13 +985,15 @@ letra por casilla** para maximizar el acierto del OCR.
   ventana de validez del token y digitalizarse después.
 - Corrige y puntúa con el mismo `corregirRespuesta()`/`puntuarItem()` que usa
   `POST /api/respuesta` (extraído a `worker/src/correccion.ts` para
-  compartirlo entre los dos flujos): una respuesta ya interpretada por
-  OMR/OCR se trata exactamente igual que una tecleada en la web.
+  compartirlo entre los dos flujos, y entre todas las versiones del pipeline
+  de papel): una respuesta ya interpretada por OMR/OCR se trata exactamente
+  igual que una tecleada en la web.
 - Marca la sesión con **`sesiones.origen = 'papel'`** (frente a `'web'` por
-  defecto), visible en la pestaña Sesiones del panel y en el dataset/CSV —
-  para poder controlar por modalidad de respuesta en el análisis (§7) si se
-  detectaran diferencias sistemáticas entre hacer el test en papel y en
-  pantalla.
+  defecto) y **`sesiones.version_papel`** con la versión del pipeline
+  (leída del QR, `1` si el cliente no la manda), visibles en la pestaña
+  Sesiones del panel y en el dataset/CSV — para poder controlar por
+  modalidad de respuesta y por versión de hoja en el análisis (§7) si se
+  detectaran diferencias sistemáticas.
 
 **Migrar una D1 ya desplegada** (test publicado antes de esta funcionalidad),
 igual que los ejemplos de §4.4:
@@ -975,9 +1001,11 @@ igual que los ejemplos de §4.4:
 ```bash
 npx wrangler d1 execute cultura-basica --remote \
   --command="ALTER TABLE sesiones ADD COLUMN origen TEXT NOT NULL DEFAULT 'web'"
+npx wrangler d1 execute cultura-basica --remote \
+  --command="ALTER TABLE sesiones ADD COLUMN version_papel INTEGER"
 ```
 
-**Qué falta validar con pruebas reales en papel** (por eso es una primera
+**Qué falta validar con pruebas reales en papel** (por eso v1 es una primera
 versión, no la definitiva): la calidad de Tesseract.js sobre letra manuscrita
 real (aunque sea en mayúsculas de imprenta separadas) es la incógnita
 principal, y el umbral de OMR puede necesitar ajuste según el escáner/cámara
@@ -985,7 +1013,10 @@ y el tipo de bolígrafo. Si tras el piloto en papel la tasa de error resulta
 demasiado alta para el volumen de hojas, la opción de subir a una API de
 visión de pago (p. ej. con soporte de `vision` en el modelo) queda abierta
 como mejora futura — pero acotada solo a los recuadros de texto libre, ya que
-el resto de la hoja (OMR) no se beneficia de un modelo más caro.
+el resto de la hoja (OMR) no se beneficia de un modelo más caro. El
+versionado del pipeline (arriba) es precisamente para poder probar
+alternativas de diseño (p. ej. una v2 que resuelva todo por OCR de letras en
+vez de OMR) sin perder v1 ni tener que decidir de antemano cuál es mejor.
 
 ### 4.8 Edición de demografía y respuestas desde el panel
 
@@ -1015,11 +1046,13 @@ reemplaza el conjunto, no lo extiende. `origen` y `token_id` nunca cambian al
 editar: son procedencia de la sesión, no datos a corregir.
 
 **Digitalizar lleva directamente a editar (§4.7): "revisión instantánea".**
-Tras crear una sesión desde una hoja escaneada, `digitalizar.js` abre
+Tras crear una sesión desde una hoja escaneada, el `digitalizar.js` de la
+versión de pipeline correspondiente (p. ej. `papel/v1/digitalizar.js`) abre
 `editarSesion.js` sobre esa misma sesión en vez de mantener un formulario de
 revisión propio — así la corrección de las 25 respuestas ocurre siempre en
-la misma pantalla, tanto si la sesión viene de digitalizar como si se edita
-después desde Sesiones, sin dos formularios que mantener sincronizados.
+la misma pantalla, tanto si la sesión viene de digitalizar (de cualquier
+versión) como si se edita después desde Sesiones, sin dos formularios que
+mantener sincronizados.
 
 - Pantalla de **consentimiento informado** antes de nada: finalidad, responsable,
   carácter anónimo, derecho a abandonar.
@@ -1036,41 +1069,45 @@ después desde Sesiones, sin dos formularios que mantener sincronizados.
   Gmail del propio equipo del estudio (autenticación del panel), no de
   participantes.
 
-### 4.9 Código QR con el token de la remesa en la hoja impresa
+### 4.9 Código QR con el token de la remesa y la versión del pipeline
 
 **Motivación:** cuando un colaborador externo reparte hojas impresas a un
 colectivo (§4.7) y luego las devuelve digitalizadas, el admin tiene que saber
-a qué remesa (`token_id`) pertenece cada hoja para poder digitalizarla. En
-vez de fiarse de que quede anotado a mano o de tener que preguntar, la propia
-hoja lleva esa información: un **código QR con el `token_id` en texto
-plano**, impreso en la página de demografía junto al resto de marcas
-(fiduciales, §4.7). No lleva ningún dato de la persona ni de una sesión
-concreta — la sesión aún no existe en el momento de imprimir — solo identifica
-la remesa, igual que el propio token ya identifica un lote de hojas con la
-misma fecha de caducidad.
+a qué remesa (`token_id`) pertenece cada hoja para poder digitalizarla —y,
+existiendo ya más de una versión del pipeline de papel, con qué versión se
+imprimió, para poder despachar al decodificador correcto sin tener que
+recordarlo a mano. En vez de fiarse de que quede anotado o de tener que
+preguntar, la propia hoja lleva esa información: un **código QR con
+`{token_id, version}` en JSON** (`papel/comun.js::codificarPayloadQr`),
+impreso en la página de demografía junto al resto de marcas (fiduciales,
+§4.7). No lleva ningún dato de la persona ni de una sesión concreta — la
+sesión aún no existe en el momento de imprimir.
 
 **Por qué QR y no PDF417 u otro simbología 1D/2D:** el contenido a codificar
-es corto (un UUID, ~36 caracteres) y no hay dispositivo lector dedicado — se
-decodifica con la misma cámara/foto que ya se usa para el OMR, en el propio
-navegador. Para ese caso QR es la opción más simple: hay librerías JS
-maduras y pequeñas tanto para generar (`qrcode-generator`) como para leer
-(`jsQR`) sin dependencias nativas, con mejor tolerancia a ruido/perspectiva
-que PDF417 a la resolución de una foto de móvil, y sin necesitar más
-precisión de las que ya exige leer las burbujas de OMR de al lado.
+es corto y no hay dispositivo lector dedicado — se decodifica con la misma
+cámara/foto que ya se usa para el OMR, en el propio navegador. Para ese caso
+QR es la opción más simple: hay librerías JS maduras y pequeñas tanto para
+generar (`qrcode-generator`) como para leer (`jsQR`) sin dependencias
+nativas, con mejor tolerancia a ruido/perspectiva que PDF417 a la resolución
+de una foto de móvil, y sin necesitar más precisión de las que ya exige leer
+las burbujas de OMR de al lado.
 
-**Impresión** (`hoja.js::construirBloquesDemografia`): si se pasa un `qr`
-(`{dataUrl, tokenId}`) a `construirHoja()`, se antepone un bloque con la
-imagen del QR (generada por `digitalizar.js::generarQrDataUrl`, vía
-`qrcode-generator` cargado bajo demanda desde CDN — mismo patrón que
-Tesseract.js) y el `token_id` en texto por si hace falta leerlo a ojo. El
-botón de imprimir del panel (`digitalizar.js`, sección 1) exige elegir la
-remesa de una lista antes de generar la hoja, precisamente para poder
-generar ese QR.
+**Impresión** (`papel/v1/hoja.js::construirBloquesDemografia`): si se pasa un
+`qr` (`{dataUrl, tokenId}`) a `construirHoja()`, se antepone un bloque con la
+imagen del QR (generada por `papel/comun.js::generarQrDataUrl` sobre el
+payload de `codificarPayloadQr({tokenId, version})`, vía `qrcode-generator`
+cargado bajo demanda desde CDN — mismo patrón que Tesseract.js) y el
+`token_id` en texto por si hace falta leerlo a ojo. El botón de imprimir del
+panel exige elegir la remesa de una lista antes de generar la hoja,
+precisamente para poder generar ese QR.
 
-**Digitalización** (`digitalizar.js::decodificarQr`, vía `jsQR`): al escanear
-la primera página de cada hoja, se recorta la región del QR (medida igual
-que cualquier otra marca, `data-linea="meta:qr"`) y se decodifica. Si el
-resultado coincide con un `token_id` real, la remesa queda fijada
+**Digitalización** (`papel/comun.js::decodificarQr` + `decodificarPayloadQr`,
+vía `jsQR`): al escanear la primera página de cada hoja, se recorta la
+región del QR (medida igual que cualquier otra marca,
+`data-linea="meta:qr"`), se decodifica y se separa en `{tokenId, version}` —
+si el texto leído no es el JSON esperado, se asume una hoja de la primera
+versión (QR en plano con solo el `token_id`), por compatibilidad hacia
+atrás. Si el `tokenId` coincide con un token real, la remesa queda fijada
 automáticamente y la pantalla de confirmación (§4.7) la muestra como ya
 resuelta ("Remesa detectada automáticamente"); si no se puede leer el QR
 (foto borrosa, hoja fotocopiada en blanco y negro sin suficiente contraste,
