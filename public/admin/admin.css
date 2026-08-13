@@ -93,6 +93,13 @@ td {
   cursor: pointer;
 }
 
+/* "Ver respuestas" (Sesiones) es un <a>, no un <button>: mismo motivo que
+   a.boton-principal más arriba. */
+a.boton-tabla {
+  display: inline-block;
+  text-decoration: none;
+}
+
 .boton-peligro {
   color: var(--color-fallo);
   border-color: var(--color-fallo);
@@ -150,6 +157,15 @@ td {
   padding: 0.5rem 1rem;
 }
 
+/* Lista de campos en el modal "Ver datos demográficos" (admin.js::mostrarDatosDemograficos) */
+.lista-demografia {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
 .boton-peligro-solido {
   background: var(--color-fallo);
   color: #fff;
@@ -193,5 +209,199 @@ td {
   color: var(--color-fallo);
   background: var(--color-fallo-fondo);
   padding: 0.6rem 0.8rem;
+  border-radius: var(--radio);
+}
+
+/* Botones que no deben ocupar el 100% del ancho (.boton-principal/.boton-secundario
+   son block de ancho completo por defecto en ../styles.css, pensado para el
+   flujo del test en móvil; aquí conviven varios en una fila). */
+.boton-ancho-auto {
+  width: auto;
+}
+
+/* Pestaña "Estadísticas avanzadas": consola Pyodide (ver admin.js) */
+.consola-celdas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 28rem;
+  overflow-y: auto;
+  margin: 0.75rem 0;
+}
+
+.celda {
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  overflow: hidden;
+  /* Flex item dentro de .consola-celdas (columna con scroll propio): sin esto,
+     los navegadores encogen los items para caber en el alto disponible en vez
+     de desbordar y dejar que el contenedor haga scroll — la celda quedaba
+     recortada a la mitad en vez de mostrarse entera (ver overflow-y de abajo). */
+  flex-shrink: 0;
+}
+
+.celda-codigo,
+.celda-salida {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.celda-codigo {
+  background: var(--color-secundario);
+  color: var(--color-texto);
+}
+
+.celda-salida {
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  border-top: 1px solid var(--color-borde);
+  /* Una salida (p.ej. sesiones.describe() o un print largo) puede ser mucho
+     más alta que la pantalla: scroll propio para no obligar a desplazarse por
+     toda la consola para ver el resto de celdas. */
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.celda-resultado {
+  color: var(--color-texto-tenue);
+}
+
+.celda-salida-error {
+  color: var(--color-fallo);
+  background: var(--color-fallo-fondo);
+}
+
+.celda-figura {
+  display: block;
+  max-width: 100%;
+  border-top: 1px solid var(--color-borde);
+}
+
+.formulario-celda {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.formulario-celda textarea {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.botones-celda {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Pestaña "Digitalizar tests" (README §4.7): impresión OMR + escaneo/OCR. */
+.etiqueta-papel {
+  color: var(--color-primario);
+  font-size: 0.75rem;
+  border: 1px solid var(--color-primario);
+  border-radius: var(--radio);
+  padding: 0.05rem 0.4rem;
+}
+
+.digitalizar-bloque {
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-grande);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.digitalizar-bloque h3 {
+  margin-top: 0;
+}
+
+.escaneo-paso {
+  margin-top: 1rem;
+  border-top: 1px dashed var(--color-borde);
+  padding-top: 1rem;
+}
+
+/* Selector de las 4 esquinas sobre la foto subida (digitalizar.js::crearSelectorEsquinas):
+   ancho completo del contenedor con proporción preservada por el propio canvas
+   (su width/height ya vienen fijados en JS a la proporción de la foto). */
+.canvas-esquinas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.revision-item {
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.revision-item-enunciado {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.revision-item input[type="text"],
+.revision-item select {
+  padding: 0.5rem;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.4rem;
+}
+
+.revision-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.3rem 0;
+}
+.revision-checkbox input {
+  width: auto;
+}
+
+.campo-fila {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+}
+.campo-fila span {
+  flex: 1;
+}
+.campo-fila select {
+  width: auto;
+  min-width: 6rem;
+}
+
+.revision-miniatura {
+  margin-bottom: 0.75rem;
+}
+.revision-miniatura summary {
+  cursor: pointer;
+  color: var(--color-texto-tenue);
+  font-size: 0.85rem;
+}
+.revision-miniatura img {
+  display: block;
+  max-width: 100%;
+  margin-top: 0.5rem;
+  border: 1px solid var(--color-borde);
   border-radius: var(--radio);
 }

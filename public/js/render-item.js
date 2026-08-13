@@ -639,8 +639,12 @@ export function htmlRevision(item) {
                 <h4>${escapar(cat)}</h4>
                 ${elementos
                   .map((el) => {
-                    const clase = usuario[el] === correcto[el] ? "acierto" : "fallo";
-                    return `<span class="revision-clasificar-elemento ${clase}">${escapar(el)}</span>`;
+                    const asignado = usuario[el];
+                    const acertado = asignado === correcto[el];
+                    const sinResponder = !acertado && asignado == null;
+                    const clase = acertado ? "acierto" : sinResponder ? "fallo no-marcada" : "fallo";
+                    const marca = sinResponder ? ` <span class="marca">(sin responder)</span>` : "";
+                    return `<span class="revision-clasificar-elemento ${clase}">${escapar(el)}${marca}</span>`;
                   })
                   .join("")}
               </div>`;

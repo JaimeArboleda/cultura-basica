@@ -48,10 +48,14 @@ CREATE TABLE sesiones (
   -- Se muestra al usuario como nota global 0-10 (puntuacion_total/N*10) y alimenta
   -- el percentil de la pantalla de resultado.
   puntuacion_total REAL,
-  user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo)
+  user_agent_clase  TEXT,                    -- 'movil' | 'escritorio' (no UA completo); NULL si origen='papel'
   -- Token de acceso (remesa) con el que se creó esta sesión (README §4.5). NULL
   -- solo en sesiones creadas antes de este control de acceso.
   token_id          TEXT REFERENCES tokens(id),
+  -- 'web' (test normal) | 'papel' (digitalizada desde una hoja impresa vía OMR/OCR
+  -- en el panel de admin, README §4.7). DEFAULT 'web' para no requerir el campo en
+  -- las inserciones existentes (worker/src/db.ts::crearSesion).
+  origen            TEXT NOT NULL DEFAULT 'web',
   -- demografía
   anio_nacimiento   INTEGER,
   sexo              TEXT,
@@ -74,6 +78,12 @@ CREATE TABLE respuestas (
   respuesta_cruda   TEXT,
   opcion_elegida    INTEGER,                 -- índice 0-5, NULL si no es opcion_multiple
   acierto           INTEGER,                 -- 0/1
+  -- Puntuación fraccionaria [0,1] de esta respuesta (parcial para
+  -- seleccion_multiple/clasificar/ordenar, igual a `acierto` para el resto — ver
+  -- worker/src/puntuacion.ts). Es el sumando de sesiones.puntuacion_total; se
+  -- persiste aquí para no depender de recalcularla contra un banco de ítems que
+  -- puede cambiar. NULL en filas anteriores a este campo.
+  puntuacion        REAL,
   estado_correccion TEXT DEFAULT 'auto',     -- 'auto'|'parcial'|'pendiente_revision'|'manual'
   t_ms              INTEGER,
   orden_presentacion INTEGER,

@@ -7,7 +7,9 @@
 import { leerTokenAutorizacion, verificarSesionAdmin } from "./adminAuth";
 import { deleteAdmin, getAdmins, postAdmins } from "./endpoints/admin/admins";
 import { getAdminCallback, getAdminLogin, getAdminYo } from "./endpoints/admin/auth";
-import { deleteSesion, getSesiones } from "./endpoints/admin/sesiones";
+import { getDataset } from "./endpoints/admin/dataset";
+import { getItemsImpresion, postDigitalizacion } from "./endpoints/admin/digitalizacion";
+import { deleteSesion, getSesionDetalle, getSesiones, putSesionEdicion } from "./endpoints/admin/sesiones";
 import { deleteSolicitud, getSolicitudes, patchSolicitud } from "./endpoints/admin/solicitudes";
 import { getStats } from "./endpoints/admin/stats";
 import { deleteToken, deleteTokenCompleto, deleteTokenSesiones, getTokens, postTokens } from "./endpoints/admin/tokens";
@@ -46,8 +48,18 @@ export async function manejarRutaAdmin(request: Request, env: Env, pathname: str
 
   const mSesion = pathname.match(/^\/api\/admin\/sesiones\/([^/]+)$/);
   if (method === "DELETE" && mSesion) return deleteSesion(env, decodeURIComponent(mSesion[1]));
+  // Edición de demografía/respuestas de una sesión ya existente, cualquiera
+  // que sea su origen (README §4.8).
+  if (method === "GET" && mSesion) return getSesionDetalle(env, decodeURIComponent(mSesion[1]));
+  if (method === "PUT" && mSesion) return putSesionEdicion(request, env, decodeURIComponent(mSesion[1]));
 
   if (method === "GET" && pathname === "/api/admin/stats") return getStats(request, env);
+
+  if (method === "GET" && pathname === "/api/admin/dataset") return getDataset(request, env);
+
+  // Digitalización de tests en papel (README §4.7).
+  if (method === "GET" && pathname === "/api/admin/items-impresion") return getItemsImpresion(env);
+  if (method === "POST" && pathname === "/api/admin/digitalizacion") return postDigitalizacion(request, env);
 
   if (method === "GET" && pathname === "/api/admin/solicitudes") return getSolicitudes(env);
 

@@ -1,6 +1,7 @@
 import { SELF, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { firmarSesionAdmin } from "../src/adminAuth";
+import { bancoItems } from "../src/items";
 import { AREA_ESTUDIOS, CCAA, LIBROS_EN_CASA, NIVEL_ESTUDIOS, SEXO } from "../src/tipos";
 
 const ADMIN_EMAIL = "admin@example.com";
@@ -59,7 +60,7 @@ async function crearSesionConToken(tokenId: string) {
     }),
   });
   expect(res.status).toBe(201);
-  return (await res.json()) as { sesion_id: string };
+  return (await res.json()) as { sesion_id: string; items: { id: string; formato: string }[] };
 }
 
 beforeEach(async () => {
@@ -232,6 +233,72 @@ describe("Estadísticas", () => {
     expect(stats.total).toBeGreaterThanOrEqual(1);
     expect(stats.objetivo_min).toBe(100);
     expect(stats.objetivo_max).toBe(150);
+  });
+});
+
+describe("Dataset para la consola de estadísticas avanzadas", () => {
+  it("401 sin sesión de admin", async () => {
+    const res = await fetchAdmin("/api/admin/dataset");
+    expect(res.status).toBe(401);
+  });
+
+  it("devuelve sesiones, respuestas y tokens, filtrable por token_id", async () => {
+    const auth = await tokenAdmin();
+    const token = await crearTokenViaAdmin(auth);
+    const { sesion_id, items } = await crearSesionConToken(token.id);
+    const itemPublico = items.find((i) => i.formato === "opcion_multiple")!;
+    const itemReal = bancoItems.find((i) => i.id === itemPublico.id)!;
+    await SELF.fetch("http://worker.test/api/respuesta", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sesion_id,
+        item_id: itemReal.id,
+        respuesta: itemReal.indice_correcto,
+        t_ms: 1000,
+        perdio_foco: false,
+      }),
+    });
+
+    const res = await fetchAdmin(`/api/admin/dataset?token_id=${token.id}`, {}, auth);
+    expect(res.status).toBe(200);
+    const dataset = (await res.json()) as {
+      sesiones: { id: string; token_id: string | null }[];
+      respuestas: { sesion_id: string; item_id: string; acierto: number | null }[];
+      tokens: { id: string; descripcion: string }[];
+      items: { id: string; formato: string; enunciado: string; respuesta_correcta: unknown }[];
+    };
+
+    expect(dataset.sesiones.some((s) => s.id === sesion_id && s.token_id === token.id)).toBe(true);
+    expect(dataset.respuestas.some((r) => r.sesion_id === sesion_id && r.item_id === itemReal.id)).toBe(true);
+    expect(dataset.tokens.some((t) => t.id === token.id && t.descripcion === "familia de Gerardo")).toBe(true);
+    // El banco de ítems completo (no filtrado por token: es el mismo para todas
+    // las sesiones), con el enunciado y la respuesta correcta para poder cruzar
+    // por item_id con "respuestas" y analizar errores.
+    expect(dataset.items.length).toBe(bancoItems.length);
+    const itemDataset = dataset.items.find((i) => i.id === itemReal.id)!;
+    expect(itemDataset.enunciado).toBe(itemReal.enunciado);
+    expect(itemDataset.respuesta_correcta).toBe(itemReal.indice_correcto);
+
+    // Sin token_id: incluye sesiones de otras remesas también.
+    const otroToken = await crearTokenViaAdmin(auth, "otra remesa");
+    await crearSesionConToken(otroToken.id);
+    const sinFiltro = await fetchAdmin("/api/admin/dataset", {}, auth);
+    const datasetCompleto = (await sinFiltro.json()) as { sesiones: { token_id: string | null }[] };
+    expect(datasetCompleto.sesiones.some((s) => s.token_id === otroToken.id)).toBe(true);
+    expect(datasetCompleto.sesiones.some((s) => s.token_id === token.id)).toBe(true);
+  });
+
+  it("no incluye solicitudes de acceso (no forman parte del dataset anónimo)", async () => {
+    await SELF.fetch("http://worker.test/api/solicitud-acceso", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contacto: "alguien@example.com" }),
+    });
+    const auth = await tokenAdmin();
+    const res = await fetchAdmin("/api/admin/dataset", {}, auth);
+    const cuerpo = (await res.json()) as Record<string, unknown>;
+    expect(cuerpo).not.toHaveProperty("solicitudes");
   });
 });
 
