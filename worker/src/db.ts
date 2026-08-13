@@ -16,7 +16,7 @@ export interface FilaSesion {
 
 // Fila completa de "sesiones", para las vistas del panel de admin (README §4.5):
 // a diferencia de FilaSesion (uso interno del flujo del test), expone también
-// token_id y la demografía, para poder listar/filtrar/analizar desde el panel.
+// token_id, origen y la demografía, para poder listar/filtrar/analizar desde el panel.
 export interface FilaSesionAdmin {
   id: string;
   creada_en: string;
@@ -25,6 +25,8 @@ export interface FilaSesionAdmin {
   puntuacion_total: number | null;
   user_agent_clase: string | null;
   token_id: string | null;
+  // 'web' | 'papel' (README §4.7): de dónde viene esta sesión.
+  origen: string;
   anio_nacimiento: number | null;
   sexo: string | null;
   ccaa_educacion_secundaria: string | null;
@@ -40,24 +42,30 @@ export async function crearSesion(
     id: string;
     creadaEn: string;
     demografia: Demografia;
-    userAgentClase: "movil" | "escritorio";
+    // null solo para sesiones digitalizadas desde papel (origen='papel', README
+    // §4.7): no hay user-agent real que clasificar.
+    userAgentClase: "movil" | "escritorio" | null;
     asignaciones: AsignacionItem[];
     tokenId: string;
+    // 'web' por defecto (vía DEFAULT de la columna, README §4.7): se omite en
+    // todas las llamadas existentes (worker/src/endpoints/sesion.ts).
+    origen?: "web" | "papel";
   }
 ): Promise<void> {
-  const { id, creadaEn, demografia: d, userAgentClase, asignaciones, tokenId } = args;
+  const { id, creadaEn, demografia: d, userAgentClase, asignaciones, tokenId, origen } = args;
 
   const insertSesion = env.DB.prepare(
     `INSERT INTO sesiones (
-       id, creada_en, consentimiento, compromiso_honestidad, user_agent_clase, token_id,
+       id, creada_en, consentimiento, compromiso_honestidad, user_agent_clase, token_id, origen,
        anio_nacimiento, sexo, ccaa_educacion_secundaria,
        nivel_estudios, area_estudios, estudios_mayor_progenitor, libros_en_casa
-     ) VALUES (?,?,1,1,?,?, ?,?,?, ?,?,?,?)`
+     ) VALUES (?,?,1,1,?,?,?, ?,?,?, ?,?,?,?)`
   ).bind(
     id,
     creadaEn,
     userAgentClase,
     tokenId,
+    origen ?? "web",
     d.anio_nacimiento,
     d.sexo,
     d.ccaa_educacion_secundaria,
@@ -163,6 +171,61 @@ export async function marcarCompleto(
     .run();
 }
 
+// Borra la respuesta de UN ítem concreto (edición desde el panel de admin,
+// README §4.8: dejar un campo en blanco en el formulario de edición borra la
+// fila en vez de guardar una respuesta vacía, igual que "nunca se contestó").
+export async function borrarRespuestaItem(env: Env, sesionId: string, itemId: string): Promise<void> {
+  await env.DB.prepare("DELETE FROM respuestas WHERE sesion_id = ? AND item_id = ?").bind(sesionId, itemId).run();
+}
+
+// Estado general tras una edición (README §4.8): a diferencia de marcarCompleto
+// (que solo pasa a completa), esto también puede DEVOLVER una sesión a
+// en_progreso si la edición deja algún ítem sin respuesta — la edición manual
+// reemplaza el conjunto completo de respuestas, así que el estado se recalcula
+// entero cada vez en vez de solo poder avanzar.
+export async function actualizarEstadoSesion(
+  env: Env,
+  sesionId: string,
+  completo: 0 | 1,
+  puntuacionTotal: number | null,
+  actualizadaEn: string
+): Promise<void> {
+  await env.DB.prepare("UPDATE sesiones SET completo = ?, puntuacion_total = ?, actualizada_en = ? WHERE id = ?")
+    .bind(completo, puntuacionTotal, actualizadaEn, sesionId)
+    .run();
+}
+
+// Reemplaza la demografía de una sesión ya creada (edición desde el panel,
+// README §4.8): a diferencia de crearSesion, aquí consentimiento y
+// compromiso_honestidad NO se tocan — son un hecho histórico del momento en
+// que se hizo el test, no un dato demográfico a corregir.
+export async function actualizarDemografiaSesion(
+  env: Env,
+  sesionId: string,
+  d: Demografia,
+  actualizadaEn: string
+): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE sesiones SET
+       anio_nacimiento = ?, sexo = ?, ccaa_educacion_secundaria = ?,
+       nivel_estudios = ?, area_estudios = ?, estudios_mayor_progenitor = ?, libros_en_casa = ?,
+       actualizada_en = ?
+     WHERE id = ?`
+  )
+    .bind(
+      d.anio_nacimiento,
+      d.sexo,
+      d.ccaa_educacion_secundaria,
+      d.nivel_estudios,
+      d.area_estudios,
+      d.estudios_mayor_progenitor,
+      d.libros_en_casa,
+      actualizadaEn,
+      sesionId
+    )
+    .run();
+}
+
 // Puntuaciones de otras sesiones ya completadas, para el percentil empírico del
 // resultado (README §3): no asume ninguna distribución, solo compara contra los
 // datos reales que haya en ese momento.
@@ -237,7 +300,7 @@ export async function listarSesiones(
   const where = condiciones.length ? `WHERE ${condiciones.join(" AND ")}` : "";
 
   const { results } = await env.DB.prepare(
-    `SELECT id, creada_en, actualizada_en, completo, puntuacion_total, user_agent_clase, token_id,
+    `SELECT id, creada_en, actualizada_en, completo, puntuacion_total, user_agent_clase, token_id, origen,
             anio_nacimiento, sexo, ccaa_educacion_secundaria, nivel_estudios, area_estudios,
             estudios_mayor_progenitor, libros_en_casa
      FROM sesiones ${where} ORDER BY creada_en DESC`
@@ -245,6 +308,21 @@ export async function listarSesiones(
     .bind(...binds)
     .all<FilaSesionAdmin>();
   return results;
+}
+
+// Una sesión concreta con la forma "admin" (con token_id, origen y demografía),
+// para la pantalla de edición (README §4.8) — a diferencia de obtenerSesion(),
+// que solo expone lo que necesita el flujo público del test.
+export async function obtenerSesionAdmin(env: Env, sesionId: string): Promise<FilaSesionAdmin | null> {
+  const fila = await env.DB.prepare(
+    `SELECT id, creada_en, actualizada_en, completo, puntuacion_total, user_agent_clase, token_id, origen,
+            anio_nacimiento, sexo, ccaa_educacion_secundaria, nivel_estudios, area_estudios,
+            estudios_mayor_progenitor, libros_en_casa
+     FROM sesiones WHERE id = ?`
+  )
+    .bind(sesionId)
+    .first<FilaSesionAdmin>();
+  return fila ?? null;
 }
 
 // Borra una sesión y todo lo que cuelga de ella (respuestas, sorteo de ítems).
@@ -331,7 +409,7 @@ export async function obtenerDatasetCompleto(env: Env, tokenId?: string): Promis
 
   const [sesiones, respuestas, tokens] = await Promise.all([
     env.DB.prepare(
-      `SELECT id, creada_en, actualizada_en, completo, puntuacion_total, user_agent_clase, token_id,
+      `SELECT id, creada_en, actualizada_en, completo, puntuacion_total, user_agent_clase, token_id, origen,
               anio_nacimiento, sexo, ccaa_educacion_secundaria, nivel_estudios, area_estudios,
               estudios_mayor_progenitor, libros_en_casa
        FROM sesiones ${condicionSesiones} ORDER BY creada_en`

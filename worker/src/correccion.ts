@@ -110,3 +110,25 @@ export function corregirClasificar(
     mismasClaves && clavesEsperadas.every((k) => respuestaClasificacion[k] === esperado[k]) ? 1 : 0;
   return { acierto, estado_correccion: "auto" };
 }
+
+// Despachador por formato, compartido por POST /api/respuesta
+// (worker/src/endpoints/respuesta.ts) y por la digitalización desde papel
+// (worker/src/endpoints/admin/digitalizacion.ts, README §4.7): misma corrección
+// para una respuesta tecleada en la web que para una ya interpretada por el
+// pipeline de OMR/OCR, sin duplicar el switch por formato en dos sitios.
+export function corregirRespuesta(item: Item, respuesta: unknown): ResultadoCorreccion | null {
+  switch (item.formato) {
+    case "abierto":
+      return typeof respuesta === "string" ? corregirAbierto(item, respuesta) : null;
+    case "opcion_multiple":
+      return typeof respuesta === "number" ? corregirOpcionMultiple(item, respuesta) : null;
+    case "seleccion_multiple":
+      return Array.isArray(respuesta) ? corregirSeleccionMultiple(item, respuesta) : null;
+    case "ordenar":
+      return Array.isArray(respuesta) ? corregirOrdenar(item, respuesta) : null;
+    case "clasificar":
+      return typeof respuesta === "object" && respuesta !== null && !Array.isArray(respuesta)
+        ? corregirClasificar(item, respuesta as Record<string, string>)
+        : null;
+  }
+}

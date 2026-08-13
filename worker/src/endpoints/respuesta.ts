@@ -7,35 +7,11 @@ import {
   obtenerSesion,
   upsertRespuesta,
 } from "../db";
-import {
-  corregirAbierto,
-  corregirClasificar,
-  corregirOpcionMultiple,
-  corregirOrdenar,
-  corregirSeleccionMultiple,
-  type ResultadoCorreccion,
-} from "../correccion";
+import { corregirRespuesta } from "../correccion";
 import { error, json } from "../http";
 import { itemsPorId, obtenerItem } from "../items";
 import { puntuarItem, puntuarSesion } from "../puntuacion";
-import type { Env, Item } from "../tipos";
-
-function corregir(item: Item, respuesta: unknown): ResultadoCorreccion | null {
-  switch (item.formato) {
-    case "abierto":
-      return typeof respuesta === "string" ? corregirAbierto(item, respuesta) : null;
-    case "opcion_multiple":
-      return typeof respuesta === "number" ? corregirOpcionMultiple(item, respuesta) : null;
-    case "seleccion_multiple":
-      return Array.isArray(respuesta) ? corregirSeleccionMultiple(item, respuesta) : null;
-    case "ordenar":
-      return Array.isArray(respuesta) ? corregirOrdenar(item, respuesta) : null;
-    case "clasificar":
-      return typeof respuesta === "object" && respuesta !== null && !Array.isArray(respuesta)
-        ? corregirClasificar(item, respuesta as Record<string, string>)
-        : null;
-  }
-}
+import type { Env } from "../tipos";
 
 export async function postRespuesta(request: Request, env: Env): Promise<Response> {
   let body: unknown;
@@ -61,7 +37,7 @@ export async function postRespuesta(request: Request, env: Env): Promise<Respons
   const item = obtenerItem(itemId);
   if (!item) return error(env, 404, "Ítem no encontrado en el banco actual");
 
-  const resultado = corregir(item, b.respuesta);
+  const resultado = corregirRespuesta(item, b.respuesta);
   if (!resultado) {
     return error(env, 400, `Respuesta con formato inválido para un ítem '${item.formato}'`);
   }

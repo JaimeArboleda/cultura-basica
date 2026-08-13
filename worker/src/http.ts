@@ -3,7 +3,7 @@ import type { Env } from "./tipos";
 export function corsHeaders(env: Env): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN,
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     // Authorization: el panel de admin (worker/src/adminAuth.ts) manda su
     // token de sesión como `Authorization: Bearer …`, no como cookie — Pages
     // y el Worker viven en dominios distintos (*.pages.dev / *.workers.dev).
