@@ -303,3 +303,105 @@ a.boton-tabla {
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+
+/* Pestaña "Digitalizar tests" (README §4.7): impresión OMR + escaneo/OCR. */
+.etiqueta-papel {
+  color: var(--color-primario);
+  font-size: 0.75rem;
+  border: 1px solid var(--color-primario);
+  border-radius: var(--radio);
+  padding: 0.05rem 0.4rem;
+}
+
+.digitalizar-bloque {
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-grande);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.digitalizar-bloque h3 {
+  margin-top: 0;
+}
+
+.escaneo-paso {
+  margin-top: 1rem;
+  border-top: 1px dashed var(--color-borde);
+  padding-top: 1rem;
+}
+
+/* Selector de las 4 esquinas sobre la foto subida (digitalizar.js::crearSelectorEsquinas):
+   ancho completo del contenedor con proporción preservada por el propio canvas
+   (su width/height ya vienen fijados en JS a la proporción de la foto). */
+.canvas-esquinas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.revision-item {
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.revision-item-enunciado {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.revision-item input[type="text"],
+.revision-item select {
+  padding: 0.5rem;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.4rem;
+}
+
+.revision-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.3rem 0;
+}
+.revision-checkbox input {
+  width: auto;
+}
+
+.campo-fila {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+}
+.campo-fila span {
+  flex: 1;
+}
+.campo-fila select {
+  width: auto;
+  min-width: 6rem;
+}
+
+.revision-miniatura {
+  margin-bottom: 0.75rem;
+}
+.revision-miniatura summary {
+  cursor: pointer;
+  color: var(--color-texto-tenue);
+  font-size: 0.85rem;
+}
+.revision-miniatura img {
+  display: block;
+  max-width: 100%;
+  margin-top: 0.5rem;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+}

@@ -7,12 +7,14 @@
 // cookies. El token llega en el fragmento de la URL tras el login (ver init())
 // y se guarda en localStorage.
 //
+import { renderDigitalizar } from "./digitalizar.js";
+
 // API_BASE duplica intencionalmente la constante de ../js/api.js: son despliegues
 // separados y el front-end del test no debe depender del panel ni viceversa.
-const API_BASE = "https://cultura-basica.cultura-basica.workers.dev";
+export const API_BASE = "https://cultura-basica.cultura-basica.workers.dev";
 const CLAVE_TOKEN_ADMIN = "cb_admin_token";
 
-async function peticion(path, opciones = {}) {
+export async function peticion(path, opciones = {}) {
   const token = localStorage.getItem(CLAVE_TOKEN_ADMIN);
   const res = await fetch(`${API_BASE}${path}`, {
     ...opciones,
@@ -38,7 +40,7 @@ async function peticion(path, opciones = {}) {
   return res.json();
 }
 
-const api = {
+export const api = {
   yo: () => peticion("/api/admin/me"),
   tokens: () => peticion("/api/admin/tokens"),
   crearToken: (body) => peticion("/api/admin/tokens", { method: "POST", body: JSON.stringify(body) }),
@@ -57,6 +59,9 @@ const api = {
   admins: () => peticion("/api/admin/admins"),
   agregarAdmin: (email) => peticion("/api/admin/admins", { method: "POST", body: JSON.stringify({ email }) }),
   quitarAdmin: (email) => peticion(`/api/admin/admins/${encodeURIComponent(email)}`, { method: "DELETE" }),
+  // Digitalización de tests en papel (README §4.7).
+  itemsImpresion: () => peticion("/api/admin/items-impresion"),
+  digitalizar: (body) => peticion("/api/admin/digitalizacion", { method: "POST", body: JSON.stringify(body) }),
 };
 
 const app = document.getElementById("app");
@@ -65,13 +70,13 @@ function montar(html) {
   return app;
 }
 
-function escaparHtml(s) {
+export function escaparHtml(s) {
   const div = document.createElement("div");
   div.textContent = s ?? "";
   return div.innerHTML;
 }
 
-function formatearFecha(iso) {
+export function formatearFecha(iso) {
   return new Date(iso).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
 }
 
@@ -146,6 +151,7 @@ const PESTANAS = [
   { id: "avanzado", etiqueta: "Estadísticas avanzadas", render: renderAvanzado },
   { id: "tokens", etiqueta: "Tokens", render: renderTokens },
   { id: "sesiones", etiqueta: "Sesiones", render: renderSesiones },
+  { id: "digitalizar", etiqueta: "Digitalizar tests", render: renderDigitalizar },
   { id: "solicitudes", etiqueta: "Solicitudes de acceso", render: renderSolicitudes },
   { id: "admins", etiqueta: "Administradores", render: renderAdmins },
 ];
@@ -373,7 +379,7 @@ function renderCeldaHtml({ codigo, salida }) {
 // incluso si el array viene vacío.
 const COLUMNAS_CSV = {
   "sesiones.csv": [
-    "id", "creada_en", "actualizada_en", "completo", "puntuacion_total", "user_agent_clase", "token_id",
+    "id", "creada_en", "actualizada_en", "completo", "puntuacion_total", "user_agent_clase", "token_id", "origen",
     "anio_nacimiento", "sexo", "ccaa_educacion_secundaria", "nivel_estudios", "area_estudios",
     "estudios_mayor_progenitor", "libros_en_casa",
   ],
@@ -750,7 +756,7 @@ async function renderTokens(contenedor, recargar) {
 
 // Modal genérico de solo lectura (a diferencia de pedirConfirmacionTexto, que
 // pide confirmación): se usa para "Ver datos demográficos".
-function mostrarModalInfo({ titulo, contenidoHtml }) {
+export function mostrarModalInfo({ titulo, contenidoHtml }) {
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
   overlay.innerHTML = `
@@ -832,13 +838,14 @@ async function renderSesiones(contenedor) {
     destino.innerHTML = `
       <div class="tabla-scroll">
         <table>
-          <thead><tr><th>Creada</th><th>Estado</th><th>Nota</th><th>Sexo</th><th>Nivel de estudios</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Creada</th><th>Origen</th><th>Estado</th><th>Nota</th><th>Sexo</th><th>Nivel de estudios</th><th>Acciones</th></tr></thead>
           <tbody>
             ${sesiones
               .map(
                 (s) => `
               <tr>
                 <td>${formatearFecha(s.creada_en)}</td>
+                <td>${s.origen === "papel" ? '<span class="etiqueta-papel">Papel</span>' : "Web"}</td>
                 <td>${s.completo ? "Completa" : "En progreso"}</td>
                 <td>${s.puntuacion_total != null ? s.puntuacion_total.toFixed(1) : "—"}</td>
                 <td>${escaparHtml(s.sexo ?? "—")}</td>
