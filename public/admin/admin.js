@@ -8,6 +8,7 @@
 // y se guarda en localStorage.
 //
 import { renderDigitalizar } from "./digitalizar.js";
+import { renderEditarSesion } from "./editarSesion.js";
 
 // API_BASE duplica intencionalmente la constante de ../js/api.js: son despliegues
 // separados y el front-end del test no debe depender del panel ni viceversa.
@@ -62,6 +63,11 @@ export const api = {
   // Digitalización de tests en papel (README §4.7).
   itemsImpresion: () => peticion("/api/admin/items-impresion"),
   digitalizar: (body) => peticion("/api/admin/digitalizacion", { method: "POST", body: JSON.stringify(body) }),
+  // Edición de demografía/respuestas de una sesión ya existente, cualquiera
+  // que sea su origen (README §4.8).
+  sesionDetalle: (id) => peticion(`/api/admin/sesiones/${encodeURIComponent(id)}`),
+  guardarEdicionSesion: (id, body) =>
+    peticion(`/api/admin/sesiones/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) }),
 };
 
 const app = document.getElementById("app");
@@ -853,6 +859,7 @@ async function renderSesiones(contenedor) {
                 <td class="acciones-tabla">
                   <a class="boton-tabla" href="${location.origin}/?resultado=${encodeURIComponent(s.id)}" target="_blank" rel="noopener">Ver respuestas</a>
                   <button type="button" class="boton-tabla" data-ver-demografia="${s.id}">Ver datos demográficos</button>
+                  <button type="button" class="boton-tabla" data-editar-sesion="${s.id}">Editar</button>
                   <button type="button" class="boton-tabla boton-peligro" data-borrar-sesion="${s.id}">Borrar</button>
                 </td>
               </tr>`
@@ -867,6 +874,18 @@ async function renderSesiones(contenedor) {
       boton.addEventListener("click", () => {
         const sesion = sesiones.find((s) => s.id === boton.dataset.verDemografia);
         if (sesion) mostrarDatosDemograficos(sesion);
+      });
+    });
+
+    // Edición de demografía/respuestas (README §4.8): funciona igual para
+    // origen='web' que 'papel'. Sustituye TODO el contenido de la pestaña
+    // (filtros incluidos) por el formulario de edición; "Volver" reconstruye
+    // la pestaña Sesiones desde cero en vez de solo refrescar la tabla.
+    destino.querySelectorAll("[data-editar-sesion]").forEach((boton) => {
+      boton.addEventListener("click", () => {
+        renderEditarSesion(contenedor, boton.dataset.editarSesion, {
+          onVolver: () => renderSesiones(contenedor),
+        });
       });
     });
 

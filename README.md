@@ -255,7 +255,8 @@ a CSV.
 │   │   ├── admin.js
 │   │   ├── admin.css
 │   │   ├── hoja.js       # Maquetación de la hoja OMR (§4.7)
-│   │   └── digitalizar.js # Impresión + escaneo/OCR de tests en papel (§4.7)
+│   │   ├── digitalizar.js # Impresión + escaneo/OCR de tests en papel (§4.7)
+│   │   └── editarSesion.js # Edición de demografía/respuestas de cualquier sesión (§4.8)
 │   └── styles.css
 ├── worker/              # Cloudflare Worker (API)
 │   ├── src/index.ts
@@ -568,6 +569,9 @@ DELETE /api/admin/admins/:email     → quita un administrador (rechaza si es el
 
 GET  /api/admin/items-impresion     → banco en el orden fijo de presentación, sin respuestas (hoja OMR, §4.7)
 POST /api/admin/digitalizacion      → crea una sesión origen='papel' a partir de una hoja ya interpretada (§4.7)
+
+GET  /api/admin/sesiones/:id        → detalle editable de una sesión: demografía + los 25 ítems + respuestas dadas (§4.8)
+PUT  /api/admin/sesiones/:id        → reemplaza demografía y respuestas de una sesión ya existente, cualquiera que sea su origen (§4.8)
 ```
 
 No hay endpoint de logout: la sesión de admin es un token stateless (§4.5), así
@@ -930,13 +934,19 @@ letra por casilla** para maximizar el acierto del OCR.
    cargado bajo demanda desde CDN — mismo patrón que Pyodide en "Estadísticas
    avanzadas", §4.5). Nada de esto sale del navegador salvo el resultado final
    ya revisado, que se manda a `POST /api/admin/digitalizacion`.
-3. **Revisión**: antes de guardar, una pantalla muestra lo detectado
-   (preseleccionado) para cada campo, editable, más la foto ya enderezada de
-   cada página por si hace falta comparar a ojo. No es la revisión
-   sistemática del 5-10% de respuestas abiertas de la web (§1.6) — aquí el
-   admin ve y puede corregir el 100% antes de guardar, porque el volumen de
-   hojas en papel es bajo y el coste de revisar es prácticamente cero
-   comparado con dejar pasar un error de OCR/OMR sin detectar.
+3. **Confirmación mínima y traspaso a la edición (§4.8), no una revisión
+   aparte de las 25 respuestas.** Tras escanear todas las páginas, la única
+   pantalla propia de este flujo pide confirmar lo imprescindible para poder
+   crear la sesión (consentimiento, compromiso de honestidad y demografía —
+   `POST /api/admin/digitalizacion` los exige, §4.7), con la foto ya
+   enderezada de cada página disponible por si hace falta comparar a ojo. En
+   cuanto la sesión existe, se abre **la misma pantalla de edición que usa la
+   pestaña Sesiones para cualquier sesión** (`editarSesion.js`, §4.8): ahí es
+   donde se revisan y corrigen las 25 respuestas, ya persistidas. No es la
+   revisión sistemática del 5-10% de respuestas abiertas de la web (§1.6) —
+   el admin puede corregir el 100% ahí mismo, porque el volumen de hojas en
+   papel es bajo y el coste de revisar es prácticamente cero comparado con
+   dejar pasar un error de OCR/OMR sin detectar.
 
 **`POST /api/admin/digitalizacion`** crea la sesión igual que `POST
 /api/sesion` (mismo `ordenarTest()`, misma tabla `sesion_items`) pero:
@@ -972,9 +982,39 @@ visión de pago (p. ej. con soporte de `vision` en el modelo) queda abierta
 como mejora futura — pero acotada solo a los recuadros de texto libre, ya que
 el resto de la hoja (OMR) no se beneficia de un modelo más caro.
 
----
+### 4.8 Edición de demografía y respuestas desde el panel
 
-## 5. Privacidad y RGPD
+**Motivación:** corregir un dato mal tecleado o un error de digitalización
+(§4.7) no debería exigir borrar la sesión y repetir el test. La pestaña
+Sesiones tiene un botón **"Editar"** en cualquier fila, sea `origen='web'` o
+`'papel'`, que abre `GET/PUT /api/admin/sesiones/:id`
+(`public/admin/editarSesion.js`): un formulario con la demografía y las 25
+respuestas de esa sesión, precargado con lo que ya hay guardado. Nunca
+muestra la respuesta correcta (usa `paraCliente()`, no `paraRevision()`): se
+edita lo que la persona respondió de verdad, no lo que "debería" haber
+puesto.
+
+**`PUT /api/admin/sesiones/:id` reemplaza el conjunto completo**, no aplica
+un parche: el formulario manda siempre el estado de los 25 ítems, así que un
+ítem ausente del cuerpo de la petición se interpreta como "se ha dejado en
+blanco" y borra la respuesta existente (si la había) — no que no se toque.
+Tras aplicar los cambios, recalcula `completo` y `puntuacion_total` desde
+cero con la misma corrección/puntuación que el resto de flujos
+(`corregirRespuesta()`/`puntuarItem()`/`puntuarSesion()`, compartidas con
+`POST /api/respuesta` y `POST /api/admin/digitalizacion`): una edición puede
+tanto completar una sesión que estaba en progreso como, si se deja algo en
+blanco, devolver a en progreso una que estaba completa — a diferencia de
+`marcarCompleto()` (usado por el flujo normal, que solo avanza hacia
+completa), aquí el estado siempre se recalcula entero porque la edición
+reemplaza el conjunto, no lo extiende. `origen` y `token_id` nunca cambian al
+editar: son procedencia de la sesión, no datos a corregir.
+
+**Digitalizar lleva directamente a editar (§4.7): "revisión instantánea".**
+Tras crear una sesión desde una hoja escaneada, `digitalizar.js` abre
+`editarSesion.js` sobre esa misma sesión en vez de mantener un formulario de
+revisión propio — así la corrección de las 25 respuestas ocurre siempre en
+la misma pantalla, tanto si la sesión viene de digitalizar como si se edita
+después desde Sesiones, sin dos formularios que mantener sincronizados.
 
 - Pantalla de **consentimiento informado** antes de nada: finalidad, responsable,
   carácter anónimo, derecho a abandonar.

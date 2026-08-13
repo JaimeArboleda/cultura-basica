@@ -12,10 +12,8 @@
 //      igual que Pyodide en la pestaña de Estadísticas avanzadas). Todo
 //      corre en el navegador del admin: nada de esto usa una API de pago.
 import { api, escaparHtml } from "./admin.js";
+import { bloqueCamposDemografia, leerDemografiaDelFormulario, renderEditarSesion } from "./editarSesion.js";
 import { construirHoja, CSS_HOJA, ESCALA_DIGITALIZACION, PAGE_H, PAGE_W } from "./hoja.js";
-import { CATALOGOS } from "../js/demografia.js";
-
-const LETRAS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 // Fracción de oscuridad (0=blanco, 1=negro) a partir de la cual una
 // burbuja/casilla se considera rellena. Ajustable durante las pruebas reales
@@ -326,7 +324,7 @@ export async function prepararImagenFuente(file) {
 }
 
 // ============================================================
-// 5. Decodificación OMR/OCR -> valores iniciales de los campos de revisión
+// 5. Decodificación OMR/OCR -> respuestas listas para guardar
 // ============================================================
 
 export function ganadorDeGrupo(oscuridad, prefijo, umbral = UMBRAL_MARCA) {
@@ -350,148 +348,30 @@ export function marcadasEnGrupo(oscuridad, prefijo, umbral = UMBRAL_MARCA) {
   return resultado;
 }
 
-// ============================================================
-// 6. Formulario de revisión (README §4.7: no hay revisión sistemática del
-// 5-10% como en la web, pero SÍ una pantalla de confirmación antes de guardar
-// — es una hoja digitalizada por OMR/OCR sin validar aún contra papel real, y
-// corregir aquí es gratis comparado con corromper el dataset del piloto).
-// ============================================================
-
-function campoSelectDemografia(clave, etiqueta, opciones, valorInicial) {
-  const opcs = opciones
-    .map((o) => `<option value="${escaparHtml(o)}" ${o === valorInicial ? "selected" : ""}>${escaparHtml(o)}</option>`)
-    .join("");
-  return `
-    <label class="campo">
-      <span>${etiqueta}</span>
-      <select data-campo="${clave}">
-        <option value="" ${valorInicial ? "" : "selected"}>Selecciona…</option>
-        ${opcs}
-      </select>
-    </label>`;
-}
-
-function bloqueRevisionItem(item, seed) {
-  const cabecera = `<div class="revision-item-enunciado">${escaparHtml(item.enunciado)}</div>`;
-  switch (item.formato) {
-    case "abierto":
-      return `<div class="revision-item">${cabecera}
-        <input type="text" data-campo="item:${item.id}" value="${escaparHtml(seed ?? "")}" />
-      </div>`;
-    case "opcion_multiple": {
-      const opcs = item.opciones
-        .map((o, i) => `<option value="${i}" ${seed === i ? "selected" : ""}>${LETRAS[i]}) ${escaparHtml(o)}</option>`)
-        .join("");
-      return `<div class="revision-item">${cabecera}
-        <select data-campo="item:${item.id}"><option value="">(en blanco)</option>${opcs}</select>
-      </div>`;
-    }
-    case "seleccion_multiple": {
-      const marcadas = new Set(seed ?? []);
-      const cajas = item.opciones
-        .map(
-          (o, i) => `
-        <label class="revision-checkbox">
-          <input type="checkbox" data-campo-multi="item:${item.id}" data-valor="${i}" ${marcadas.has(i) ? "checked" : ""} />
-          ${LETRAS[i]}) ${escaparHtml(o)}
-        </label>`
-        )
-        .join("");
-      return `<div class="revision-item">${cabecera}${cajas}</div>`;
-    }
-    case "ordenar": {
-      const n = item.elementos.length;
-      const posiciones = seed ?? new Array(n).fill(null);
-      const filas = item.elementos
-        .map((elemento, i) => {
-          const opcs = Array.from({ length: n }, (_, pos) => pos)
-            .map((pos) => `<option value="${pos}" ${posiciones[i] === pos ? "selected" : ""}>${pos + 1}</option>`)
-            .join("");
-          return `<label class="campo campo-fila">
-            <span>${escaparHtml(elemento)}</span>
-            <select data-campo="item:${item.id}:elemento:${i}"><option value="">—</option>${opcs}</select>
-          </label>`;
-        })
-        .join("");
-      return `<div class="revision-item">${cabecera}${filas}</div>`;
-    }
-    case "clasificar": {
-      const asignacion = seed ?? {};
-      const filas = item.elementos
-        .map((elemento, i) => {
-          const opcs = item.categorias
-            .map((cat) => `<option value="${escaparHtml(cat)}" ${asignacion[elemento] === cat ? "selected" : ""}>${escaparHtml(cat)}</option>`)
-            .join("");
-          return `<label class="campo campo-fila">
-            <span>${escaparHtml(elemento)}</span>
-            <select data-campo="item:${item.id}:elemento:${i}"><option value="">—</option>${opcs}</select>
-          </label>`;
-        })
-        .join("");
-      return `<div class="revision-item">${cabecera}${filas}</div>`;
-    }
-    default:
-      return "";
-  }
-}
-
-export function decodificarSemillas(items, oscuridad, textos) {
-  const seeds = {};
-  for (const item of items) {
-    switch (item.formato) {
-      case "abierto":
-        seeds[item.id] = textos.get(`item:${item.id}:abierto`) ?? "";
-        break;
-      case "opcion_multiple": {
-        const g = ganadorDeGrupo(oscuridad, `item:${item.id}:opcion:`);
-        seeds[item.id] = g != null ? Number(g) : null;
-        break;
-      }
-      case "seleccion_multiple":
-        seeds[item.id] = marcadasEnGrupo(oscuridad, `item:${item.id}:opcion:`)
-          .map(Number)
-          .sort((a, b) => a - b);
-        break;
-      case "ordenar": {
-        const n = item.elementos.length;
-        seeds[item.id] = Array.from({ length: n }, (_, i) => {
-          const g = ganadorDeGrupo(oscuridad, `item:${item.id}:orden:${i}:`);
-          return g != null ? Number(g) : null;
-        });
-        break;
-      }
-      case "clasificar": {
-        const asign = {};
-        item.elementos.forEach((elemento, i) => {
-          const g = ganadorDeGrupo(oscuridad, `item:${item.id}:clasificar:${i}:`);
-          asign[elemento] = g != null ? item.categorias[Number(g)] : null;
-        });
-        seeds[item.id] = asign;
-        break;
-      }
-    }
-  }
-  return seeds;
-}
-
-export function leerRespuestasDelFormulario(items, root) {
+// Traduce la oscuridad/textos muestreados directamente a la forma que espera
+// el backend por formato (README §4.2): abierto=string, opcion_multiple=índice,
+// seleccion_multiple=[índices], ordenar=[nombres en orden], clasificar={elemento:categoría}.
+// Un ítem sin marca/texto detectado simplemente no aparece en el resultado
+// (igual que dejarlo en blanco en la web) — la revisión fina ocurre después,
+// ya guardado, en la pantalla de edición (editarSesion.js).
+export function decodificarRespuestas(items, oscuridad, textos) {
   const respuestas = {};
   for (const item of items) {
     switch (item.formato) {
       case "abierto": {
-        const v = root.querySelector(`[data-campo="item:${item.id}"]`).value.trim();
-        if (v) respuestas[item.id] = v;
+        const texto = (textos.get(`item:${item.id}:abierto`) ?? "").trim();
+        if (texto) respuestas[item.id] = texto;
         break;
       }
       case "opcion_multiple": {
-        const v = root.querySelector(`[data-campo="item:${item.id}"]`).value;
-        if (v !== "") respuestas[item.id] = Number(v);
+        const g = ganadorDeGrupo(oscuridad, `item:${item.id}:opcion:`);
+        if (g != null) respuestas[item.id] = Number(g);
         break;
       }
       case "seleccion_multiple": {
-        const marcadas = [...root.querySelectorAll(`[data-campo-multi="item:${item.id}"]:checked`)].map((el) =>
-          Number(el.dataset.valor)
-        );
+        const marcadas = marcadasEnGrupo(oscuridad, `item:${item.id}:opcion:`)
+          .map(Number)
+          .sort((a, b) => a - b);
         if (marcadas.length > 0) respuestas[item.id] = marcadas;
         break;
       }
@@ -500,9 +380,9 @@ export function leerRespuestasDelFormulario(items, root) {
         const arr = new Array(n).fill(null);
         let alguna = false;
         item.elementos.forEach((elemento, i) => {
-          const v = root.querySelector(`[data-campo="item:${item.id}:elemento:${i}"]`).value;
-          if (v !== "") {
-            arr[Number(v)] = elemento;
+          const g = ganadorDeGrupo(oscuridad, `item:${item.id}:orden:${i}:`);
+          if (g != null) {
+            arr[Number(g)] = elemento;
             alguna = true;
           }
         });
@@ -513,9 +393,9 @@ export function leerRespuestasDelFormulario(items, root) {
         const asign = {};
         let alguna = false;
         item.elementos.forEach((elemento, i) => {
-          const v = root.querySelector(`[data-campo="item:${item.id}:elemento:${i}"]`).value;
-          if (v !== "") {
-            asign[elemento] = v;
+          const g = ganadorDeGrupo(oscuridad, `item:${item.id}:clasificar:${i}:`);
+          if (g != null) {
+            asign[elemento] = item.categorias[Number(g)];
             alguna = true;
           }
         });
@@ -527,25 +407,29 @@ export function leerRespuestasDelFormulario(items, root) {
   return respuestas;
 }
 
-function renderRevision(contenedor, { items, tokenId, oscuridad, textos, paginasWarpeadas, alRecargar }) {
-  const seeds = decodificarSemillas(items, oscuridad, textos);
-  const anioSeed = (textos.get("demografia:anio_nacimiento") ?? "").replace(/\D/g, "");
-  const consentimientoSeed = (oscuridad.get("demografia:consentimiento") ?? 0) >= UMBRAL_MARCA;
-  const honestidadSeed = (oscuridad.get("demografia:compromiso_honestidad") ?? 0) >= UMBRAL_MARCA;
+// ============================================================
+// 6. Confirmación mínima antes de crear la sesión, y traspaso a la edición
+// compartida (README §4.8) — "revisión instantánea": en vez de revisar aquí
+// las 25 respuestas ítem a ítem, se confirma solo lo imprescindible para que
+// el backend acepte crear la sesión (consentimiento, compromiso, demografía
+// completa) y, en cuanto existe, se abre directamente la misma pantalla de
+// edición que usa la pestaña Sesiones para cualquier otra sesión — así la
+// revisión fina ocurre sobre datos ya guardados, sin un formulario aparte que
+// mantener sincronizado con el de edición.
+// ============================================================
 
-  const camposDemografia = [
-    ["sexo", "sexo", "Sexo"],
-    ["ccaa_educacion_secundaria", "ccaa", "CCAA de educación secundaria"],
-    ["nivel_estudios", "nivel_estudios", "Nivel de estudios"],
-    ["area_estudios", "area_estudios", "Área de estudios"],
-    ["estudios_mayor_progenitor", "nivel_estudios", "Mayor nivel de estudios de padre/madre"],
-    ["libros_en_casa", "libros_en_casa", "Libros en casa a los 15 años"],
-  ]
-    .map(([campo, claveCatalogo, etiqueta]) => {
-      const seed = ganadorDeGrupo(oscuridad, `demografia:${campo}:`);
-      return campoSelectDemografia(`demografia:${campo}`, etiqueta, CATALOGOS[claveCatalogo], seed);
-    })
-    .join("");
+function renderConfirmacionYCrear(zona, { tokenId, items, oscuridadGlobal, textosGlobal, paginasWarpeadas, alRecargar }) {
+  const consentimientoSeed = (oscuridadGlobal.get("demografia:consentimiento") ?? 0) >= UMBRAL_MARCA;
+  const honestidadSeed = (oscuridadGlobal.get("demografia:compromiso_honestidad") ?? 0) >= UMBRAL_MARCA;
+  const demografiaSeed = {
+    anio_nacimiento: (textosGlobal.get("demografia:anio_nacimiento") ?? "").replace(/\D/g, ""),
+    sexo: ganadorDeGrupo(oscuridadGlobal, "demografia:sexo:"),
+    ccaa_educacion_secundaria: ganadorDeGrupo(oscuridadGlobal, "demografia:ccaa_educacion_secundaria:"),
+    nivel_estudios: ganadorDeGrupo(oscuridadGlobal, "demografia:nivel_estudios:"),
+    area_estudios: ganadorDeGrupo(oscuridadGlobal, "demografia:area_estudios:"),
+    estudios_mayor_progenitor: ganadorDeGrupo(oscuridadGlobal, "demografia:estudios_mayor_progenitor:"),
+    libros_en_casa: ganadorDeGrupo(oscuridadGlobal, "demografia:libros_en_casa:"),
+  };
 
   const miniaturas = paginasWarpeadas
     .map(
@@ -557,11 +441,12 @@ function renderRevision(contenedor, { items, tokenId, oscuridad, textos, paginas
     )
     .join("");
 
-  contenedor.innerHTML = `
-    <h3>Revisión antes de guardar</h3>
+  zona.innerHTML = `
+    <h3>Confirmar datos y crear la sesión</h3>
     <p class="nota-formato">
-      Lo detectado por OMR/OCR aparece preseleccionado; corrige lo que haga falta antes de guardar.
-      Un campo en blanco se guarda como "sin responder" (igual que dejar una pregunta en blanco en la web).
+      Esto es solo lo imprescindible para poder crear la sesión (consentimiento, compromiso y
+      demografía). Las 25 respuestas se revisan justo después, ya guardadas, en la misma pantalla de
+      edición que el resto de sesiones del panel — así se corrige al momento sin perder lo digitalizado.
     </p>
     ${miniaturas}
     <div class="revision-item">
@@ -575,42 +460,27 @@ function renderRevision(contenedor, { items, tokenId, oscuridad, textos, paginas
         Compromiso de honestidad
       </label>
     </div>
-    <div class="revision-item">
-      <div class="revision-item-enunciado">Año de nacimiento</div>
-      <input type="text" inputmode="numeric" maxlength="4" data-campo="demografia:anio_nacimiento" value="${escaparHtml(anioSeed)}" />
-    </div>
-    ${camposDemografia}
-    <h3>Ítems</h3>
-    ${items.map((item) => bloqueRevisionItem(item, seeds[item.id])).join("")}
+    ${bloqueCamposDemografia(demografiaSeed)}
     <div class="botones-celda">
-      <button type="button" class="boton-principal boton-ancho-auto" id="boton-guardar-digitalizacion">Guardar hoja digitalizada</button>
-      <button type="button" class="boton-secundario boton-ancho-auto" id="boton-cancelar-digitalizacion">Cancelar</button>
+      <button type="button" class="boton-principal boton-ancho-auto" id="boton-crear-sesion">Crear sesión y revisar respuestas</button>
+      <button type="button" class="boton-secundario boton-ancho-auto" id="boton-cancelar-escaneo">Cancelar</button>
     </div>
-    <p id="estado-guardado" class="nota-formato"></p>`;
+    <p id="estado-crear" class="nota-formato"></p>`;
 
-  contenedor.querySelector("#boton-cancelar-digitalizacion").addEventListener("click", () => alRecargar());
+  zona.querySelector("#boton-cancelar-escaneo").addEventListener("click", () => alRecargar());
 
-  contenedor.querySelector("#boton-guardar-digitalizacion").addEventListener("click", async (ev) => {
+  zona.querySelector("#boton-crear-sesion").addEventListener("click", async (ev) => {
     const boton = ev.currentTarget;
-    const estado = contenedor.querySelector("#estado-guardado");
+    const estado = zona.querySelector("#estado-crear");
     boton.disabled = true;
-    estado.textContent = "Guardando…";
+    estado.textContent = "Creando sesión…";
     try {
-      const consentimiento = contenedor.querySelector('[data-campo="demografia:consentimiento"]').checked;
-      const compromiso_honestidad = contenedor.querySelector('[data-campo="demografia:compromiso_honestidad"]').checked;
-      const demografia = {
-        anio_nacimiento: Number(contenedor.querySelector('[data-campo="demografia:anio_nacimiento"]').value),
-        sexo: contenedor.querySelector('[data-campo="demografia:sexo"]').value,
-        ccaa_educacion_secundaria: contenedor.querySelector('[data-campo="demografia:ccaa_educacion_secundaria"]').value,
-        nivel_estudios: contenedor.querySelector('[data-campo="demografia:nivel_estudios"]').value,
-        area_estudios: contenedor.querySelector('[data-campo="demografia:area_estudios"]').value,
-        estudios_mayor_progenitor: contenedor.querySelector('[data-campo="demografia:estudios_mayor_progenitor"]').value,
-        libros_en_casa: contenedor.querySelector('[data-campo="demografia:libros_en_casa"]').value,
-      };
-      const respuestas = leerRespuestasDelFormulario(items, contenedor);
+      const consentimiento = zona.querySelector('[data-campo="demografia:consentimiento"]').checked;
+      const compromiso_honestidad = zona.querySelector('[data-campo="demografia:compromiso_honestidad"]').checked;
+      const demografia = leerDemografiaDelFormulario(zona);
+      const respuestas = decodificarRespuestas(items, oscuridadGlobal, textosGlobal);
       const resultado = await api.digitalizar({ token_id: tokenId, consentimiento, compromiso_honestidad, demografia, respuestas });
-      estado.textContent = `Guardada como sesión ${resultado.sesion_id}.`;
-      boton.remove();
+      await renderEditarSesion(zona, resultado.sesion_id, { onVolver: () => alRecargar() });
     } catch (e) {
       estado.textContent = `Error: ${e.message}`;
       boton.disabled = false;
@@ -630,11 +500,11 @@ function iniciarEscaneo(zona, { tokenId, items, paginas }) {
 
   function renderPasoActual() {
     if (indice >= paginas.length) {
-      renderRevision(zona, {
-        items,
+      renderConfirmacionYCrear(zona, {
         tokenId,
-        oscuridad: oscuridadGlobal,
-        textos: textosGlobal,
+        items,
+        oscuridadGlobal,
+        textosGlobal,
         paginasWarpeadas,
         alRecargar: () => (zona.innerHTML = ""),
       });
