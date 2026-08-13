@@ -1031,6 +1031,47 @@ después desde Sesiones, sin dos formularios que mantener sincronizados.
   Gmail del propio equipo del estudio (autenticación del panel), no de
   participantes.
 
+### 4.9 Código QR con el token de la remesa en la hoja impresa
+
+**Motivación:** cuando un colaborador externo reparte hojas impresas a un
+colectivo (§4.7) y luego las devuelve digitalizadas, el admin tiene que saber
+a qué remesa (`token_id`) pertenece cada hoja para poder digitalizarla. En
+vez de fiarse de que quede anotado a mano o de tener que preguntar, la propia
+hoja lleva esa información: un **código QR con el `token_id` en texto
+plano**, impreso en la página de demografía junto al resto de marcas
+(fiduciales, §4.7). No lleva ningún dato de la persona ni de una sesión
+concreta — la sesión aún no existe en el momento de imprimir — solo identifica
+la remesa, igual que el propio token ya identifica un lote de hojas con la
+misma fecha de caducidad.
+
+**Por qué QR y no PDF417 u otro simbología 1D/2D:** el contenido a codificar
+es corto (un UUID, ~36 caracteres) y no hay dispositivo lector dedicado — se
+decodifica con la misma cámara/foto que ya se usa para el OMR, en el propio
+navegador. Para ese caso QR es la opción más simple: hay librerías JS
+maduras y pequeñas tanto para generar (`qrcode-generator`) como para leer
+(`jsQR`) sin dependencias nativas, con mejor tolerancia a ruido/perspectiva
+que PDF417 a la resolución de una foto de móvil, y sin necesitar más
+precisión de las que ya exige leer las burbujas de OMR de al lado.
+
+**Impresión** (`hoja.js::construirBloquesDemografia`): si se pasa un `qr`
+(`{dataUrl, tokenId}`) a `construirHoja()`, se antepone un bloque con la
+imagen del QR (generada por `digitalizar.js::generarQrDataUrl`, vía
+`qrcode-generator` cargado bajo demanda desde CDN — mismo patrón que
+Tesseract.js) y el `token_id` en texto por si hace falta leerlo a ojo. El
+botón de imprimir del panel (`digitalizar.js`, sección 1) exige elegir la
+remesa de una lista antes de generar la hoja, precisamente para poder
+generar ese QR.
+
+**Digitalización** (`digitalizar.js::decodificarQr`, vía `jsQR`): al escanear
+la primera página de cada hoja, se recorta la región del QR (medida igual
+que cualquier otra marca, `data-linea="meta:qr"`) y se decodifica. Si el
+resultado coincide con un `token_id` real, la remesa queda fijada
+automáticamente y la pantalla de confirmación (§4.7) la muestra como ya
+resuelta ("Remesa detectada automáticamente"); si no se puede leer el QR
+(foto borrosa, hoja fotocopiada en blanco y negro sin suficiente contraste,
+etc.) se cae al mismo desplegable manual de remesa que existía antes del QR,
+así el flujo nunca se bloquea por un QR ilegible.
+
 ---
 
 ## 6. Fases del proyecto
