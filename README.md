@@ -590,10 +590,15 @@ Notas de implementación:
   `GET /api/resultado/:id`.
 - `GET /api/resultado/:id` tiene dos formas de respuesta según el estado de la sesión:
   si `completo=0` (test en curso, típicamente tras recargar la página o volver más
-  tarde), devuelve `{ estado: 'en_progreso', items_pendientes }` en vez de un
-  resultado, para que el cliente pueda **reanudar sin volver a decidir nada en el
-  propio front-end** — el `localStorage` del cliente solo necesita guardar el
-  `sesion_id` (§8), nunca qué ítems tocan ni en qué orden. Si la sesión está completa,
+  tarde), devuelve `{ estado: 'en_progreso', items_pendientes, items_respondidos }` en
+  vez de un resultado, para que el cliente pueda **reanudar sin volver a decidir nada
+  en el propio front-end** — el `localStorage` del cliente solo necesita guardar el
+  `sesion_id` (§8), nunca qué ítems tocan ni en qué orden. `items_respondidos` lleva los
+  ítems ya contestados antes de esta reanudación, con `respuesta_usuario` pero sin
+  `acierto` ni `respuesta_correcta` (sigue sin revelarse ninguna corrección mientras el
+  test no esté completo, ver más abajo): así, si la conexión se cae a mitad de test y el
+  cliente recarga, la pantalla de revisión pre-envío puede reconstruirse completa en vez
+  de mostrar solo lo respondido después de recargar. Si la sesión está completa,
   devuelve `{ estado: 'completo', resultado }`, donde `resultado` es `{ primera: true }`
   si aún no hay ninguna otra sesión completada con la que comparar, o
   `{ primera: false, percentil }` en caso contrario (§1.5: nunca se envía la

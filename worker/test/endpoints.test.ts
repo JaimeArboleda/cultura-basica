@@ -254,9 +254,51 @@ describe("GET /api/resultado/:id", () => {
   it("modo en_progreso mientras el test no está completo", async () => {
     const { sesion_id } = await crearSesionDeTest();
     const res = await SELF.fetch(`http://worker.test/api/resultado/${sesion_id}`);
-    const body = (await res.json()) as { estado: string; items_pendientes: unknown[] };
+    const body = (await res.json()) as {
+      estado: string;
+      items_pendientes: unknown[];
+      items_respondidos: unknown[];
+    };
     expect(body.estado).toBe("en_progreso");
     expect(body.items_pendientes.length).toBe(25);
+    expect(body.items_respondidos.length).toBe(0);
+  });
+
+  it("modo en_progreso tras reanudar: incluye los ítems ya respondidos con su respuesta, sin acierto ni respuesta correcta", async () => {
+    const { sesion_id, items } = await crearSesionDeTest();
+    const real = bancoItems.find((i) => i.id === items[0].id)!;
+    const respuesta =
+      real.formato === "opcion_multiple"
+        ? real.indice_correcto
+        : real.formato === "seleccion_multiple"
+          ? real.opciones_correctas
+          : real.formato === "ordenar"
+            ? real.elementos_ordenados
+            : real.formato === "clasificar"
+              ? real.clasificacion_correcta
+              : real.respuesta_canonica;
+    await postJson("/api/respuesta", {
+      sesion_id,
+      item_id: real.id,
+      respuesta,
+      t_ms: 500,
+      perdio_foco: false,
+    });
+
+    const res = await SELF.fetch(`http://worker.test/api/resultado/${sesion_id}`);
+    const body = (await res.json()) as {
+      estado: string;
+      items_pendientes: { id: string }[];
+      items_respondidos: { id: string; respuesta_usuario: unknown; acierto?: unknown; respuesta_correcta?: unknown }[];
+    };
+    expect(body.estado).toBe("en_progreso");
+    expect(body.items_pendientes.length).toBe(24);
+    expect(body.items_pendientes.some((i) => i.id === real.id)).toBe(false);
+    expect(body.items_respondidos.length).toBe(1);
+    expect(body.items_respondidos[0].id).toBe(real.id);
+    expect(body.items_respondidos[0].respuesta_usuario).toEqual(respuesta);
+    expect(body.items_respondidos[0].acierto).toBeUndefined();
+    expect(body.items_respondidos[0].respuesta_correcta).toBeUndefined();
   });
 
   it("modo completo tras responder los 25 ítems: sin otras sesiones no hay percentil que calcular", async () => {

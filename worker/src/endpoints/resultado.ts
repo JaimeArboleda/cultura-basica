@@ -6,7 +6,7 @@ import {
   obtenerSesion,
 } from "../db";
 import { error, json } from "../http";
-import { itemsPorId, paraCliente, paraRevision } from "../items";
+import { itemsPorId, paraCliente, paraClienteRespondido, paraRevision } from "../items";
 import type { Env } from "../tipos";
 
 // Percentil empírico (README §3): % de sesiones ya completadas con una puntuación
@@ -24,14 +24,22 @@ export async function getResultado(sesionId: string, env: Env): Promise<Response
   if (!sesion) return error(env, 404, "Sesión no encontrada");
 
   if (sesion.completo === 0) {
+    // Reanudar tras un refresco/corte de conexión (README §8) no debe hacer perder
+    // de vista lo ya contestado antes del corte: además de los ítems pendientes,
+    // se devuelven los ya respondidos con su respuesta (sin acierto ni respuesta
+    // correcta, README §4.3), para que el cliente pueda reconstruir la pantalla de
+    // revisión pre-envío completa en vez de solo la tanda servida tras reconectar.
     const asignaciones = await obtenerAsignaciones(env, sesionId);
-    const respondidos = new Set(
-      (await obtenerRespuestasParaResultado(env, sesionId)).map((r) => r.item_id)
+    const respuestaCrudaPorItem = new Map(
+      (await obtenerRespuestasParaResultado(env, sesionId)).map((r) => [r.item_id, r.respuesta_cruda])
     );
     const pendientes = asignaciones
-      .filter((a) => !respondidos.has(a.item_id))
+      .filter((a) => !respuestaCrudaPorItem.has(a.item_id))
       .map((a) => paraCliente(itemsPorId.get(a.item_id)!));
-    return json(env, { estado: "en_progreso", items_pendientes: pendientes });
+    const respondidos = asignaciones
+      .filter((a) => respuestaCrudaPorItem.has(a.item_id))
+      .map((a) => paraClienteRespondido(itemsPorId.get(a.item_id)!, respuestaCrudaPorItem.get(a.item_id)!));
+    return json(env, { estado: "en_progreso", items_pendientes: pendientes, items_respondidos: respondidos });
   }
 
   // Puntuación total (worker/src/puntuacion.ts): suma fraccionaria [0, N] de todos
