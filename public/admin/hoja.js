@@ -202,6 +202,14 @@ export const CSS_HOJA = `
   .hoja-fiducial-tr { top: 3mm; right: 3mm; }
   .hoja-fiducial-br { bottom: 3mm; right: 3mm; }
   .hoja-fiducial-bl { bottom: 3mm; left: 3mm; }
+
+  /* Código QR con el token de la remesa (README §4.9): así una hoja
+     fotocopiada y repartida por un colaborador se puede digitalizar sin que
+     el admin tenga que recordar a mano de qué remesa era cada foto. */
+  .hoja-qr { display: flex; align-items: flex-start; gap: 3mm; }
+  .hoja-qr-caja { width: 22mm; height: 22mm; flex: none; }
+  .hoja-qr-img { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+  .hoja-qr-texto { font-size: 7px; font-family: ui-monospace, monospace; color: #555; word-break: break-all; margin-top: 1mm; }
 `;
 
 function el(html) {
@@ -406,7 +414,28 @@ export function construirBloqueItem(item, numero) {
 // test): son datos de contexto, no el objeto de medida del estudio, y
 // duplicar aquí también los ~57 valores de los catálogos multiplicaría el
 // tamaño de estas páginas sin aportar tanto.
-function construirBloquesDemografia() {
+// qr: { dataUrl, tokenId } opcional (README §4.9) — si se pasa, la hoja
+// incluye el QR con el token de la remesa como primer bloque, para que
+// digitalizar.js pueda leerlo solo al escanear en vez de que el admin tenga
+// que elegir la remesa a mano.
+function construirBloquesDemografia(qr) {
+  const bloques = [];
+  if (qr?.dataUrl) {
+    bloques.push(
+      el(`
+        <div class="hoja-item hoja-qr">
+          <div class="hoja-qr-caja" data-linea="meta:qr">
+            <img src="${qr.dataUrl}" alt="Código QR de la remesa" class="hoja-qr-img" />
+          </div>
+          <div>
+            <div class="hoja-item-enunciado"><span>Código de la remesa</span></div>
+            <div class="hoja-leyenda">No lo rellenes: identifica a qué remesa pertenece esta hoja.</div>
+            <div class="hoja-qr-texto">${escaparHtml(qr.tokenId ?? "")}</div>
+          </div>
+        </div>`)
+    );
+  }
+
   const consentimiento = el(`<div class="hoja-item"><div class="hoja-item-enunciado"><span>Consentimiento y compromiso</span></div></div>`);
   consentimiento.appendChild(
     marcaCuadrado(
@@ -428,7 +457,7 @@ function construirBloquesDemografia() {
   anio.appendChild(el(`<div class="hoja-bloque-texto-titulo">Corrección (solo si te equivocaste arriba)</div>`));
   anio.appendChild(bloqueCasillasTexto("demografia:correccion:anio_nacimiento", 4, 1));
 
-  const bloques = [consentimiento, anio];
+  bloques.push(consentimiento, anio);
 
   // [campo del objeto Demografia (worker/src/tipos.ts), clave en CATALOGOS
   // (public/js/demografia.js — no siempre coincide: "estudios_mayor_progenitor"
@@ -543,10 +572,10 @@ function paginarBloques(medida, nodos, formatearTitulo) {
 // que necesita tanto la impresión (los .elemento) como el muestreo al
 // digitalizar (reutilizadas contra el escaneo enderezado). itemIds está
 // vacío en las páginas de demografía.
-export function construirHoja(items) {
+export function construirHoja(items, qr) {
   const medida = crearContenedorMedida();
   try {
-    const paginasDemografia = paginarBloques(medida, construirBloquesDemografia(), (n, total) =>
+    const paginasDemografia = paginarBloques(medida, construirBloquesDemografia(qr), (n, total) =>
       total > 1 ? `Página de datos ${n}/${total}` : "Página de datos"
     );
     const paginasItems = paginarBloques(

@@ -237,6 +237,67 @@ export async function ocrLinea(canvas, { soloDigitos = false, avisar } = {}) {
 }
 
 // ============================================================
+// 3b. Código QR con el token de la remesa (README §4.9)
+// ============================================================
+//
+// Ni qrcode-generator ni jsQR se publican como módulos ES en el CDN (son
+// scripts clásicos que cuelgan una global de window) — a diferencia de
+// Tesseract.js/Pyodide, aquí se cargan con una etiqueta <script> normal en
+// vez de import() dinámico, y se lee la global una vez cargada.
+function cargarScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve();
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`No se pudo cargar ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+let promesaQrGen = null;
+async function obtenerQrGen() {
+  if (!promesaQrGen) {
+    promesaQrGen = cargarScript("https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js").then(
+      () => window.qrcode
+    );
+  }
+  return promesaQrGen;
+}
+
+let promesaJsQr = null;
+async function obtenerJsQr() {
+  if (!promesaJsQr) {
+    promesaJsQr = cargarScript("https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js").then(() => window.jsQR);
+  }
+  return promesaJsQr;
+}
+
+// Genera el QR de un token como data URL, para incrustar en la hoja impresa
+// (hoja.js::construirBloquesDemografia). typeNumber 0 = tamaño automático
+// según la longitud del texto; nivel de corrección M (equilibrio razonable
+// entre tamaño del QR y tolerancia a manchas/dobleces del papel).
+export async function generarQrDataUrl(texto) {
+  const qrcodeLib = await obtenerQrGen();
+  const qr = qrcodeLib(0, "M");
+  qr.addData(texto);
+  qr.make();
+  return qr.createDataURL(8, 4);
+}
+
+// Decodifica el QR de un recorte ya enderezado (recortarLinea sobre la
+// región "meta:qr"). Devuelve el texto (el token_id) o null si no se pudo
+// leer — la foto puede estar borrosa, mal encuadrada, etc.; el llamador cae
+// entonces a que el admin elija el token a mano.
+export async function decodificarQr(canvas) {
+  const jsQR = await obtenerJsQr();
+  const ctx = canvas.getContext("2d");
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const resultado = jsQR(imageData.data, imageData.width, imageData.height);
+  return resultado ? resultado.data : null;
+}
+
+// ============================================================
 // 4. Selector de 4 esquinas sobre la foto subida
 // ============================================================
 
@@ -654,7 +715,10 @@ export function decodificarRespuestas(items, oscuridad, textos) {
 // mantener sincronizado con el de edición.
 // ============================================================
 
-function renderConfirmacionYCrear(zona, { tokenId, items, oscuridadGlobal, textosGlobal, paginasWarpeadas, alRecargar }) {
+function renderConfirmacionYCrear(
+  zona,
+  { tokenIdDetectado, tokens, items, oscuridadGlobal, textosGlobal, paginasWarpeadas, alRecargar }
+) {
   const consentimientoSeed = (oscuridadGlobal.get("demografia:consentimiento") ?? 0) >= UMBRAL_MARCA;
   const honestidadSeed = (oscuridadGlobal.get("demografia:compromiso_honestidad") ?? 0) >= UMBRAL_MARCA;
   const anioCorreccion = (textosGlobal.get("demografia:correccion:anio_nacimiento") ?? "").replace(/\D/g, "");
@@ -679,14 +743,43 @@ function renderConfirmacionYCrear(zona, { tokenId, items, oscuridadGlobal, texto
     )
     .join("");
 
+  // Remesa (README §4.9): si el QR de la página de datos se leyó y coincide
+  // con un token real, se usa directamente sin pedir nada — así se puede
+  // digitalizar un montón de fotos de remesas distintas sin tener que saber
+  // de antemano cuál es cuál. Si no se pudo leer (o no coincide con ningún
+  // token existente), hace falta elegirlo aquí a mano antes de poder crear
+  // la sesión, con las mismas opciones que en la pestaña Tokens.
+  const tokenDetectado = tokenIdDetectado ? tokens.find((t) => t.id === tokenIdDetectado) : null;
+  const bloqueToken = tokenDetectado
+    ? `<div class="revision-item">
+        <div class="revision-item-enunciado">Remesa</div>
+        <p class="nota-formato">Detectada automáticamente por el QR: <strong>${escaparHtml(tokenDetectado.descripcion)}</strong></p>
+      </div>`
+    : `<div class="revision-item">
+        <div class="revision-item-enunciado">Remesa</div>
+        <p class="nota-formato">${
+          tokenIdDetectado
+            ? "El QR se leyó pero no corresponde a ningún token existente — elige la remesa a mano."
+            : "No se pudo leer el QR de la remesa en ninguna página — elige la remesa a mano."
+        }</p>
+        <label class="campo">
+          <span>Token de la remesa a la que pertenece esta hoja</span>
+          <select id="select-token-confirmacion" required>
+            <option value="">Selecciona un token…</option>
+            ${tokens.map((t) => `<option value="${t.id}">${escaparHtml(t.descripcion)}</option>`).join("")}
+          </select>
+        </label>
+      </div>`;
+
   zona.innerHTML = `
     <h3>Confirmar datos y crear la sesión</h3>
     <p class="nota-formato">
-      Esto es solo lo imprescindible para poder crear la sesión (consentimiento, compromiso y
+      Esto es solo lo imprescindible para poder crear la sesión (remesa, consentimiento, compromiso y
       demografía). Las 25 respuestas se revisan justo después, ya guardadas, en la misma pantalla de
       edición que el resto de sesiones del panel — así se corrige al momento sin perder lo digitalizado.
     </p>
     ${miniaturas}
+    ${bloqueToken}
     <div class="revision-item">
       <div class="revision-item-enunciado">Consentimiento y compromiso</div>
       <label class="revision-checkbox">
@@ -710,6 +803,11 @@ function renderConfirmacionYCrear(zona, { tokenId, items, oscuridadGlobal, texto
   zona.querySelector("#boton-crear-sesion").addEventListener("click", async (ev) => {
     const boton = ev.currentTarget;
     const estado = zona.querySelector("#estado-crear");
+    const tokenId = tokenDetectado ? tokenDetectado.id : zona.querySelector("#select-token-confirmacion")?.value;
+    if (!tokenId) {
+      estado.textContent = "Falta elegir la remesa (token).";
+      return;
+    }
     boton.disabled = true;
     estado.textContent = "Creando sesión…";
     try {
@@ -730,16 +828,22 @@ function renderConfirmacionYCrear(zona, { tokenId, items, oscuridadGlobal, texto
 // 7. Orquestación del escaneo página a página
 // ============================================================
 
-function iniciarEscaneo(zona, { tokenId, items, paginas }) {
+function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas }) {
   const oscuridadGlobal = new Map();
   const textosGlobal = new Map();
   const paginasWarpeadas = [];
+  // Token detectado por QR en alguna de las páginas escaneadas (README §4.9);
+  // empieza con el que se haya seleccionado a mano ANTES de escanear (si
+  // había uno), pero un QR leído con éxito lo sustituye — es más fiable que
+  // una preselección hecha sin haber visto aún la hoja física.
+  let tokenIdDetectado = tokenIdInicial || null;
   let indice = 0;
 
   function renderPasoActual() {
     if (indice >= paginas.length) {
       renderConfirmacionYCrear(zona, {
-        tokenId,
+        tokenIdDetectado,
+        tokens,
         items,
         oscuridadGlobal,
         textosGlobal,
@@ -826,8 +930,19 @@ function iniciarEscaneo(zona, { tokenId, items, paginas }) {
         }
 
         for (const l of pagina.lineas) {
-          estado.textContent = `Leyendo texto (${l.clave})…`;
           const recorte = recortarLinea(warp, l, ESCALA_DIGITALIZACION);
+          if (l.clave === "meta:qr") {
+            estado.textContent = "Leyendo QR de la remesa…";
+            try {
+              const leido = await decodificarQr(recorte);
+              if (leido && tokens.some((t) => t.id === leido)) tokenIdDetectado = leido;
+            } catch {
+              // sin jsQR disponible (sin red, CDN caído…): se sigue sin el
+              // atajo del QR, el admin elige la remesa a mano en la confirmación
+            }
+            continue;
+          }
+          estado.textContent = `Leyendo texto (${l.clave})…`;
           const soloDigitos = l.clave.endsWith(":anio_nacimiento");
           const texto = await ocrLinea(recorte, {
             soloDigitos,
@@ -858,11 +973,19 @@ export async function renderDigitalizar(contenedor) {
     <section class="digitalizar-bloque">
       <h3>1. Imprimir hoja de respuestas</h3>
       <p class="nota-formato">
-        Genera la hoja de respuestas (formato OMR: casillas a rellenar) con los 25 ítems del banco actual
-        y la abre lista para imprimir. Desde el diálogo de impresión del navegador, "Guardar como PDF" da
-        la versión en PDF sin coste añadido.
+        Genera la hoja de respuestas (formato OMR: casillas a rellenar) con los 25 ítems del banco actual,
+        con un código QR de la remesa elegida — así al digitalizarla más tarde no hace falta recordar de
+        qué remesa era cada foto. Se abre lista para imprimir; desde el diálogo de impresión del navegador,
+        "Guardar como PDF" da la versión en PDF sin coste añadido.
       </p>
-      <button type="button" class="boton-principal boton-ancho-auto" id="boton-generar-hoja">Generar e imprimir hoja</button>
+      <label class="campo">
+        <span>Remesa para el QR de esta hoja</span>
+        <select id="select-token-imprimir">
+          <option value="">Selecciona un token…</option>
+          ${tokens.map((t) => `<option value="${t.id}">${escaparHtml(t.descripcion)}</option>`).join("")}
+        </select>
+      </label>
+      <button type="button" class="boton-principal boton-ancho-auto" id="boton-generar-hoja" disabled>Generar e imprimir hoja</button>
       <p id="estado-hoja" class="nota-formato"></p>
     </section>
     <section class="digitalizar-bloque">
@@ -870,26 +993,38 @@ export async function renderDigitalizar(contenedor) {
       <p class="nota-formato">
         Sube fotos de las páginas de una hoja ya rellenada; se interpretan en tu propio navegador
         (sin subir nada a ningún servicio externo salvo el Worker de este proyecto al guardar el resultado).
+        La remesa se detecta sola por el QR de la página de datos — el token de aquí abajo es solo un
+        respaldo por si la foto de esa página no se pudo leer.
       </p>
       <label class="campo">
-        <span>Token de la remesa a la que pertenece esta hoja</span>
+        <span>Token de la remesa (opcional: se detecta por QR)</span>
         <select id="select-token-digitalizar">
-          <option value="">Selecciona un token…</option>
+          <option value="">Se detectará por QR…</option>
           ${tokens.map((t) => `<option value="${t.id}">${escaparHtml(t.descripcion)}</option>`).join("")}
         </select>
       </label>
-      <button type="button" class="boton-principal boton-ancho-auto" id="boton-empezar-escaneo" disabled>Empezar digitalización</button>
+      <button type="button" class="boton-principal boton-ancho-auto" id="boton-empezar-escaneo">Empezar digitalización</button>
       <div id="zona-escaneo"></div>
     </section>`;
 
-  contenedor.querySelector("#boton-generar-hoja").addEventListener("click", async (ev) => {
+  const selectTokenImprimir = contenedor.querySelector("#select-token-imprimir");
+  const botonGenerar = contenedor.querySelector("#boton-generar-hoja");
+  selectTokenImprimir.addEventListener("change", () => {
+    botonGenerar.disabled = !selectTokenImprimir.value;
+  });
+
+  botonGenerar.addEventListener("click", async (ev) => {
     const boton = ev.currentTarget;
     const estado = contenedor.querySelector("#estado-hoja");
+    const tokenId = selectTokenImprimir.value;
+    if (!tokenId) return;
     boton.disabled = true;
-    estado.textContent = "Generando hoja…";
+    estado.textContent = "Generando código QR…";
     try {
+      const dataUrl = await generarQrDataUrl(tokenId);
+      estado.textContent = "Generando hoja…";
       const { items } = await api.itemsImpresion();
-      const paginas = construirHoja(items);
+      const paginas = construirHoja(items, { dataUrl, tokenId });
       abrirVentanaImpresion(paginas);
       estado.textContent = `Hoja generada: ${paginas.length} páginas.`;
     } catch (e) {
@@ -901,20 +1036,15 @@ export async function renderDigitalizar(contenedor) {
 
   const selectToken = contenedor.querySelector("#select-token-digitalizar");
   const botonEmpezar = contenedor.querySelector("#boton-empezar-escaneo");
-  selectToken.addEventListener("change", () => {
-    botonEmpezar.disabled = !selectToken.value;
-  });
 
   botonEmpezar.addEventListener("click", async () => {
-    const tokenId = selectToken.value;
-    if (!tokenId) return;
     botonEmpezar.disabled = true;
     const zona = contenedor.querySelector("#zona-escaneo");
     zona.innerHTML = "<p>Cargando el banco de ítems…</p>";
     try {
       const { items } = await api.itemsImpresion();
       const paginas = construirHoja(items);
-      iniciarEscaneo(zona, { tokenId, items, paginas });
+      iniciarEscaneo(zona, { tokenIdInicial: selectToken.value || null, tokens, items, paginas });
     } catch (e) {
       zona.innerHTML = `<p class="mensaje-error">${escaparHtml(e.message)}</p>`;
     } finally {
