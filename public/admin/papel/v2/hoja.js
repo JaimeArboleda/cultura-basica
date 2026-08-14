@@ -66,8 +66,15 @@ import {
 const CSS_HOJA_V2 = `
   .hoja-fila-casillas-individuales { display: flex; gap: 0.9mm; }
   .hoja-fila-casillas-individuales .hoja-linea-casillas { margin-bottom: 0; }
+  /* border-color: transparent (NO "border: none"): .hoja-casilla-texto no
+     usa box-sizing:border-box, así que el borde suma al ancho total de la
+     caja (5.6mm de contenido + 0.35mm×2 de borde). Quitar el borde entero
+     en vez de solo su color encoge la celda de cabecera 0.7mm respecto a la
+     casilla real de debajo, y ese desajuste se acumula casilla a casilla —
+     con 10 casillas en una fila llegaba a desalinear visiblemente la
+     cabecera respecto a la fila de casillas real. */
   .hoja-cabecera-casilla {
-    width: 5.6mm; flex: none; border: none; background: transparent;
+    width: 5.6mm; flex: none; border-color: transparent; background: transparent;
     display: flex; align-items: center; justify-content: center;
     font-size: 8px; font-weight: 600; color: ${COLOR_ACENTO};
   }
