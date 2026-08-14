@@ -27,6 +27,9 @@ export interface FilaSesionAdmin {
   token_id: string | null;
   // 'web' | 'papel' (README §4.7): de dónde viene esta sesión.
   origen: string;
+  // Versión del pipeline de hoja/digitalización (public/admin/papel/v1, v2...);
+  // NULL si origen='web'.
+  version_papel: number | null;
   anio_nacimiento: number | null;
   sexo: string | null;
   ccaa_educacion_secundaria: string | null;
@@ -50,22 +53,26 @@ export async function crearSesion(
     // 'web' por defecto (vía DEFAULT de la columna, README §4.7): se omite en
     // todas las llamadas existentes (worker/src/endpoints/sesion.ts).
     origen?: "web" | "papel";
+    // Versión del pipeline de hoja/digitalización (README §4.9); solo tiene
+    // sentido cuando origen='papel', se ignora (queda NULL) en 'web'.
+    versionPapel?: number | null;
   }
 ): Promise<void> {
-  const { id, creadaEn, demografia: d, userAgentClase, asignaciones, tokenId, origen } = args;
+  const { id, creadaEn, demografia: d, userAgentClase, asignaciones, tokenId, origen, versionPapel } = args;
 
   const insertSesion = env.DB.prepare(
     `INSERT INTO sesiones (
-       id, creada_en, consentimiento, compromiso_honestidad, user_agent_clase, token_id, origen,
+       id, creada_en, consentimiento, compromiso_honestidad, user_agent_clase, token_id, origen, version_papel,
        anio_nacimiento, sexo, ccaa_educacion_secundaria,
        nivel_estudios, area_estudios, estudios_mayor_progenitor, libros_en_casa
-     ) VALUES (?,?,1,1,?,?,?, ?,?,?, ?,?,?,?)`
+     ) VALUES (?,?,1,1,?,?,?,?, ?,?,?, ?,?,?,?)`
   ).bind(
     id,
     creadaEn,
     userAgentClase,
     tokenId,
     origen ?? "web",
+    origen === "papel" ? versionPapel ?? null : null,
     d.anio_nacimiento,
     d.sexo,
     d.ccaa_educacion_secundaria,
@@ -300,7 +307,7 @@ export async function listarSesiones(
   const where = condiciones.length ? `WHERE ${condiciones.join(" AND ")}` : "";
 
   const { results } = await env.DB.prepare(
-    `SELECT id, creada_en, actualizada_en, completo, puntuacion_total, user_agent_clase, token_id, origen,
+    `SELECT id, creada_en, actualizada_en, completo, puntuacion_total, user_agent_clase, token_id, origen, version_papel,
             anio_nacimiento, sexo, ccaa_educacion_secundaria, nivel_estudios, area_estudios,
             estudios_mayor_progenitor, libros_en_casa
      FROM sesiones ${where} ORDER BY creada_en DESC`
@@ -315,7 +322,7 @@ export async function listarSesiones(
 // que solo expone lo que necesita el flujo público del test.
 export async function obtenerSesionAdmin(env: Env, sesionId: string): Promise<FilaSesionAdmin | null> {
   const fila = await env.DB.prepare(
-    `SELECT id, creada_en, actualizada_en, completo, puntuacion_total, user_agent_clase, token_id, origen,
+    `SELECT id, creada_en, actualizada_en, completo, puntuacion_total, user_agent_clase, token_id, origen, version_papel,
             anio_nacimiento, sexo, ccaa_educacion_secundaria, nivel_estudios, area_estudios,
             estudios_mayor_progenitor, libros_en_casa
      FROM sesiones WHERE id = ?`
@@ -409,7 +416,7 @@ export async function obtenerDatasetCompleto(env: Env, tokenId?: string): Promis
 
   const [sesiones, respuestas, tokens] = await Promise.all([
     env.DB.prepare(
-      `SELECT id, creada_en, actualizada_en, completo, puntuacion_total, user_agent_clase, token_id, origen,
+      `SELECT id, creada_en, actualizada_en, completo, puntuacion_total, user_agent_clase, token_id, origen, version_papel,
               anio_nacimiento, sexo, ccaa_educacion_secundaria, nivel_estudios, area_estudios,
               estudios_mayor_progenitor, libros_en_casa
        FROM sesiones ${condicionSesiones} ORDER BY creada_en`

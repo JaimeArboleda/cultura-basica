@@ -7,7 +7,8 @@
 // cookies. El token llega en el fragmento de la URL tras el login (ver init())
 // y se guarda en localStorage.
 //
-import { renderDigitalizar } from "./digitalizar.js";
+import { renderDigitalizar as renderDigitalizarV1 } from "./papel/v1/digitalizar.js";
+import { renderDigitalizar as renderDigitalizarV2 } from "./papel/v2/digitalizar.js";
 import { renderEditarSesion } from "./editarSesion.js";
 
 // API_BASE duplica intencionalmente la constante de ../js/api.js: son despliegues
@@ -150,6 +151,44 @@ function pantallaLogin() {
     </section>`);
 }
 
+// --- Pestaña "Digitalizar tests": selector de versión del pipeline de papel
+// (README §4.9) --- conviven varias versiones (public/admin/papel/v1, v2...),
+// cada una un módulo autocontenido con su propio hoja.js/digitalizar.js, para
+// poder comparar en la práctica cuál funciona mejor antes de quedarse con una
+// sola. Este selector es solo el enrutado: decide a qué render delegar.
+const PIPELINES_PAPEL = [
+  { version: 1, etiqueta: "v1 — burbujas (OMR)", render: renderDigitalizarV1 },
+  { version: 2, etiqueta: "v2 — letras (OCR)", render: renderDigitalizarV2 },
+];
+
+async function renderDigitalizarConVersion(contenedor) {
+  contenedor.innerHTML = `
+    <nav class="panel-pestanas">
+      ${PIPELINES_PAPEL.map(
+        (p) =>
+          `<button type="button" class="pestana ${p.version === PIPELINES_PAPEL[0].version ? "activa" : ""}" data-version="${p.version}">${escaparHtml(p.etiqueta)}</button>`
+      ).join("")}
+    </nav>
+    <div id="zona-pipeline-papel"></div>`;
+
+  const zona = contenedor.querySelector("#zona-pipeline-papel");
+  const botones = contenedor.querySelectorAll("[data-version]");
+
+  async function activarVersion(version) {
+    botones.forEach((b) => b.classList.toggle("activa", Number(b.dataset.version) === version));
+    const pipeline = PIPELINES_PAPEL.find((p) => p.version === version);
+    zona.innerHTML = "<p>Cargando…</p>";
+    try {
+      await pipeline.render(zona);
+    } catch (e) {
+      zona.innerHTML = `<p class="mensaje-error">${escaparHtml(e.message)}</p>`;
+    }
+  }
+
+  botones.forEach((b) => b.addEventListener("click", () => activarVersion(Number(b.dataset.version))));
+  await activarVersion(PIPELINES_PAPEL[0].version);
+}
+
 // --- Estructura del panel: cabecera + pestañas ---
 
 const PESTANAS = [
@@ -157,7 +196,7 @@ const PESTANAS = [
   { id: "avanzado", etiqueta: "Estadísticas avanzadas", render: renderAvanzado },
   { id: "tokens", etiqueta: "Tokens", render: renderTokens },
   { id: "sesiones", etiqueta: "Sesiones", render: renderSesiones },
-  { id: "digitalizar", etiqueta: "Digitalizar tests", render: renderDigitalizar },
+  { id: "digitalizar", etiqueta: "Digitalizar tests", render: renderDigitalizarConVersion },
   { id: "solicitudes", etiqueta: "Solicitudes de acceso", render: renderSolicitudes },
   { id: "admins", etiqueta: "Administradores", render: renderAdmins },
 ];

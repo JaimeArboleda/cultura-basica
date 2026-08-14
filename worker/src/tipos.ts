@@ -128,15 +128,15 @@ export const CCAA = [
 ] as const;
 
 export const NIVEL_ESTUDIOS = [
-  "sin estudios",
-  "primaria",
+  "Sin estudios",
+  "Primaria",
   "ESO",
-  "bachillerato",
+  "Bachillerato",
   "FP grado medio",
   "FP grado superior",
-  "grado o licenciatura",
-  "máster",
-  "doctorado",
+  "Grado o licenciatura",
+  "Máster",
+  "Doctorado",
 ] as const;
 
 export const AREA_ESTUDIOS = [
