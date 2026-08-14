@@ -50,6 +50,7 @@ import {
   agregarBloqueAbierto,
   bloqueCasillasTexto,
   COLOR_ACENTO,
+  construirBloqueQrGrande,
   construirPaginas,
   CSS_HOJA_BASE,
   el,
@@ -208,24 +209,14 @@ export function construirBloqueItem(item, numero) {
 // archivo) y el año de nacimiento sigue siendo solo dígitos, sin bloque de
 // Corrección (igual que v1: un error ahí se resuelve en la revisión manual
 // posterior, editarSesion.js).
-// qr: { tokenId } opcional — la imagen del QR grande se rellena DESPUÉS de
-// paginar (ver construirHoja más abajo), igual que en v1/hoja.js.
+// qr: { tokenId } opcional — la caja del QR grande está SIEMPRE presente
+// (construirBloqueQrGrande, ../comun.js — su posición tiene que coincidir con
+// la de la hoja realmente impresa incluso al reconstruir el layout sin `qr`
+// para digitalizar, ver el comentario de esa función); solo la imagen/token
+// reales son opcionales, y se rellenan DESPUÉS de paginar (ver construirHoja
+// más abajo), igual que en v1/hoja.js.
 function construirBloquesDemografia(qr) {
-  const bloques = [];
-  if (qr?.tokenId) {
-    bloques.push(
-      el(`
-        <div class="hoja-item hoja-qr">
-          <div class="hoja-qr-caja" data-linea="meta:qr">
-            <img alt="Código QR de la remesa" class="hoja-qr-img" />
-          </div>
-          <div>
-            <div class="hoja-item-enunciado"><span>Código de la remesa</span></div>
-            <div class="hoja-qr-texto">${escaparHtml(qr.tokenId ?? "")}</div>
-          </div>
-        </div>`)
-    );
-  }
+  const bloques = [construirBloqueQrGrande(qr)];
 
   const consentimiento = el(`<div class="hoja-item"><div class="hoja-item-enunciado"><span>Consentimiento y compromiso</span></div></div>`);
   consentimiento.appendChild(

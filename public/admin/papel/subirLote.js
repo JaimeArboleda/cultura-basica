@@ -19,6 +19,7 @@ import { api, escaparHtml } from "../admin.js";
 import {
   cargarPaginasPdf,
   crearSelectorEsquinas,
+  decodificarPayloadQr,
   decodificarPayloadQrPagina,
   decodificarQr,
   detectarFiduciales,
@@ -157,9 +158,10 @@ function pedirTokenYVersion(contenedor, { examId, tokens }) {
   return new Promise((resolve) => {
     contenedor.innerHTML = `
       <p class="nota-formato">
-        Primera página que se ve del examen <code>${escaparHtml(examId)}</code>: dime a qué remesa y a qué
-        versión de hoja pertenece — se recuerda para el resto de páginas de este mismo examen, no hace
-        falta repetirlo.
+        Examen <code>${escaparHtml(examId)}</code> nuevo para el servidor y no se pudo leer el QR grande de
+        la remesa (foto borrosa, no es la página 1, o el token/versión leídos no coinciden con nada
+        conocido): dime a mano a qué remesa y a qué versión de hoja pertenece — se recuerda para el resto de
+        páginas de este mismo examen, no hace falta repetirlo.
       </p>
       <label class="campo">
         <span>Remesa</span>
@@ -204,6 +206,7 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log }) {
   let esquinas = detectados;
   if (!esquinas) {
     zonaIntervencion.hidden = false;
+    log("Esquinas no detectadas: ajústalas arriba ↑ para continuar…");
     esquinas = await pedirEsquinasManualmente(zonaIntervencion, unidad.canvas);
     zonaIntervencion.hidden = true;
   }
@@ -228,6 +231,7 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log }) {
   }
   if (!identificacion) {
     zonaIntervencion.hidden = false;
+    log("QR de página no legible: identifica arriba ↑ a qué examen y página pertenece…");
     identificacion = await pedirIdentificacionManual(zonaIntervencion);
     zonaIntervencion.hidden = true;
   }
@@ -243,8 +247,34 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log }) {
       if (e.status && e.status !== 404) throw e;
     }
   }
+  // Primera página de un exam_id que el servidor todavía no conoce (README
+  // §4.9): antes de pedirlo a mano, se intenta leer el QR GRANDE (remesa +
+  // versión completos, solo en la página 1) — geometriaBase.lineaQrGrande es
+  // la misma en cualquier versión (comun.js::medirGeometriaBaseEnBlanco), así
+  // que se puede recortar y decodificar sin saber todavía qué versión es esta
+  // hoja, igual que ya hace el flujo secuencial (v{1,2}/digitalizar.js) al
+  // escanear. Si la página no es la 1, o el QR grande no se lee, o lee un
+  // token_id/version que no cuadra con nada conocido, se cae a pedirlo a mano
+  // (mismo respaldo de siempre).
+  if (!info && pagina === 1) {
+    log("Leyendo QR de la remesa…");
+    try {
+      const recorteQrGrande = recortarLinea(warp, geometriaBase.lineaQrGrande, ESCALA_DIGITALIZACION);
+      const leidoGrande = await decodificarQr(recorteQrGrande);
+      if (leidoGrande) {
+        const datosGrande = decodificarPayloadQr(leidoGrande);
+        if (tokens.some((t) => t.id === datosGrande.tokenId) && PIPELINES[datosGrande.version]) {
+          info = { tokenId: datosGrande.tokenId, version: datosGrande.version };
+          examenesConocidos.set(examId, info);
+        }
+      }
+    } catch {
+      // sin jsQR disponible, o QR grande no legible: se cae a la resolución manual de abajo
+    }
+  }
   if (!info) {
     zonaIntervencion.hidden = false;
+    log("Hoja nueva: elige arriba ↑ a qué remesa y versión pertenece…");
     info = await pedirTokenYVersion(zonaIntervencion, { examId, tokens });
     examenesConocidos.set(examId, info);
     zonaIntervencion.hidden = true;

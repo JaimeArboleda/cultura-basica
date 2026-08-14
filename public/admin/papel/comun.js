@@ -273,6 +273,32 @@ function crearPagina(tituloDerecha) {
     </div>`);
 }
 
+// Bloque del QR GRANDE (README §4.9): SIEMPRE el primer bloque de la página
+// de demografía, en cualquier versión (v1/hoja.js y v2/hoja.js lo anteponen
+// igual a construirBloquesDemografia) — de ahí que viva aquí, compartido, en
+// vez de duplicado en cada versión. Crucial que estén SIEMPRE presentes,
+// tanto al imprimir (con `qr.tokenId` real) como al reconstruir el layout
+// solo para medir/digitalizar (llamando a construirHoja(items) sin `qr`,
+// ../v{1,2}/digitalizar.js y ../subirLote.js): la hoja física impresa
+// siempre lleva este bloque (el token es obligatorio para imprimir), así que
+// si el layout de lectura lo omitiera, todo el contenido de debajo (casillas
+// de consentimiento, año de nacimiento, catálogos...) quedaría desplazado
+// respecto a la foto real y la lectura de esa página saldría mal — no es
+// solo que no se pueda leer el QR, es que se desalinea la página entera.
+// Por eso qr es opcional aquí: sin él se deja la caja vacía (measurement-only).
+export function construirBloqueQrGrande(qr) {
+  return el(`
+    <div class="hoja-item hoja-qr">
+      <div class="hoja-qr-caja" data-linea="meta:qr">
+        <img alt="Código QR de la remesa" class="hoja-qr-img" />
+      </div>
+      <div>
+        <div class="hoja-item-enunciado"><span>Código de la remesa</span></div>
+        <div class="hoja-qr-texto">${escaparHtml(qr?.tokenId ?? "")}</div>
+      </div>
+    </div>`);
+}
+
 // Contenedor invisible pero con layout real (no display:none, que da
 // getBoundingClientRect a cero): fuera de la pantalla en vez de oculto, para
 // poder medir alturas y luego coordenadas de marcas con las mismas reglas
@@ -677,33 +703,66 @@ export async function ocrLinea(canvas, { soloDigitos = false, soloLetras = false
 // scripts clásicos que cuelgan una global de window) — a diferencia de
 // Tesseract.js, aquí se cargan con una etiqueta <script> normal en vez de
 // import() dinámico, y se lee la global una vez cargada.
-function cargarScript(src) {
+//
+// nombreGlobal (p. ej. "jsQR"): se comprueba ANTES de tocar el DOM (cubre
+// tanto "ya cargado con éxito antes" como, tras un fallo previo, evita
+// reintentar si por lo que sea la global ya está de todos modos) y timeoutMs
+// asegura que esto nunca se quede colgado sin más si la red va lenta o el
+// CDN no responde ni con éxito ni con error (un <script src> nunca tiene
+// timeout propio) — sin esto, la subida en bloque (../subirLote.js) se
+// quedaba indefinidamente en "Leyendo QR de página…" sin ningún error ni
+// aviso con solo que la primera carga de esta librería se colgara.
+function cargarScript(src, nombreGlobal, timeoutMs = 20000) {
   return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) return resolve();
-    const script = document.createElement("script");
-    script.src = src;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`No se pudo cargar ${src}`));
-    document.head.appendChild(script);
+    if (window[nombreGlobal]) return resolve();
+    const script = document.querySelector(`script[src="${src}"]`) ?? document.createElement("script");
+    const yaEstaba = script.isConnected;
+    const temporizador = setTimeout(() => {
+      script.remove();
+      reject(new Error(`Tiempo de espera agotado cargando ${src} (¿sin red o el CDN no responde?)`));
+    }, timeoutMs);
+    script.addEventListener("load", () => {
+      clearTimeout(temporizador);
+      resolve();
+    });
+    script.addEventListener("error", () => {
+      clearTimeout(temporizador);
+      script.remove(); // no dejar una etiqueta rota que el próximo intento confunda con "ya cargando"
+      reject(new Error(`No se pudo cargar ${src}`));
+    });
+    if (!yaEstaba) {
+      script.src = src;
+      document.head.appendChild(script);
+    }
   });
 }
 
 let promesaQrGen = null;
 async function obtenerQrGen() {
   if (!promesaQrGen) {
-    promesaQrGen = cargarScript("https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js").then(
+    promesaQrGen = cargarScript("https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js", "qrcode").then(
       () => window.qrcode
     );
   }
-  return promesaQrGen;
+  try {
+    return await promesaQrGen;
+  } catch (e) {
+    promesaQrGen = null; // no dejar la caché envenenada para siempre: la siguiente página puede reintentarlo
+    throw e;
+  }
 }
 
 let promesaJsQr = null;
 async function obtenerJsQr() {
   if (!promesaJsQr) {
-    promesaJsQr = cargarScript("https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js").then(() => window.jsQR);
+    promesaJsQr = cargarScript("https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js", "jsQR").then(() => window.jsQR);
   }
-  return promesaJsQr;
+  try {
+    return await promesaJsQr;
+  } catch (e) {
+    promesaJsQr = null; // no dejar la caché envenenada para siempre: la siguiente página puede reintentarlo
+    throw e;
+  }
 }
 
 // Genera el QR de un texto arbitrario como data URL, para incrustar en la
@@ -895,15 +954,21 @@ export async function leerPagina(pagina, warpCanvas, { opcionesOcrParaClave, avi
   return { oscuridad, textos, qrGrande, qrPagina };
 }
 
-// Devuelve { fiduciales, lineaQrPagina }: la posición canónica de los 4
-// fiduciales de esquina y la caja del QR pequeño de página — ninguna de las
-// dos depende de la versión del pipeline ni de qué items/demografía lleve
-// la hoja (fiduciales y QR de página son de comun.js::crearPagina, position
-// absolute, compartidos tal cual por v1 y v2). La subida en bloque
-// (../subirLote.js) usa esto UNA vez para poder enderezar cualquier foto y
-// leer su QR de página ANTES de saber siquiera con qué versión se imprimió
-// esa hoja concreta — la versión es, precisamente, uno de los datos que hace
-// falta para interpretar el resto del contenido de la página.
+// Devuelve { fiduciales, lineaQrPagina, lineaQrGrande }: la posición canónica
+// de los 4 fiduciales de esquina, la caja del QR pequeño de página y la caja
+// del QR grande de la remesa — ninguna de las tres depende de la versión del
+// pipeline ni de qué items lleve la hoja. Fiduciales y QR de página son de
+// comun.js::crearPagina, position absolute, compartidos tal cual por v1 y v2;
+// el QR grande (comun.js::construirBloqueQrGrande) SÍ participa del flujo
+// normal de contenido, pero al ser siempre el primer bloque justo después de
+// la cabecera (misma cabecera, mismo padding, en cualquier versión — ver
+// construirBloqueQrGrande), su posición tampoco depende de qué venga
+// después. La subida en bloque (../subirLote.js) usa esto UNA vez para poder
+// enderezar cualquier foto y leer su QR de página, y si es la página 1 de un
+// examen nuevo, también el QR grande (remesa + versión), ANTES de saber
+// siquiera con qué versión se imprimió esa hoja concreta — la versión es,
+// precisamente, uno de los datos que hace falta para interpretar el resto
+// del contenido de la página.
 export function medirGeometriaBaseEnBlanco() {
   const estiloTemporal = document.createElement("style");
   estiloTemporal.textContent = CSS_HOJA_BASE;
@@ -911,9 +976,14 @@ export function medirGeometriaBaseEnBlanco() {
   const medida = crearContenedorMedida();
   try {
     const pagina = crearPagina("x");
+    pagina.appendChild(construirBloqueQrGrande());
     medida.appendChild(pagina);
     const { lineas, fiduciales } = medirMarcas(pagina);
-    return { fiduciales, lineaQrPagina: lineas.find((l) => l.clave === "meta:qr:pagina") };
+    return {
+      fiduciales,
+      lineaQrPagina: lineas.find((l) => l.clave === "meta:qr:pagina"),
+      lineaQrGrande: lineas.find((l) => l.clave === "meta:qr"),
+    };
   } finally {
     medida.remove();
     estiloTemporal.remove();

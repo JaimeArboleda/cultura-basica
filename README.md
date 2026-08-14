@@ -1227,15 +1227,27 @@ de una foto de móvil, y sin necesitar más precisión de las que ya exige leer
 las burbujas de OMR de al lado.
 
 **Dónde se coloca cada uno en la página** (`papel/comun.js::crearPagina`,
-`CSS_HOJA_BASE`): el QR grande es CONTENIDO normal (ocupa espacio en el
-paginado voraz, `construirPaginas`), solo en el primer bloque de demografía.
-El QR pequeño es, en cambio, `position: absolute` — igual que los 4
-fiduciales de esquina — para no desplazar ningún bloque de contenido al
-añadirse a TODAS las páginas; se ancla al borde derecho, centrado
-verticalmente, **fuera** de los cuadrantes de búsqueda de fiduciales (8% del
-ancho/alto desde cada esquina, `detectarFiduciales`) a propósito — un blob
-oscuro adicional dentro de ese cuadrante rompería la detección automática de
-esquinas, que exige un fiducial "aislado" (README §4.7).
+`construirBloqueQrGrande`, `CSS_HOJA_BASE`): el QR grande es CONTENIDO normal
+(ocupa espacio en el paginado voraz, `construirPaginas`), SIEMPRE el primer
+bloque de demografía — `construirBloqueQrGrande()` vive en `comun.js`
+(compartida por `v1/hoja.js` y `v2/hoja.js`, antes duplicada en cada una) y
+se antepone incondicionalmente en `construirBloquesDemografia`, tanto al
+imprimir de verdad (con `qr.tokenId`) como al reconstruir el layout SOLO para
+medir/leer (`construirHoja(items)`, sin `qr` — `v{1,2}/digitalizar.js` y
+`subirLote.js`). Es crucial que esté SIEMPRE, aunque no haya nada que
+imprimir en la caja: la hoja física impresa lo lleva siempre (el token es
+obligatorio para imprimir), así que si el layout de lectura lo omitiera, todo
+el contenido de la página de datos quedaría desplazado hacia arriba respecto
+a la foto real por la altura entera de ese bloque — no solo no se podría leer
+el QR, sino que consentimiento/compromiso, año de nacimiento y los 6
+catálogos de esa página se leerían de la posición equivocada. El QR pequeño
+es, en cambio, `position: absolute` — igual que los 4 fiduciales de esquina —
+para no desplazar ningún bloque de contenido al añadirse a TODAS las
+páginas; se ancla al borde derecho, centrado verticalmente, **fuera** de los
+cuadrantes de búsqueda de fiduciales (8% del ancho/alto desde cada esquina,
+`detectarFiduciales`) a propósito — un blob oscuro adicional dentro de ese
+cuadrante rompería la detección automática de esquinas, que exige un
+fiducial "aislado" (README §4.7).
 
 **Impresión** (`papel/v1/hoja.js`/`v2/hoja.js::construirHoja`, ambas ahora
 `async`): se genera un `exam_id` nuevo (`generarExamId()`) cada vez que se
@@ -1243,11 +1255,13 @@ imprime una hoja y se pasa junto con `tokenId`/`version` a `construirHoja()`.
 Como el payload de cada QR necesita saber en qué página global cae (algo que
 solo se conoce DESPUÉS de paginar), la imagen de los QR no se genera de
 antemano: `construirPaginas()` reserva primero una caja vacía en cada página
-(el QR grande solo si se pidió, el pequeño siempre) y, ya con las páginas
+(el QR grande siempre, el pequeño siempre) y, ya con las páginas
 construidas, `comun.js::rellenarQrPaginas()` recorre el array resultante
 rellenando cada `<img>` con su QR correspondiente (`generarQrDataUrl` +
 `await imagen.decode()`, para no dejar la imagen a medio decodificar si algo
-mide/capturase la página inmediatamente después).
+mide/capturase la página inmediatamente después) — solo se llama si se pidió
+`qr.examId`, así que la caja del QR grande queda vacía (sin romper el
+layout) cuando se reconstruye solo para medir/leer.
 
 **Digitalización:** cualquier `data-linea` con clave `meta:qr` o
 `meta:qr:pagina` que aparezca en el layout de una página se decodifica igual
@@ -1258,9 +1272,11 @@ detectado coincide con un token real, la remesa queda fijada automáticamente
 QR no se pudo leer (foto borrosa, hoja fotocopiada en blanco y negro sin
 suficiente contraste, etc.) se cae al desplegable manual de remesa de
 siempre, así el flujo secuencial nunca se bloquea por un QR ilegible. La
-subida en bloque (§4.10), que depende del QR pequeño para saber a qué examen
-pertenece cada foto suelta, tiene su propia resolución manual de respaldo
-página a página.
+subida en bloque (§4.10) hace lo mismo para la página 1 de un `exam_id`
+nuevo (recortando `geometriaBase.lineaQrGrande`, medida sin conocer todavía
+la versión — ver más abajo), y depende además del QR pequeño para saber a
+qué examen pertenece cada foto suelta; ambas tienen su propia resolución
+manual de respaldo si el QR correspondiente no se puede leer.
 
 **Compatibilidad hacia atrás:** una hoja impresa antes de que existiera
 `exam_id`/`pagina` (o incluso de antes de que existiera `version`, la
@@ -1334,10 +1350,13 @@ hacía el flujo secuencial.
 **Leer una página suelta, sin saber de antemano ni el orden ni la versión**
 (`subirLote.js::procesarUnidad`, reutilizando `comun.js::leerPagina` — la
 misma función que usa ahora también el flujo secuencial, §4.9): los
-fiduciales de esquina y la caja del QR pequeño están en la MISMA posición
-absoluta en cualquier página de cualquier versión (§4.9), así que se pueden
-localizar (`comun.js::medirGeometriaBaseEnBlanco`) y decodificar sin
-necesitar el layout específico de una versión todavía:
+fiduciales de esquina, la caja del QR pequeño y la del QR grande están en la
+MISMA posición absoluta en cualquier página de cualquier versión (§4.9 —
+el QR grande, aunque es contenido normal y no `position: absolute`, es
+siempre el primer bloque justo después de la misma cabecera, así que su
+posición tampoco depende de la versión), así que se pueden localizar
+(`comun.js::medirGeometriaBaseEnBlanco`) y decodificar sin necesitar el
+layout específico de una versión todavía:
 
 1. Detectar los 4 fiduciales (`detectarFiduciales`) y enderezar la foto por
    homografía, igual que el flujo secuencial; si la detección automática
@@ -1348,8 +1367,12 @@ necesitar el layout específico de una versión todavía:
    en esta misma visita, o si el servidor ya tiene alguna página suya
    (`GET /api/admin/examenes-papel/:exam_id`), se reutiliza sin preguntar. Si
    es la PRIMERA página que se ve de un `exam_id` nuevo (en cualquier sesión
-   de trabajo), se pide una vez a mano (remesa + versión) — se recuerda para
-   el resto de páginas de esa misma hoja, no hace falta repetirlo.
+   de trabajo) Y esta foto es la página 1, se intenta primero leer el QR
+   GRANDE (recortando `geometriaBase.lineaQrGrande`) para detectar remesa y
+   versión solo, igual que el flujo secuencial; si no se puede leer, no
+   coincide con ningún token conocido, o la foto no es la página 1, se pide
+   una vez a mano (remesa + versión) — se recuerda para el resto de páginas
+   de esa misma hoja, no hace falta repetirlo.
 4. Con la versión ya conocida, reconstruir el layout de esa versión
    (`construirHoja(items)`, cacheado) para saber dónde cae cada
    marca/casilla en ESA página concreta, y leerla (`leerPagina`).

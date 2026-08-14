@@ -32,6 +32,7 @@ import { CATALOGOS } from "../../../js/demografia.js";
 import {
   agregarBloqueAbierto,
   bloqueCasillasTexto,
+  construirBloqueQrGrande,
   construirPaginas,
   CSS_HOJA_BASE,
   el,
@@ -249,29 +250,17 @@ export function construirBloqueItem(item, numero) {
 // tamaño de estas páginas sin aportar tanto. El año de nacimiento tampoco
 // lleva Corrección: un error ahí se resuelve en la revisión manual
 // posterior, igual que el resto de demografía.
-// qr: { tokenId } opcional (README §4.9/§4.10) — si se pasa, la hoja incluye
-// una caja para el QR grande (token de la remesa + versión + exam_id) como
-// primer bloque de la página 1, para que ./digitalizar.js pueda leerlo solo
-// al escanear en vez de que el admin tenga que elegir la remesa a mano. La
-// imagen en sí se rellena DESPUÉS de paginar (construirHoja más abajo,
-// vía comun.js::rellenarQrPaginas) porque el payload necesita saber en qué
+// qr: { tokenId } opcional (README §4.9/§4.10) — la caja del QR grande
+// (token de la remesa + versión + exam_id), primer bloque de la página 1,
+// está SIEMPRE presente (construirBloqueQrGrande, ../comun.js — importante
+// para que su posición coincida con la hoja realmente impresa incluso al
+// reconstruir el layout sin `qr` para digitalizar, ver el comentario de esa
+// función); lo que es opcional es rellenarla con la imagen/token reales. La
+// imagen en sí se rellena DESPUÉS de paginar (construirHoja más abajo, vía
+// comun.js::rellenarQrPaginas) porque el payload necesita saber en qué
 // página global cae cada cosa, algo que solo se conoce una vez paginado.
 function construirBloquesDemografia(qr) {
-  const bloques = [];
-  if (qr?.tokenId) {
-    bloques.push(
-      el(`
-        <div class="hoja-item hoja-qr">
-          <div class="hoja-qr-caja" data-linea="meta:qr">
-            <img alt="Código QR de la remesa" class="hoja-qr-img" />
-          </div>
-          <div>
-            <div class="hoja-item-enunciado"><span>Código de la remesa</span></div>
-            <div class="hoja-qr-texto">${escaparHtml(qr.tokenId ?? "")}</div>
-          </div>
-        </div>`)
-    );
-  }
+  const bloques = [construirBloqueQrGrande(qr)];
 
   const consentimiento = el(`<div class="hoja-item"><div class="hoja-item-enunciado"><span>Consentimiento y compromiso</span></div></div>`);
   consentimiento.appendChild(
