@@ -725,14 +725,26 @@ async function obtenerWorkerTesseract(avisar) {
   if (!promesaTesseractWorker) {
     promesaTesseractWorker = (async () => {
       avisar?.("Descargando Tesseract.js…");
-      const { createWorker } = await import(
+      // El build ESM de tesseract.js@5 (a diferencia de jsQR/qrcode-generator,
+      // scripts clásicos que cuelgan una global) solo trae un export
+      // `default` que agrupa toda la API (createWorker, createScheduler...) —
+      // NO exports nombrados. `const { createWorker } = await import(...)`
+      // desestructura undefined del namespace del módulo (createWorker vive
+      // dentro de `.default`, no al nivel superior) y falla más tarde con
+      // "createWorker is not a function", no al importar.
+      const { createWorker } = (await import(
         "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js"
-      );
+      )).default;
       const worker = await createWorker("spa");
       return worker;
     })();
   }
-  return promesaTesseractWorker;
+  try {
+    return await promesaTesseractWorker;
+  } catch (e) {
+    promesaTesseractWorker = null; // no dejar la caché envenenada para siempre: la siguiente página puede reintentarlo
+    throw e;
+  }
 }
 
 // Recorte de un recuadro de texto libre (letras de respuesta/corrección, año
