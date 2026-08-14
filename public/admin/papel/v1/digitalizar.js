@@ -45,7 +45,10 @@ export const VERSION_PIPELINE = 1;
 // Exportada para que la subida en bloque pueda reutilizar exactamente el
 // mismo criterio sin duplicarlo.
 export function opcionesOcrParaClave(clave) {
-  return clave.endsWith(":anio_nacimiento") ? { soloDigitos: true } : {};
+  // año de nacimiento: 4 claves independientes demografia:anio_nacimiento:0..3
+  // (./hoja.js::construirBloquesDemografia), no una sola clave — de ahí
+  // :\d+ al final en vez de endsWith(":anio_nacimiento").
+  return /:anio_nacimiento:\d+$/.test(clave) ? { soloDigitos: true } : {};
 }
 
 // Fracción de oscuridad (0=blanco, 1=negro) a partir de la cual una
@@ -197,7 +200,12 @@ export function renderConfirmacionYCrear(
 ) {
   const consentimientoSeed = (oscuridadGlobal.get("demografia:consentimiento") ?? 0) >= UMBRAL_MARCA;
   const honestidadSeed = (oscuridadGlobal.get("demografia:compromiso_honestidad") ?? 0) >= UMBRAL_MARCA;
-  const anioLeido = (textosGlobal.get("demografia:anio_nacimiento") ?? "").replace(/\D/g, "");
+  // 4 claves independientes (demografia:anio_nacimiento:0..3, ./hoja.js), no
+  // una sola línea de 4 caracteres: un dígito no reconocido deja solo ESE
+  // hueco en vez de arriesgarse a que Tesseract lea mal el bloque entero.
+  const anioLeido = [0, 1, 2, 3]
+    .map((i) => (textosGlobal.get(`demografia:anio_nacimiento:${i}`) ?? "").replace(/\D/g, ""))
+    .join("");
   const demografiaSeed = {
     anio_nacimiento: anioLeido,
     sexo: ganadorDeGrupo(oscuridadGlobal, "demografia:sexo:"),

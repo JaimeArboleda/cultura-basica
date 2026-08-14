@@ -92,6 +92,75 @@ que no hace falta orden ni una sola visita:
 4. Al terminar, compara la sesión creada contra `respuestas-esperadas.json`
    de esa instancia (mismo `exam_id_qr`).
 
+## Depurar la lectura OCR de la demografía
+
+```
+node ocr_tests/depurar_demografia.mjs [instancia...]
+```
+
+Mientras `generar.mjs` PINTA hojas de prueba, este script las LEE: ejecuta el
+pipeline real de recorte (`comun.js::detectarFiduciales/warpearImagen/
+recortarLinea`, vía `ocr_tests/lectura_harness.html` en un Chromium real)
+sobre las fotos ya generadas de cada instancia (v1 y v2), reconoce cada
+casilla de demografía con `tesseract.js` en Node y compara el resultado
+contra `respuestas-esperadas.json`. Imprime una tabla `OK`/`FALLO` por campo
+y vuelca en `ocr_tests/_debug_output/` (no versionado) el recorte PNG EXACTO
+que recibió Tesseract para cada campo — los que fallan llevan sufijo
+`-FALLO` en el nombre — así se puede ver a ojo si el fallo está en el
+recorte (mal encuadrado, con sobrante en blanco, borde de la casilla
+colándose…) o es genuinamente un error de reconocimiento de Tesseract sobre
+un recorte limpio.
+
+Sin argumentos corre las 3 instancias; si solo quieres una:
+`node ocr_tests/depurar_demografia.mjs 02-con-correcciones`. Necesita
+`tesseract.js` (`devDependencies`, `npm install` lo trae) y red saliente la
+primera vez (descarga el modelo de idioma "spa", que tesseract.js cachea en
+disco) — si la red solo está disponible vía proxy HTTP(S), antepón
+`NODE_USE_ENV_PROXY=1` (el `fetch` nativo de Node no lee `HTTPS_PROXY` por
+defecto). El propio Chromium no necesita red en ningún momento: todo el
+recorte ocurre offline sobre las fotos locales.
+
+Diagnóstico ya encontrado con esta herramienta (agosto 2026): las líneas de
+1 sola casilla (cualquier catálogo de demografía, y también cada casilla
+individual de 'ordenar'/'clasificar') se medían con el ancho COMPLETO de la
+página de contenido en vez del ancho real de la casilla —
+`comun.js::bloqueCasillasTexto` documentaba la intención de medir "una
+única casilla... de forma completamente independiente", pero el `<div
+data-linea>` que envuelve la fila es un bloque normal que por defecto ocupa
+todo el ancho disponible; el recorte que veía Tesseract salía >90% de
+sobrante en blanco. Corregido con `width: fit-content` en
+`.hoja-bloque-casillas-texto` (no cambia la posición impresa de ninguna
+casilla, solo qué región se recorta para leerla). Con el recorte ya
+ajustado siguen quedando dos fallos genuinos, no de encuadre:
+
+- Algunas letras sueltas dentro de su casilla siguen fallando de forma
+  esporádica (a veces vacío, a veces una letra distinta) — el borde
+  impreso de la propia casilla, justo pegado al recorte ya ajustado,
+  parece colarse en el reconocimiento; un inset fijo lo arregla en algunos
+  casos y lo rompe en otros, así que no hay todavía una solución simple.
+- El año de nacimiento (4 dígitos) se leía como una sola línea de 4
+  casillas (un único recorte, una sola pasada de Tesseract) y fallaba en
+  el 100% de las instancias probadas — no solo el número entero salía
+  mal, los dígitos ni se recortaban de forma independiente. Se cambió a 4
+  claves independientes `demografia:anio_nacimiento:0..3`
+  (`comun.js::filaCasillasIndividuales`, mismo mecanismo que ya usaban
+  'ordenar'/'clasificar'), igual que el resto de casillas de 1 solo
+  carácter. Mejora el MODO de fallo (antes: cadenas de 4 caracteres
+  inventadas tipo "2104" para un "2001" real; ahora: huecos en blanco en
+  posiciones concretas, y una parte de los dígitos sale bien: ~40% de
+  aciertos por dígito en las 6 instancias probadas) pero NO resuelve el
+  problema de fondo — Tesseract, sin lista blanca, ni siquiera clasifica
+  como dígitos varios de estos trazos (aunque el recorte sea limpio y esté
+  perfectamente encuadrado, comprobado a ojo contra los PNG volcados). Da
+  la impresión de que Tesseract (un motor de LÍNEAS de texto con contexto
+  de diccionario) no es la herramienta adecuada para clasificar un
+  carácter aislado de un alfabeto cerrado — ese es un problema tipo
+  MNIST/EMNIST, uno donde una CNN pequeña entrenada a propósito (vía
+  ONNX Runtime Web o TensorFlow.js con backend wasm, posiblemente usando
+  el propio generador de tinta sintética de este directorio como fuente
+  de datos de entrenamiento) previsiblemente daría muchísimo mejor
+  resultado que seguir ajustando Tesseract.
+
 ## Regenerar / crear más instancias
 
 ```

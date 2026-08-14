@@ -121,6 +121,9 @@ export const CSS_HOJA_BASE = `
   }
 
   .hoja-bloque-texto-titulo { font-size: 8.5px; color: #555; margin: 1mm 0 0.8mm; }
+  .hoja-bloque-casillas-texto { width: fit-content; }
+  .hoja-fila-casillas-individuales { display: flex; gap: 0.9mm; }
+  .hoja-fila-casillas-individuales .hoja-linea-casillas { margin-bottom: 0; }
   .hoja-linea-casillas { display: flex; gap: 0.9mm; margin-bottom: 0.8mm; }
   .hoja-casilla-texto {
     width: 5.6mm; height: 6.6mm; border: 0.35mm solid #111; flex: none; background: #fff;
@@ -226,7 +229,32 @@ export function bloqueCasillasTexto(clave, casillasPorLinea = CASILLAS_POR_LINEA
     const casillas = Array.from({ length: casillasPorLinea }, () => `<span class="hoja-casilla-texto"></span>`).join("");
     return `<div class="hoja-linea-casillas">${casillas}</div>`;
   }).join("");
-  return el(`<div data-linea="${clave}">${filas}</div>`);
+  // width: fit-content en el contenedor exterior (el que mide medirMarcas):
+  // sin esto es un <div> de bloque normal, que ocupa el ancho completo de la
+  // página aunque casillasPorLinea sea 1 — el recorte que ve Tesseract salía
+  // >90% blanco de sobra a la derecha de la(s) casilla(s) real(es), lo que
+  // empeora la lectura del bloque entero de OCR (medido comparando contra
+  // ocr_tests: recortar solo el contenido, sin ese sobrante, corrige lecturas
+  // que salían vacías o con una letra equivocada). No afecta a la posición
+  // impresa de las casillas (siguen ancladas a la izquierda dentro de un
+  // flex sin justify-content), solo a qué región mide/recorta el pipeline.
+  return el(`<div data-linea="${clave}" class="hoja-bloque-casillas-texto">${filas}</div>`);
+}
+
+// Fila de N casillas de texto INDEPENDIENTES (una clave, y por tanto una
+// región medida/leída, por casilla) que se pintan juntas como una sola tira
+// visual — a diferencia de bloqueCasillasTexto(clave, n, 1) a secas, que mide
+// las N casillas como UN solo bloque (correcto cuando la posición dentro de
+// la línea no importa, como en selección múltiple; incorrecto cuando cada
+// casilla pertenece a una posición/dígito concreto y tiene que poder leerse
+// aunque las demás queden en blanco — 'ordenar'/'clasificar' en v2/hoja.js,
+// y el año de nacimiento en v1 y v2, ver construirBloquesDemografia de cada
+// versión). Compartida aquí (en vez de solo en v2/hoja.js, donde nació) para
+// que v1 la use también en el año de nacimiento sin duplicar la CSS.
+export function filaCasillasIndividuales(claves) {
+  const contenedor = el(`<div class="hoja-fila-casillas-individuales"></div>`);
+  for (const clave of claves) contenedor.appendChild(bloqueCasillasTexto(clave, 1, 1));
+  return contenedor;
 }
 
 // Casilla cuadrada simple con etiqueta, para un gesto binario tipo

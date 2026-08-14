@@ -2,6 +2,13 @@ node_modules/
 .wrangler/
 *.log
 
+# Recortes exactos volcados por ocr_tests/depurar_demografia.mjs (regenerables).
+ocr_tests/_debug_output/
+
+# tesseract.js cachea aquí los datos de idioma ("spa") la primera vez que se
+# ejecuta ocr_tests/depurar_demografia.mjs desde la raíz del repo.
+/*.traineddata
+
 # worker/.dev.vars contiene secretos reales (EXPORT_TOKEN, CLOUDFLARE_API_TOKEN)
 # y ya no se versiona. Sigue en el historial de git anterior a este commit.
 worker/.dev.vars

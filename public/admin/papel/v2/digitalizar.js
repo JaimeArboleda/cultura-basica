@@ -178,7 +178,12 @@ export function renderConfirmacionYCrear(
 ) {
   const consentimientoSeed = (oscuridadGlobal.get("demografia:consentimiento") ?? 0) >= UMBRAL_MARCA;
   const honestidadSeed = (oscuridadGlobal.get("demografia:compromiso_honestidad") ?? 0) >= UMBRAL_MARCA;
-  const anioLeido = leerTexto(textosGlobal, "demografia:anio_nacimiento").replace(/\D/g, "");
+  // 4 claves independientes (demografia:anio_nacimiento:0..3, ./hoja.js), no
+  // una sola línea de 4 caracteres: un dígito no reconocido deja solo ESE
+  // hueco en vez de arriesgarse a que Tesseract lea mal el bloque entero.
+  const anioLeido = [0, 1, 2, 3]
+    .map((i) => leerTexto(textosGlobal, `demografia:anio_nacimiento:${i}`).replace(/\D/g, ""))
+    .join("");
   const demografiaSeed = { anio_nacimiento: anioLeido };
   for (const [campo, claveCatalogo] of Object.entries(CAMPOS_CATALOGO)) {
     const catalogo = CATALOGOS[claveCatalogo];
@@ -295,7 +300,10 @@ export function renderConfirmacionYCrear(
 // demás — que en v2 es casi todo, incluido el orden de 'ordenar' (la casilla
 // de cada posición lleva la letra del elemento, no un número, ver ./hoja.js).
 export function opcionesOcrParaClave(clave) {
-  if (clave.endsWith(":anio_nacimiento")) return { soloDigitos: true };
+  // año de nacimiento: 4 claves independientes demografia:anio_nacimiento:0..3
+  // (./hoja.js::construirBloquesDemografia), no una sola clave — de ahí
+  // :\d+ al final en vez de endsWith(":anio_nacimiento").
+  if (/:anio_nacimiento:\d+$/.test(clave)) return { soloDigitos: true };
   if (clave.endsWith(":abierto")) return {};
   return { soloLetras: true };
 }

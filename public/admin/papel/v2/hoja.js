@@ -55,19 +55,18 @@ import {
   CSS_HOJA_BASE,
   el,
   escaparHtml,
+  filaCasillasIndividuales,
   LETRAS,
   marcaCuadrado,
   rellenarQrPaginas,
 } from "../comun.js";
 
-// --- CSS específico de v2: fila de casillas individuales alineadas (para
-// que N casillas de bloqueCasillasTexto(clave, 1, 1) consecutivas se vean
-// como una sola tira) y su cabecera de letras/números encima. El resto
+// --- CSS específico de v2: cabecera de letras/números encima de una fila de
+// casillas individuales (comun.js::filaCasillasIndividuales). El resto
 // (página, cabecera, fiduciales, QR, casillas de texto, listas etiquetadas,
-// casilla cuadrada de consentimiento) viene de CSS_HOJA_BASE. ---
+// casilla cuadrada de consentimiento, fila de casillas individuales) viene
+// de CSS_HOJA_BASE. ---
 const CSS_HOJA_V2 = `
-  .hoja-fila-casillas-individuales { display: flex; gap: 0.9mm; }
-  .hoja-fila-casillas-individuales .hoja-linea-casillas { margin-bottom: 0; }
   /* border-color: transparent (NO "border: none"): .hoja-casilla-texto no
      usa box-sizing:border-box, así que el borde suma al ancho total de la
      caja (5.6mm de contenido + 0.35mm×2 de borde). Quitar el borde entero
@@ -108,19 +107,6 @@ function filaCabecera(etiquetas) {
   for (const etiqueta of etiquetas) {
     contenedor.appendChild(el(`<span class="hoja-casilla-texto hoja-cabecera-casilla">${escaparHtml(etiqueta)}</span>`));
   }
-  return contenedor;
-}
-
-// Fila de N casillas de texto INDEPENDIENTES (una clave, y por tanto una
-// región medida/leída, por casilla) que se pintan juntas como una sola tira
-// visual — a diferencia de bloqueCasillasTexto(clave, n, 1) a secas, que
-// mide las N casillas como UN solo bloque (correcto cuando la posición
-// dentro de la línea no importa, como en selección múltiple; incorrecto
-// aquí, donde cada casilla pertenece a un elemento/instancia concreto y
-// tiene que poder leerse aunque las demás queden en blanco).
-function filaCasillasIndividuales(claves) {
-  const contenedor = el(`<div class="hoja-fila-casillas-individuales"></div>`);
-  for (const clave of claves) contenedor.appendChild(bloqueCasillasTexto(clave, 1, 1));
   return contenedor;
 }
 
@@ -234,7 +220,11 @@ function construirBloquesDemografia(qr) {
 
   const anio = el(`<div class="hoja-item"><div class="hoja-item-enunciado"><span>Año de nacimiento</span></div></div>`);
   anio.appendChild(el(`<div class="hoja-instruccion">4 dígitos, en números de imprenta.</div>`));
-  anio.appendChild(bloqueCasillasTexto("demografia:anio_nacimiento", 4, 1));
+  // 4 casillas INDEPENDIENTES (una clave por dígito, ver comun.js::filaCasillasIndividuales)
+  // en vez de una sola línea de 4 casillas: leer un único bloque de 4
+  // caracteres en una pasada de Tesseract resultaba mucho menos fiable que
+  // leer cada dígito por separado (ocr_tests/depurar_demografia.mjs).
+  anio.appendChild(filaCasillasIndividuales([0, 1, 2, 3].map((i) => `demografia:anio_nacimiento:${i}`)));
 
   bloques.push(consentimiento, anio);
 
