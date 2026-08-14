@@ -179,7 +179,6 @@ export function construirBloqueItem(item, numero) {
       bloque.appendChild(filaCabecera(posiciones));
       bloque.appendChild(filaCasillasIndividuales(posiciones.map((_, i) => `item:${item.id}:orden:${i}`)));
       bloque.appendChild(el(`<div class="hoja-bloque-texto-titulo">Corrección (solo si te equivocaste arriba)</div>`));
-      bloque.appendChild(filaCabecera(posiciones));
       bloque.appendChild(filaCasillasIndividuales(posiciones.map((_, i) => `${prefCorreccion}:orden:${i}`)));
       break;
     }
@@ -194,7 +193,6 @@ export function construirBloqueItem(item, numero) {
       bloque.appendChild(filaCabecera(numerosElementos));
       bloque.appendChild(filaCasillasIndividuales(item.elementos.map((_, i) => `item:${item.id}:clasificar:${i}`)));
       bloque.appendChild(el(`<div class="hoja-bloque-texto-titulo">Corrección (solo si te equivocaste arriba)</div>`));
-      bloque.appendChild(filaCabecera(numerosElementos));
       bloque.appendChild(filaCasillasIndividuales(item.elementos.map((_, i) => `${prefCorreccion}:clasificar:${i}`)));
       break;
     }
