@@ -1,22 +1,16 @@
-// Digitalización de tests en papel v1 (README §4.7/§4.9): pestaña
-// "Digitalizar tests" del panel de admin. Dos flujos:
-//   1. Imprimir la hoja OMR (./hoja.js construye el DOM; aquí solo se abre
-//      una ventana de impresión — "Guardar como PDF" desde el diálogo del
-//      propio navegador da la versión en PDF, sin añadir ninguna librería).
-//   2. Subir fotos de una hoja ya rellenada, ajustar las 4 esquinas de cada
-//      página (corrección de perspectiva casera, sin OpenCV — ver
-//      ../comun.js), muestrear la oscuridad de cada burbuja/casilla (OMR,
-//      específico de v1) y pasar los recuadros de texto libre por
-//      Tesseract.js (OCR, ../comun.js). Todo corre en el navegador del
-//      admin: nada de esto usa una API de pago.
-//
-// Lo que es específico de v1 y vive en este archivo: el umbral y la
-// interpretación de marcas OMR (oscuridad de burbuja -> índice/conjunto/
-// orden/clasificación) y la orquestación de la pantalla. Todo lo que no
-// depende de cómo se marca una respuesta (homografía, OCR, QR, detección de
-// fiduciales...) vive en ../comun.js, compartido con futuras versiones.
+// Digitalización de tests en papel v2 (README §4.7/§4.9): pestaña
+// "Digitalizar tests" del panel de admin, pipeline alternativo a v1
+// (../v1/digitalizar.js) que resuelve todo por OCR de letras/números en vez
+// de burbujas OMR (ver ./hoja.js para el porqué). Comparte con v1 toda la
+// mecánica de bajo nivel de ../comun.js (impresión, homografía, OCR, QR,
+// fiduciales, selector de esquinas) — lo único específico de aquí es cómo se
+// interpreta el texto ya reconocido en cada casilla y la orquestación de la
+// pantalla, que sigue el mismo patrón que v1 (imprimir / escanear página a
+// página / confirmar y crear sesión con revisión instantánea en
+// editarSesion.js, README §4.8).
 import { api, escaparHtml } from "../../admin.js";
 import { bloqueCamposDemografia, leerDemografiaDelFormulario, renderEditarSesion } from "../../editarSesion.js";
+import { CATALOGOS } from "../../../js/demografia.js";
 import {
   abrirVentanaImpresion,
   calcularOscuridad,
@@ -26,6 +20,7 @@ import {
   detectarFiduciales,
   ESCALA_DIGITALIZACION,
   generarQrDataUrl,
+  LETRAS,
   ocrLinea,
   PAGE_H,
   PAGE_W,
@@ -40,98 +35,97 @@ import { construirHoja, CSS_HOJA } from "./hoja.js";
 // (worker/src/endpoints/admin/digitalizacion.ts) al crear la sesión, para
 // poder comparar en el dataset qué pipeline funciona mejor si conviven
 // varias versiones (README §4.9).
-const VERSION_PIPELINE = 1;
+const VERSION_PIPELINE = 2;
 
-// Fracción de oscuridad (0=blanco, 1=negro) a partir de la cual una
-// burbuja/casilla se considera rellena. Ajustable durante las pruebas reales
-// con papel (README §4.7): si el pipeline lee de más o de menos, este es el
-// primer parámetro a tocar antes de complicar el resto del algoritmo. Fijado
-// bajo (comparado con lo que parecería razonable para una burbuja rellena
-// del todo, oscuridad≈1) porque un error de registro de la homografía de
-// solo un puñado de píxeles ya diluye bastante la medida en las burbujas más
-// pequeñas del bloque de Corrección — con datos reales conviene revisar el
-// margen entre "vacía" y "rellena" (validarlo con hojas de prueba) antes de
-// tocar este número a ciegas.
+// Umbral de oscuridad (0=blanco, 1=negro) para las 2 únicas marcas OMR que
+// quedan en v2: consentimiento y compromiso de honestidad (ver ./hoja.js).
+// Mismo valor que v1 porque es el mismo tipo de marca (casilla cuadrada
+// simple); si las pruebas reales muestran que conviene un umbral distinto
+// para v2, es independiente del de v1 a propósito.
 const UMBRAL_MARCA = 0.22;
 
+// [campo del objeto Demografia (worker/src/tipos.ts), clave en CATALOGOS
+// (public/js/demografia.js)] — mismo mapeo que ./hoja.js, necesario aquí
+// para traducir la letra leída de vuelta al valor del catálogo.
+const CAMPOS_CATALOGO = {
+  sexo: "sexo",
+  ccaa_educacion_secundaria: "ccaa",
+  nivel_estudios: "nivel_estudios",
+  area_estudios: "area_estudios",
+  estudios_mayor_progenitor: "nivel_estudios",
+  libros_en_casa: "libros_en_casa",
+};
+
 // ============================================================
-// Decodificación OMR/OCR -> respuestas listas para guardar (específico de
-// v1; calcularOscuridad en sí es genérico y vive en ../comun.js)
+// Decodificación de texto OCR -> respuestas listas para guardar
 // ============================================================
 
-function ganadorDeGrupo(oscuridad, prefijo, umbral = UMBRAL_MARCA) {
-  let mejorSufijo = null;
-  let mejorValor = -1;
-  for (const [clave, valor] of oscuridad) {
-    if (!clave.startsWith(prefijo)) continue;
-    if (valor > mejorValor) {
-      mejorValor = valor;
-      mejorSufijo = clave.slice(prefijo.length);
-    }
-  }
-  return mejorValor >= umbral ? mejorSufijo : null;
+function leerTexto(textos, clave) {
+  return (textos.get(clave) ?? "").trim().toUpperCase();
 }
 
-function marcadasEnGrupo(oscuridad, prefijo, umbral = UMBRAL_MARCA) {
-  const resultado = [];
-  for (const [clave, valor] of oscuridad) {
-    if (clave.startsWith(prefijo) && valor >= umbral) resultado.push(clave.slice(prefijo.length));
-  }
-  return resultado;
+// Precedencia Respuesta/Corrección por CASILLA, no por bloque entero (a
+// diferencia de v1, README §4.9): como cada casilla es su propia región de
+// texto, "en blanco" es simplemente "no se reconoció ningún carácter" — no
+// hace falta una marca explícita de "no responder" para poder anular. Si la
+// Corrección tiene algo, gana; si no, se usa la Respuesta.
+function leerConCorreccion(textos, claveRespuesta, claveCorreccion) {
+  return leerTexto(textos, claveCorreccion) || leerTexto(textos, claveRespuesta);
 }
 
-function huboActividadEnGrupo(oscuridad, prefijo, umbral = UMBRAL_MARCA) {
-  for (const [clave, valor] of oscuridad) {
-    if (clave.startsWith(prefijo) && valor >= umbral) return true;
+// Primera letra de LETRAS que aparece en el texto reconocido (ignora
+// cualquier otro carácter que el OCR haya colado) — null si no hay ninguna.
+function primeraLetra(texto, limiteExclusivo) {
+  for (const ch of texto) {
+    const idx = LETRAS.indexOf(ch);
+    if (idx >= 0 && idx < limiteExclusivo) return idx;
   }
-  return false;
+  return null;
 }
 
-// Traduce la oscuridad/textos muestreados directamente a la forma que espera
-// el backend por formato (README §4.2): abierto=string, opcion_multiple=índice,
+// Todas las letras de LETRAS distintas que aparecen en el texto (para
+// selección múltiple: el orden/posición no importa, es un conjunto).
+function letrasValidas(texto, limiteExclusivo) {
+  const indices = new Set();
+  for (const ch of texto) {
+    const idx = LETRAS.indexOf(ch);
+    if (idx >= 0 && idx < limiteExclusivo) indices.add(idx);
+  }
+  return [...indices].sort((a, b) => a - b);
+}
+
+// Primer número reconocible en el texto (para el orden de 'ordenar') — null
+// si no hay ninguno.
+function primerNumero(texto) {
+  const m = texto.match(/\d+/);
+  return m ? Number(m[0]) : null;
+}
+
+// Traduce el texto ya reconocido en cada casilla a la forma que espera el
+// backend por formato (README §4.2): abierto=string, opcion_multiple=índice,
 // seleccion_multiple=[índices], ordenar=[nombres en orden], clasificar={elemento:categoría}.
-//
-// Precedencia Respuesta/Corrección (README §4.9): para los 4 formatos de
-// burbuja, si el bloque "item:<id>:correccion:" tiene CUALQUIER marca
-// (incluida la casilla "no responder"), se decodifica ENTERO desde ahí y se
-// ignora el bloque de Respuesta — nunca se decide comparando qué tan oscura
-// quedó una marca frente a otra. Para 'abierto', el mismo criterio pero por
-// presencia de texto: si la línea de Corrección tiene algo reconocido, gana
-// esa; si no, la de Respuesta.
-//
-// Un ítem sin marca/texto detectado (en ningún bloque) simplemente no
-// aparece en el resultado, igual que dejarlo en blanco en la web — la
-// revisión fina ocurre después, ya guardado, en la pantalla de edición
-// (editarSesion.js).
-export function decodificarRespuestas(items, oscuridad, textos) {
+// Un ítem sin nada reconocido (en ninguna casilla) simplemente no aparece en
+// el resultado, igual que en v1 y que dejarlo en blanco en la web.
+export function decodificarRespuestas(items, textos) {
   const respuestas = {};
   for (const item of items) {
-    if (item.formato === "abierto") {
-      const correccion = (textos.get(`item:${item.id}:correccion:abierto`) ?? "").trim();
-      const principal = (textos.get(`item:${item.id}:abierto`) ?? "").trim();
-      const texto = correccion || principal;
-      if (texto) respuestas[item.id] = texto;
-      continue;
-    }
-
-    const prefijoCorreccion = `item:${item.id}:correccion:`;
-    const corrigio = huboActividadEnGrupo(oscuridad, prefijoCorreccion);
-    if (corrigio && (oscuridad.get(`${prefijoCorreccion}blank`) ?? 0) >= UMBRAL_MARCA) {
-      continue; // anulado explícitamente en la Corrección: sin respuesta, a propósito
-    }
-    const base = corrigio ? prefijoCorreccion : `item:${item.id}:`;
-
+    const prefCorreccion = `item:${item.id}:correccion`;
     switch (item.formato) {
+      case "abierto": {
+        const texto = leerConCorreccion(textos, `item:${item.id}:abierto`, `${prefCorreccion}:abierto`);
+        if (texto) respuestas[item.id] = texto;
+        break;
+      }
       case "opcion_multiple": {
-        const g = ganadorDeGrupo(oscuridad, `${base}opcion:`);
-        if (g != null) respuestas[item.id] = Number(g);
+        const texto = leerConCorreccion(textos, `item:${item.id}:opcion`, `${prefCorreccion}:opcion`);
+        const idx = primeraLetra(texto, item.opciones.length);
+        if (idx != null) respuestas[item.id] = idx;
         break;
       }
       case "seleccion_multiple": {
-        const marcadas = marcadasEnGrupo(oscuridad, `${base}opcion:`)
-          .map(Number)
-          .sort((a, b) => a - b);
-        if (marcadas.length > 0) respuestas[item.id] = marcadas;
+        const texto = leerConCorreccion(textos, `item:${item.id}:seleccion`, `${prefCorreccion}:seleccion`);
+        const indices = letrasValidas(texto, item.opciones.length);
+        if (indices.length > 0) respuestas[item.id] = indices;
         break;
       }
       case "ordenar": {
@@ -139,9 +133,16 @@ export function decodificarRespuestas(items, oscuridad, textos) {
         const arr = new Array(n).fill(null);
         let alguna = false;
         item.elementos.forEach((elemento, i) => {
-          const g = ganadorDeGrupo(oscuridad, `${base}orden:${i}:`);
-          if (g != null) {
-            arr[Number(g)] = elemento;
+          const texto = leerConCorreccion(textos, `item:${item.id}:orden:${i}`, `${prefCorreccion}:orden:${i}`);
+          const orden = primerNumero(texto);
+          // Si dos elementos leen el mismo número (error de OCR o del propio
+          // participante), el último en iterarse gana y el hueco se queda
+          // sin cubrir — no hay validación de que sea una permutación válida
+          // de 1..N. Pendiente de revisar con datos reales (mismo espíritu
+          // que UMBRAL_MARCA en v1: mejor un criterio simple documentado que
+          // una regla de desambiguación inventada sin casos reales delante).
+          if (orden != null && orden >= 1 && orden <= n) {
+            arr[orden - 1] = elemento;
             alguna = true;
           }
         });
@@ -152,9 +153,10 @@ export function decodificarRespuestas(items, oscuridad, textos) {
         const asign = {};
         let alguna = false;
         item.elementos.forEach((elemento, i) => {
-          const g = ganadorDeGrupo(oscuridad, `${base}clasificar:${i}:`);
-          if (g != null) {
-            asign[elemento] = item.categorias[Number(g)];
+          const texto = leerConCorreccion(textos, `item:${item.id}:clasificar:${i}`, `${prefCorreccion}:clasificar:${i}`);
+          const idx = primeraLetra(texto, item.categorias.length);
+          if (idx != null) {
+            asign[elemento] = item.categorias[idx];
             alguna = true;
           }
         });
@@ -168,13 +170,8 @@ export function decodificarRespuestas(items, oscuridad, textos) {
 
 // ============================================================
 // Confirmación mínima antes de crear la sesión, y traspaso a la edición
-// compartida (README §4.8) — "revisión instantánea": en vez de revisar aquí
-// las 25 respuestas ítem a ítem, se confirma solo lo imprescindible para que
-// el backend acepte crear la sesión (consentimiento, compromiso, demografía
-// completa) y, en cuanto existe, se abre directamente la misma pantalla de
-// edición que usa la pestaña Sesiones para cualquier otra sesión — así la
-// revisión fina ocurre sobre datos ya guardados, sin un formulario aparte que
-// mantener sincronizado con el de edición.
+// compartida (README §4.8) — mismo patrón "revisión instantánea" que v1: ver
+// ../v1/digitalizar.js para la justificación completa.
 // ============================================================
 
 function renderConfirmacionYCrear(
@@ -183,16 +180,13 @@ function renderConfirmacionYCrear(
 ) {
   const consentimientoSeed = (oscuridadGlobal.get("demografia:consentimiento") ?? 0) >= UMBRAL_MARCA;
   const honestidadSeed = (oscuridadGlobal.get("demografia:compromiso_honestidad") ?? 0) >= UMBRAL_MARCA;
-  const anioLeido = (textosGlobal.get("demografia:anio_nacimiento") ?? "").replace(/\D/g, "");
-  const demografiaSeed = {
-    anio_nacimiento: anioLeido,
-    sexo: ganadorDeGrupo(oscuridadGlobal, "demografia:sexo:"),
-    ccaa_educacion_secundaria: ganadorDeGrupo(oscuridadGlobal, "demografia:ccaa_educacion_secundaria:"),
-    nivel_estudios: ganadorDeGrupo(oscuridadGlobal, "demografia:nivel_estudios:"),
-    area_estudios: ganadorDeGrupo(oscuridadGlobal, "demografia:area_estudios:"),
-    estudios_mayor_progenitor: ganadorDeGrupo(oscuridadGlobal, "demografia:estudios_mayor_progenitor:"),
-    libros_en_casa: ganadorDeGrupo(oscuridadGlobal, "demografia:libros_en_casa:"),
-  };
+  const anioLeido = leerTexto(textosGlobal, "demografia:anio_nacimiento").replace(/\D/g, "");
+  const demografiaSeed = { anio_nacimiento: anioLeido };
+  for (const [campo, claveCatalogo] of Object.entries(CAMPOS_CATALOGO)) {
+    const catalogo = CATALOGOS[claveCatalogo];
+    const idx = primeraLetra(leerTexto(textosGlobal, `demografia:${campo}`), catalogo.length);
+    demografiaSeed[campo] = idx != null ? catalogo[idx] : null;
+  }
 
   const miniaturas = paginasWarpeadas
     .map(
@@ -204,12 +198,8 @@ function renderConfirmacionYCrear(
     )
     .join("");
 
-  // Remesa (README §4.9): si el QR de la página de datos se leyó y coincide
-  // con un token real, se usa directamente sin pedir nada — así se puede
-  // digitalizar un montón de fotos de remesas distintas sin tener que saber
-  // de antemano cuál es cuál. Si no se pudo leer (o no coincide con ningún
-  // token existente), hace falta elegirlo aquí a mano antes de poder crear
-  // la sesión, con las mismas opciones que en la pestaña Tokens.
+  // Remesa (README §4.9): igual que v1 — se detecta sola por el QR si se
+  // pudo leer y coincide con un token real; si no, hace falta elegirla aquí.
   const tokenDetectado = tokenIdDetectado ? tokens.find((t) => t.id === tokenIdDetectado) : null;
   const bloqueToken = tokenDetectado
     ? `<div class="revision-item">
@@ -275,7 +265,7 @@ function renderConfirmacionYCrear(
       const consentimiento = zona.querySelector('[data-campo="demografia:consentimiento"]').checked;
       const compromiso_honestidad = zona.querySelector('[data-campo="demografia:compromiso_honestidad"]').checked;
       const demografia = leerDemografiaDelFormulario(zona);
-      const respuestas = decodificarRespuestas(items, oscuridadGlobal, textosGlobal);
+      const respuestas = decodificarRespuestas(items, textosGlobal);
       const resultado = await api.digitalizar({
         token_id: tokenId,
         version_papel: VERSION_PIPELINE,
@@ -295,6 +285,18 @@ function renderConfirmacionYCrear(
 // ============================================================
 // Orquestación del escaneo página a página
 // ============================================================
+
+// Qué lista blanca/modo de OCR usar según la clave de la región (README
+// §4.9): dígitos para el año de nacimiento y el orden de 'ordenar' (es un
+// número, no una letra de opción/categoría), alfanumérico por defecto para
+// 'abierto' (texto libre, puede llevar números), y letras para todo lo
+// demás — que en v2 es casi todo (opción/categoría elegida).
+function opcionesOcrParaClave(clave) {
+  if (clave.endsWith(":anio_nacimiento")) return { soloDigitos: true };
+  if (/:orden:\d+$/.test(clave)) return { soloDigitos: true };
+  if (clave.endsWith(":abierto")) return {};
+  return { soloLetras: true };
+}
 
 function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas }) {
   const oscuridadGlobal = new Map();
@@ -390,6 +392,9 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas }) {
         paginasWarpeadas.push(warp);
         const imgData = warp.getContext("2d").getImageData(0, 0, destW, destH);
 
+        // Solo consentimiento/compromiso siguen siendo marcas OMR en v2 (ver
+        // cabecera de ./hoja.js) — pagina.marcas está vacío en páginas de
+        // ítems y tiene como mucho esas 2 entradas en la página de datos.
         for (const m of pagina.marcas) {
           oscuridadGlobal.set(
             m.clave,
@@ -414,9 +419,8 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas }) {
             continue;
           }
           estado.textContent = `Leyendo texto (${l.clave})…`;
-          const soloDigitos = l.clave.endsWith(":anio_nacimiento");
           const texto = await ocrLinea(recorte, {
-            soloDigitos,
+            ...opcionesOcrParaClave(l.clave),
             avisar: (msg) => (estado.textContent = msg),
           });
           textosGlobal.set(l.clave, texto);
@@ -442,12 +446,13 @@ export async function renderDigitalizar(contenedor) {
   const { tokens } = await api.tokens();
   contenedor.innerHTML = `
     <section class="digitalizar-bloque">
-      <h3>1. Imprimir hoja de respuestas</h3>
+      <h3>1. Imprimir hoja de respuestas (v2, OCR de letras)</h3>
       <p class="nota-formato">
-        Genera la hoja de respuestas (formato OMR: casillas a rellenar) con los 25 ítems del banco actual,
-        con un código QR de la remesa elegida — así al digitalizarla más tarde no hace falta recordar de
-        qué remesa era cada foto. Se abre lista para imprimir; desde el diálogo de impresión del navegador,
-        "Guardar como PDF" da la versión en PDF sin coste añadido.
+        Genera la hoja de respuestas (v2: todo se rellena escribiendo letras/números en casillas, en vez de
+        sombrear burbujas) con los 25 ítems del banco actual, con un código QR de la remesa elegida — así al
+        digitalizarla más tarde no hace falta recordar de qué remesa era cada foto. Se abre lista para
+        imprimir; desde el diálogo de impresión del navegador, "Guardar como PDF" da la versión en PDF sin
+        coste añadido.
       </p>
       <label class="campo">
         <span>Remesa para el QR de esta hoja</span>
@@ -460,9 +465,9 @@ export async function renderDigitalizar(contenedor) {
       <p id="estado-hoja" class="nota-formato"></p>
     </section>
     <section class="digitalizar-bloque">
-      <h3>2. Digitalizar una hoja rellenada</h3>
+      <h3>2. Digitalizar una hoja rellenada (v2)</h3>
       <p class="nota-formato">
-        Sube fotos de las páginas de una hoja ya rellenada; se interpretan en tu propio navegador
+        Sube fotos de las páginas de una hoja v2 ya rellenada; se interpretan en tu propio navegador
         (sin subir nada a ningún servicio externo salvo el Worker de este proyecto al guardar el resultado).
         La remesa se detecta sola por el QR de la página de datos — el token de aquí abajo es solo un
         respaldo por si la foto de esa página no se pudo leer.

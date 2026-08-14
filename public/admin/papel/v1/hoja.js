@@ -29,17 +29,26 @@
 // enderezada corresponde a cada burbuja/casilla, sin tener que detectarlas por
 // visión artificial.
 import { CATALOGOS } from "../../../js/demografia.js";
-import { bloqueCasillasTexto, construirPaginas, CSS_HOJA_BASE, el, escaparHtml, LETRAS } from "../comun.js";
+import {
+  agregarBloqueAbierto,
+  bloqueCasillasTexto,
+  construirPaginas,
+  CSS_HOJA_BASE,
+  el,
+  escaparHtml,
+  LETRAS,
+  marcaCuadrado,
+} from "../comun.js";
 
 // --- CSS específico de v1: cómo se pintan las burbujas OMR y su bloque de
 // corrección en dos columnas. El resto (página, cabecera, fiduciales, QR,
-// casillas de texto) viene de CSS_HOJA_BASE. ---
+// casillas de texto, casilla cuadrada de consentimiento) viene de
+// CSS_HOJA_BASE. ---
 const CSS_HOJA_V1 = `
-  .hoja-fila-opcion { display: flex; align-items: center; gap: 2mm; margin: 0.7mm 0; }
-  .hoja-marca-circulo, .hoja-marca-cuadrado {
+  .hoja-marca-circulo {
     width: 3.6mm; height: 3.6mm; border: 0.4mm solid #111; flex: none; background: #fff;
+    border-radius: 50%;
   }
-  .hoja-marca-circulo { border-radius: 50%; }
 
   /* Rejilla elemento+burbujas de 'ordenar'/'clasificar': columna de etiqueta
      de ANCHO FIJO vía CSS grid (no min-width en flex), para que las burbujas
@@ -56,7 +65,6 @@ const CSS_HOJA_V1 = `
   .hoja-grid-burbujas { display: flex; gap: 1.3mm; flex-wrap: wrap; }
   .hoja-burbuja-cel { display: flex; flex-direction: column; align-items: center; gap: 0.4mm; }
   .hoja-burbuja-cel-etiqueta { font-size: 7.5px; color: #444; }
-  .hoja-leyenda-categorias { font-size: 8px; color: #444; margin-bottom: 1.5mm; }
 
   .hoja-correccion-columnas {
     column-count: 2;
@@ -83,14 +91,6 @@ function marcaCirculo(clave, etiquetaHtml) {
   return el(`
     <label class="hoja-fila-opcion">
       <span class="hoja-marca-circulo" data-mark="${clave}"></span>
-      <span>${etiquetaHtml}</span>
-    </label>`);
-}
-
-function marcaCuadrado(clave, etiquetaHtml) {
-  return el(`
-    <label class="hoja-fila-opcion">
-      <span class="hoja-marca-cuadrado" data-mark="${clave}"></span>
       <span>${etiquetaHtml}</span>
     </label>`);
 }
@@ -167,13 +167,7 @@ export function construirBloqueItem(item, numero) {
 
   switch (item.formato) {
     case "abierto": {
-      bloque.appendChild(el(`<div class="hoja-instruccion">Escribe en MAYÚSCULAS, una letra por casilla.</div>`));
-      bloque.appendChild(el(`<div class="hoja-bloque-texto-titulo">Respuesta</div>`));
-      bloque.appendChild(bloqueCasillasTexto(`item:${item.id}:abierto`));
-      bloque.appendChild(
-        el(`<div class="hoja-bloque-texto-titulo">Corrección (solo si te equivocaste arriba)</div>`)
-      );
-      bloque.appendChild(bloqueCasillasTexto(`${prefCorreccion}:abierto`));
+      agregarBloqueAbierto(bloque, `item:${item.id}:abierto`, `${prefCorreccion}:abierto`);
       break;
     }
     case "opcion_multiple": {

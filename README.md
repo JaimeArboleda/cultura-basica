@@ -256,9 +256,12 @@ a CSV.
 │   │   ├── admin.css
 │   │   ├── papel/
 │   │   │   ├── comun.js  # Helpers compartidos por TODAS las versiones del pipeline de papel (§4.9)
-│   │   │   └── v1/
-│   │   │       ├── hoja.js       # Maquetación de la hoja OMR v1 (§4.7)
-│   │   │       └── digitalizar.js # Impresión + escaneo/OCR v1 de tests en papel (§4.7)
+│   │   │   ├── v1/
+│   │   │   │   ├── hoja.js       # Maquetación de la hoja OMR v1 (§4.7)
+│   │   │   │   └── digitalizar.js # Impresión + escaneo/OMR v1 de tests en papel (§4.7)
+│   │   │   └── v2/
+│   │   │       ├── hoja.js       # Maquetación de la hoja OCR-de-letras v2 (§4.7)
+│   │   │       └── digitalizar.js # Impresión + escaneo/OCR v2 de tests en papel (§4.7)
 │   │   └── editarSesion.js # Edición de demografía/respuestas de cualquier sesión (§4.8)
 │   └── styles.css
 ├── worker/              # Cloudflare Worker (API)
@@ -907,18 +910,22 @@ esas respuestas en el mismo dataset que las sesiones web, bajo el mismo
 control de acceso por token (§4.5) — sin depender de una API de pago de
 visión, dado el volumen del piloto (300-400 sesiones, §6).
 
-**Pipeline versionado (`public/admin/papel/`): pueden convivir varios
-diseños de hoja.** `public/admin/papel/comun.js` reúne todo lo que no
-depende de cómo se marca una respuesta (geometría de página, paginado,
-homografía, OCR, QR, detección de fiduciales); cada versión concreta
-(`public/admin/papel/v1/`, y las que se añadan después) define solo su
-propio `hoja.js` (maquetación + CSS) y `digitalizar.js` (cómo se interpreta
-una marca). El propio QR de la hoja (§4.9) lleva la versión además del
+**Pipeline versionado (`public/admin/papel/`): conviven dos diseños de
+hoja, v1 y v2.** `public/admin/papel/comun.js` reúne todo lo que no depende
+de cómo se marca una respuesta (geometría de página, paginado, homografía,
+OCR, QR, detección de fiduciales, la casilla OMR simple de
+consentimiento/compromiso); cada versión concreta (`public/admin/papel/v1/`,
+`.../v2/`, y las que se añadan después) define solo su propio `hoja.js`
+(maquetación + CSS) y `digitalizar.js` (cómo se interpreta cada marca/
+casilla). El propio QR de la hoja (§4.9) lleva la versión además del
 `token_id`, y esa versión se guarda en `sesiones.version_papel` — así se
 puede comparar en el dataset qué pipeline funciona mejor sin que el resto
 del backend necesite saber nada de versiones: `worker/src/correccion.ts` ya
 opera sobre la respuesta decodificada (número/array/objeto), no sobre cómo
 se capturó, así que es exactamente el mismo código para cualquier versión.
+La pestaña "Digitalizar tests" del panel (`admin.js::PIPELINES_PAPEL`) deja
+elegir con qué versión imprimir/escanear, para poder probar las dos con
+datos reales antes de decidir cuál usar en el piloto.
 
 **v1 — decisión de diseño: la hoja es casi toda "rellena una burbuja", no
 letra manuscrita.** Opción múltiple y selección múltiple ya son
@@ -977,6 +984,50 @@ alias, sin ocupar más espacio del necesario).
    ver más abajo): un error ahí se resuelve también en esta revisión, igual
    que el resto de demografía.
 
+**v2 — decisión de diseño: todo se resuelve escribiendo letras/números en
+casillas (OCR), no sombreando burbujas (OMR).** Motivación frente a v1: el
+bloque de Corrección de v1 duplica ENTERA la rejilla de burbujas de la
+Respuesta (con el texto de cada opción repetido); en v2 basta una fila más
+de casillas del mismo ancho, sin repetir ningún enunciado — mucho más
+compacto en ítems con muchas opciones/elementos, y el mecanismo de
+corrección es idéntico en los 4 formatos en vez de tener una variante de
+rejilla distinta por tipo (`public/admin/papel/v2/hoja.js`). Por formato:
+- **Opción única**: 1 casilla; se escribe la letra de la opción elegida.
+- **Selección múltiple**: N casillas (N = nº de opciones) en una sola línea;
+  se escriben, en cualquiera de ellas, las letras de todas las opciones
+  elegidas. El orden no importa (es un conjunto), así que — a diferencia de
+  `ordenar`/`clasificar` — esta línea se recorta y se lee como UN solo
+  bloque de OCR, igual que `abierto`.
+- **Ordenar**: cada elemento se imprime con una letra de referencia fija
+  (A, B, C...); debajo de cada letra, una casilla donde se escribe el número
+  de orden (1 = primero) que le corresponde a ESE elemento. Aquí la posición
+  sí importa (cada casilla pertenece a un elemento concreto), así que cada
+  casilla se mide y se lee de forma independiente, no como bloque.
+- **Clasificar**: los elementos se numeran (1, 2, 3...) y las categorías se
+  etiquetan con letras (A, B, C...); debajo de cada número de elemento, una
+  casilla con la letra de su categoría — mismo mecanismo de casilla
+  independiente que `ordenar`, con los roles de letra/número intercambiados.
+- Los 6 catálogos de opción única de demografía (sexo, CCAA...) pasan
+  también de burbuja OMR a esta misma casilla de letra, por consistencia.
+- `abierto` y el año de nacimiento no cambian respecto a v1 (la doble línea
+  de Respuesta/Corrección ya tenía sentido para texto libre,
+  `comun.js::agregarBloqueAbierto`, reutilizado tal cual). Consentimiento y
+  compromiso de honestidad tampoco cambian: son un gesto binario sí/no, no
+  "una letra entre varias", así que se quedan como la única casilla OMR que
+  sobrevive en v2 (`comun.js::marcaCuadrado`).
+
+Precedencia Respuesta/Corrección en v2 (`papel/v2/digitalizar.js`): a
+diferencia de v1 (todo o nada por bloque completo), aquí es **por casilla
+individual** — como cada casilla es su propia región de texto, "en blanco"
+es simplemente "no se reconoció ningún carácter", así que no hace falta una
+marca explícita de "no responder" para poder anular; si la Corrección de esa
+casilla tiene algo, gana, si no, se usa la Respuesta. Caso sin resolver
+todavía, documentado en el propio código: si dos casillas de `ordenar`
+leyeran el mismo número de orden (fallo de OCR o del propio participante),
+no hay validación de que el resultado sea una permutación válida de 1..N —
+pendiente de revisar con datos reales del piloto, igual que el umbral de OMR
+en v1.
+
 **`POST /api/admin/digitalizacion`** crea la sesión igual que `POST
 /api/sesion` (mismo `ordenarTest()`, misma tabla `sesion_items`) pero:
 - Va asociada a un `token_id` elegido por el admin (la remesa a la que
@@ -1005,18 +1056,21 @@ npx wrangler d1 execute cultura-basica --remote \
   --command="ALTER TABLE sesiones ADD COLUMN version_papel INTEGER"
 ```
 
-**Qué falta validar con pruebas reales en papel** (por eso v1 es una primera
-versión, no la definitiva): la calidad de Tesseract.js sobre letra manuscrita
-real (aunque sea en mayúsculas de imprenta separadas) es la incógnita
-principal, y el umbral de OMR puede necesitar ajuste según el escáner/cámara
-y el tipo de bolígrafo. Si tras el piloto en papel la tasa de error resulta
-demasiado alta para el volumen de hojas, la opción de subir a una API de
-visión de pago (p. ej. con soporte de `vision` en el modelo) queda abierta
-como mejora futura — pero acotada solo a los recuadros de texto libre, ya que
-el resto de la hoja (OMR) no se beneficia de un modelo más caro. El
-versionado del pipeline (arriba) es precisamente para poder probar
-alternativas de diseño (p. ej. una v2 que resuelva todo por OCR de letras en
-vez de OMR) sin perder v1 ni tener que decidir de antemano cuál es mejor.
+**Qué falta validar con pruebas reales en papel** (por eso hay dos versiones
+en paralelo, ninguna es la definitiva todavía): la calidad de Tesseract.js
+sobre letra manuscrita real (aunque sea en mayúsculas de imprenta separadas)
+es la incógnita principal — y pesa más en v2, que depende de OCR para casi
+toda la hoja, que en v1, donde solo depende de él para `abierto` y el año de
+nacimiento. El umbral de OMR (v1, y las 2 casillas de consentimiento en v2)
+puede necesitar ajuste según el escáner/cámara y el tipo de bolígrafo. Si
+tras el piloto en papel la tasa de error resulta demasiado alta para el
+volumen de hojas, la opción de subir a una API de visión de pago (p. ej. con
+soporte de `vision` en el modelo) queda abierta como mejora futura para los
+recuadros de texto libre/casillas de letra. El versionado del pipeline
+(arriba) es precisamente para poder comparar v1 y v2 con datos reales del
+piloto antes de decidir cuál usar — o si conviene seguir con las dos según
+el contexto (p. ej. v1 en encuestas presenciales con poco tiempo para
+explicar el formato, v2 cuando el espacio en papel importa más).
 
 ### 4.8 Edición de demografía y respuestas desde el panel
 

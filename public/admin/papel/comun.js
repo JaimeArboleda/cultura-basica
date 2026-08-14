@@ -126,6 +126,22 @@ export const CSS_HOJA_BASE = `
     width: 5.6mm; height: 6.6mm; border: 0.35mm solid #111; flex: none; background: #fff;
   }
 
+  /* Casilla cuadrada simple con etiqueta (consentimiento/compromiso, README
+     §2): la única marca OMR que sobrevive en cualquier versión, porque es un
+     gesto binario (sí/no) sin ambigüedad de "cuál de varias opciones", no un
+     "formato de pregunta" que necesite letras. */
+  .hoja-fila-opcion { display: flex; align-items: center; gap: 2mm; margin: 0.7mm 0; }
+  .hoja-marca-cuadrado {
+    width: 3.6mm; height: 3.6mm; border: 0.4mm solid #111; flex: none; background: #fff;
+  }
+
+  /* Lista de opciones/categorías/elementos con su letra o número de
+     referencia (README §4.9): una línea por entrada cuando el texto puede
+     ser largo (opciones, elementos), o compacta en una sola línea cuando es
+     corto (categorías de 'clasificar'). */
+  .hoja-lista-etiquetada div { margin: 0.4mm 0; }
+  .hoja-leyenda-categorias { font-size: 8px; color: #444; margin-bottom: 1.5mm; }
+
   /* Bloque de corrección (README §4.9): separado visualmente del de
      respuesta, más pequeño y compacto — nunca es la vía principal, solo se
      usa si hay que corregir. Cada versión añade su propio CSS para el
@@ -184,12 +200,39 @@ export function escaparHtml(s) {
 // miden como UNA sola región rectangular (data-linea en el contenedor
 // exterior), así el pipeline de digitalización recorta el bloque entero de
 // una vez y lo pasa a Tesseract como un bloque de texto, no línea a línea.
+// casillasPorLinea=1 da una única casilla, medida y leída de forma
+// completamente independiente de cualquier otra — el bloque con el que
+// versiones basadas en OCR de letras (v2 en adelante) construyen cada
+// casilla de respuesta individual (una opción, un elemento, una instancia...).
 export function bloqueCasillasTexto(clave, casillasPorLinea = CASILLAS_POR_LINEA, lineas = LINEAS_TEXTO) {
   const filas = Array.from({ length: lineas }, () => {
     const casillas = Array.from({ length: casillasPorLinea }, () => `<span class="hoja-casilla-texto"></span>`).join("");
     return `<div class="hoja-linea-casillas">${casillas}</div>`;
   }).join("");
   return el(`<div data-linea="${clave}">${filas}</div>`);
+}
+
+// Casilla cuadrada simple con etiqueta, para un gesto binario tipo
+// consentimiento/compromiso (README §2) — la única marca OMR que se
+// mantiene en cualquier versión del pipeline, ver CSS_HOJA_BASE.
+export function marcaCuadrado(clave, etiquetaHtml) {
+  return el(`
+    <label class="hoja-fila-opcion">
+      <span class="hoja-marca-cuadrado" data-mark="${clave}"></span>
+      <span>${etiquetaHtml}</span>
+    </label>`);
+}
+
+// Bloque "Respuesta" + "Corrección" de un ítem 'abierto' (README §1.6/§4.9):
+// idéntico en cualquier versión del pipeline (la doble línea de casillas
+// tiene sentido para texto libre, a diferencia del resto de formatos, README
+// §4.9) — vive aquí para no duplicarlo entre v1 y versiones posteriores.
+export function agregarBloqueAbierto(bloque, claveRespuesta, claveCorreccion) {
+  bloque.appendChild(el(`<div class="hoja-instruccion">Escribe en MAYÚSCULAS, una letra por casilla.</div>`));
+  bloque.appendChild(el(`<div class="hoja-bloque-texto-titulo">Respuesta</div>`));
+  bloque.appendChild(bloqueCasillasTexto(claveRespuesta));
+  bloque.appendChild(el(`<div class="hoja-bloque-texto-titulo">Corrección (solo si te equivocaste arriba)</div>`));
+  bloque.appendChild(bloqueCasillasTexto(claveCorreccion));
 }
 
 function crearPagina(tituloDerecha) {
@@ -476,6 +519,35 @@ export function warpearImagen(canvasFuente, esquinas, destW, destH, dst) {
 }
 
 // ============================================================
+// Muestreo de una marca OMR sobre la imagen ya enderezada
+// ============================================================
+//
+// Aunque a partir de v2 la mayoría de la hoja se resuelve por OCR de letras
+// (data-linea), el consentimiento y el compromiso de honestidad (README §2)
+// se quedan como una casilla OMR simple en cualquier versión (ver
+// marcaCuadrado más arriba): un gesto binario sí/no no tiene "cuál de varias
+// letras", así que umbralizar oscuridad sigue siendo lo más simple y fiable.
+export function calcularOscuridad(imageData, cx, cy, radioPx) {
+  const r = Math.max(2, radioPx * 0.55); // algo más pequeño que la marca: evita su propio borde impreso
+  const x0 = Math.max(0, Math.round(cx - r));
+  const x1 = Math.min(imageData.width - 1, Math.round(cx + r));
+  const y0 = Math.max(0, Math.round(cy - r));
+  const y1 = Math.min(imageData.height - 1, Math.round(cy + r));
+  const d = imageData.data;
+  let suma = 0;
+  let n = 0;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const i = (y * imageData.width + x) * 4;
+      const luminancia = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      suma += 255 - luminancia;
+      n++;
+    }
+  }
+  return n > 0 ? suma / n / 255 : 0;
+}
+
+// ============================================================
 // Recorte + OCR sobre la imagen ya enderezada
 // ============================================================
 
@@ -507,16 +579,24 @@ async function obtenerWorkerTesseract(avisar) {
 }
 
 // Recorte de un recuadro de texto libre (letras de respuesta/corrección, año
-// de nacimiento...): PSM 7 ("línea única") para bloques de una sola fila de
-// dígitos, PSM 6 ("bloque uniforme de texto") para bloques que pueden tener
-// varias líneas de casillas (bloqueCasillasTexto). Lista blanca de caracteres
-// acorde a lo que se pide escribir en la hoja (MAYÚSCULAS de imprenta, o
-// solo dígitos).
-export async function ocrLinea(canvas, { soloDigitos = false, avisar } = {}) {
+// de nacimiento, letra de una opción/categoría elegida...): PSM 7 ("línea
+// única") para bloques de una sola fila de caracteres (dígitos, o una letra
+// de opción/categoría — a partir de v2, la mayoría de casillas de la hoja),
+// PSM 6 ("bloque uniforme de texto") solo para bloques que pueden tener
+// varias líneas de casillas (bloqueCasillasTexto con lineas>1, hoy solo
+// 'abierto'). Lista blanca de caracteres acorde a lo que se pide escribir en
+// la hoja: solo dígitos, solo letras mayúsculas, o alfanumérico (por
+// defecto, para texto libre que puede llevar números).
+export async function ocrLinea(canvas, { soloDigitos = false, soloLetras = false, avisar } = {}) {
   const worker = await obtenerWorkerTesseract(avisar);
+  const whitelist = soloDigitos
+    ? "0123456789"
+    : soloLetras
+      ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      : "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÑ0123456789 ";
   await worker.setParameters({
-    tessedit_pageseg_mode: soloDigitos ? "7" : "6",
-    tessedit_char_whitelist: soloDigitos ? "0123456789" : "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÑ0123456789 ",
+    tessedit_pageseg_mode: soloDigitos || soloLetras ? "7" : "6",
+    tessedit_char_whitelist: whitelist,
   });
   const { data } = await worker.recognize(canvas);
   return (data.text || "").trim();
