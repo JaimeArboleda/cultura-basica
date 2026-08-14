@@ -599,7 +599,18 @@ async function main() {
     for (const persona of personas) {
       const rng = rngDesde(hashCadena(`${persona.slug}:v${version}`));
       const plan = construirPlan(items, persona, rng, poolAbierto, version);
-      const tokenId = `TEST-V${version}-${persona.slug.toUpperCase()}`;
+      // OCR_TESTS_TOKEN_ID (opcional): sustituye el token sintético
+      // "TEST-V{1,2}-<instancia>" (que a propósito no existe en la base de
+      // datos, README de este directorio) por uno real, para poder probar la
+      // subida en bloque de principio a fin (detección automática Y creación
+      // de sesión real) contra una remesa que sí existe. Pensado para
+      // regenerar puntualmente con `OCR_TESTS_TOKEN_ID=<id-real> node
+      // ocr_tests/generar.mjs`, no para dejarlo así por defecto: un token
+      // real incrustado en estas hojas de prueba versionadas es utilizable
+      // por cualquiera con acceso al repo para crear sesiones bajo esa
+      // remesa, así que conviene que sea un token de pruebas dedicado, no el
+      // de una remesa real de participantes.
+      const tokenId = process.env.OCR_TESTS_TOKEN_ID || `TEST-V${version}-${persona.slug.toUpperCase()}`;
 
       // exam_id (README §4.9/§4.10): identifica esta hoja física concreta,
       // distinto del tokenId de arriba (la remesa). Generado en Node con el
