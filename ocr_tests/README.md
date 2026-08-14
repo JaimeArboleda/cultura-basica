@@ -133,15 +133,33 @@ sobrante en blanco. Corregido con `width: fit-content` en
 casilla, solo qué región se recorta para leerla). Con el recorte ya
 ajustado siguen quedando dos fallos genuinos, no de encuadre:
 
-- El año de nacimiento (4 dígitos en una sola línea de casillas) falla en
-  el 100% de las instancias probadas — Tesseract, sin lista blanca, no
-  reconoce esos trazos como dígitos en absoluto (los lee como letras); no
-  es un problema de recorte.
 - Algunas letras sueltas dentro de su casilla siguen fallando de forma
   esporádica (a veces vacío, a veces una letra distinta) — el borde
   impreso de la propia casilla, justo pegado al recorte ya ajustado,
   parece colarse en el reconocimiento; un inset fijo lo arregla en algunos
   casos y lo rompe en otros, así que no hay todavía una solución simple.
+- El año de nacimiento (4 dígitos) se leía como una sola línea de 4
+  casillas (un único recorte, una sola pasada de Tesseract) y fallaba en
+  el 100% de las instancias probadas — no solo el número entero salía
+  mal, los dígitos ni se recortaban de forma independiente. Se cambió a 4
+  claves independientes `demografia:anio_nacimiento:0..3`
+  (`comun.js::filaCasillasIndividuales`, mismo mecanismo que ya usaban
+  'ordenar'/'clasificar'), igual que el resto de casillas de 1 solo
+  carácter. Mejora el MODO de fallo (antes: cadenas de 4 caracteres
+  inventadas tipo "2104" para un "2001" real; ahora: huecos en blanco en
+  posiciones concretas, y una parte de los dígitos sale bien: ~40% de
+  aciertos por dígito en las 6 instancias probadas) pero NO resuelve el
+  problema de fondo — Tesseract, sin lista blanca, ni siquiera clasifica
+  como dígitos varios de estos trazos (aunque el recorte sea limpio y esté
+  perfectamente encuadrado, comprobado a ojo contra los PNG volcados). Da
+  la impresión de que Tesseract (un motor de LÍNEAS de texto con contexto
+  de diccionario) no es la herramienta adecuada para clasificar un
+  carácter aislado de un alfabeto cerrado — ese es un problema tipo
+  MNIST/EMNIST, uno donde una CNN pequeña entrenada a propósito (vía
+  ONNX Runtime Web o TensorFlow.js con backend wasm, posiblemente usando
+  el propio generador de tinta sintética de este directorio como fuente
+  de datos de entrenamiento) previsiblemente daría muchísimo mejor
+  resultado que seguir ajustando Tesseract.
 
 ## Regenerar / crear más instancias
 

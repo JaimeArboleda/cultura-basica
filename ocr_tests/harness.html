@@ -266,7 +266,13 @@
       if (plan.demografia.consentimiento) marcar(root, "demografia:consentimiento", colorTinta, "demog");
       if (plan.demografia.compromiso_honestidad) marcar(root, "demografia:compromiso_honestidad", colorTinta, "demog");
       if (plan.demografia.anio_nacimiento) {
-        escribirTexto(root, "demografia:anio_nacimiento", plan.demografia.anio_nacimiento, fuente, colorTinta, "demog");
+        // 4 claves independientes (demografia:anio_nacimiento:0..3), no una
+        // sola línea de 4 casillas — ver public/admin/papel/comun.js::filaCasillasIndividuales
+        // y la nota junto a construirBloquesDemografia en v1/v2 hoja.js.
+        const digitos = String(plan.demografia.anio_nacimiento);
+        for (let i = 0; i < digitos.length; i++) {
+          escribirTexto(root, `demografia:anio_nacimiento:${i}`, digitos[i], fuente, colorTinta, "demog");
+        }
       }
       for (const [campo, claveCatalogo] of Object.entries(CAMPOS_CATALOGO)) {
         const valor = plan.demografia[campo];

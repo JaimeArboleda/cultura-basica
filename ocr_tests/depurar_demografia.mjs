@@ -124,22 +124,42 @@ async function main() {
       }
 
       for (const [campo, esperado] of Object.entries(esperadas.demografia)) {
+        if (campo === "anio_nacimiento") {
+          // 4 claves independientes (demografia:anio_nacimiento:0..3, ver
+          // comun.js::filaCasillasIndividuales) en vez de una sola línea de 4
+          // caracteres: se lee y se guarda cada dígito por separado.
+          if (!recortes["demografia:anio_nacimiento:0"]) continue; // campo no presente en esta versión
+          const digitos = await Promise.all(
+            [0, 1, 2, 3].map(async (i) => {
+              const dataUrl = recortes[`demografia:anio_nacimiento:${i}`];
+              const { texto, buf } = await ocrLinea(dataUrl, { soloDigitos: true });
+              const digito = texto.replace(/\D/g, "");
+              await writeFile(path.join(DIR_SALIDA, `v${version}-${instancia}-anio_nacimiento-${i}${digito.length === 1 ? "" : "-FALLO"}.png`), buf);
+              return { texto, digito };
+            })
+          );
+          const leido = digitos.map((d) => d.digito).join("");
+          const ok = leido === String(esperado);
+          filas.push({
+            version,
+            instancia,
+            campo,
+            esperado,
+            ocr_crudo: digitos.map((d) => d.texto).join("|"),
+            leido,
+            ok,
+          });
+          continue;
+        }
+
         const dataUrl = recortes[`demografia:${campo}`];
         if (!dataUrl) continue; // campo no leído por OCR en esta versión (catálogo OMR en v1) o booleano (consentimiento/compromiso)
 
-        const soloDigitos = campo === "anio_nacimiento";
-        const { texto, buf } = await ocrLinea(dataUrl, { soloDigitos });
-
-        let leido, ok;
-        if (soloDigitos) {
-          leido = texto.replace(/\D/g, "");
-          ok = leido === String(esperado);
-        } else {
-          const catalogo = CATALOGOS[CAMPO_A_CATALOGO[campo]];
-          const idx = primeraLetra(texto, catalogo.length);
-          leido = idx != null ? catalogo[idx] : null;
-          ok = leido === esperado;
-        }
+        const { texto, buf } = await ocrLinea(dataUrl, { soloDigitos: false });
+        const catalogo = CATALOGOS[CAMPO_A_CATALOGO[campo]];
+        const idx = primeraLetra(texto, catalogo.length);
+        const leido = idx != null ? catalogo[idx] : null;
+        const ok = leido === esperado;
 
         const nombreArchivo = `v${version}-${instancia}-${campo}${ok ? "" : "-FALLO"}.png`;
         await writeFile(path.join(DIR_SALIDA, nombreArchivo), buf);

@@ -31,12 +31,12 @@
 import { CATALOGOS } from "../../../js/demografia.js";
 import {
   agregarBloqueAbierto,
-  bloqueCasillasTexto,
   construirBloqueQrGrande,
   construirPaginas,
   CSS_HOJA_BASE,
   el,
   escaparHtml,
+  filaCasillasIndividuales,
   LETRAS,
   marcaCuadrado,
   rellenarQrPaginas,
@@ -278,7 +278,11 @@ function construirBloquesDemografia(qr) {
 
   const anio = el(`<div class="hoja-item"><div class="hoja-item-enunciado"><span>Año de nacimiento</span></div></div>`);
   anio.appendChild(el(`<div class="hoja-instruccion">4 dígitos, en números de imprenta.</div>`));
-  anio.appendChild(bloqueCasillasTexto("demografia:anio_nacimiento", 4, 1));
+  // 4 casillas INDEPENDIENTES (una clave por dígito, ver comun.js::filaCasillasIndividuales)
+  // en vez de una sola línea de 4 casillas: leer un único bloque de 4
+  // caracteres en una pasada de Tesseract resultaba mucho menos fiable que
+  // leer cada dígito por separado (ocr_tests/depurar_demografia.mjs).
+  anio.appendChild(filaCasillasIndividuales([0, 1, 2, 3].map((i) => `demografia:anio_nacimiento:${i}`)));
 
   bloques.push(consentimiento, anio);
 
