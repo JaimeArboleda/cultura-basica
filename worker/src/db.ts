@@ -56,16 +56,19 @@ export async function crearSesion(
     // Versión del pipeline de hoja/digitalización (README §4.9); solo tiene
     // sentido cuando origen='papel', se ignora (queda NULL) en 'web'.
     versionPapel?: number | null;
+    // Id de la hoja física de origen (README §4.10); solo tiene sentido
+    // cuando origen='papel', se ignora (queda NULL) en 'web'.
+    examenId?: string | null;
   }
 ): Promise<void> {
-  const { id, creadaEn, demografia: d, userAgentClase, asignaciones, tokenId, origen, versionPapel } = args;
+  const { id, creadaEn, demografia: d, userAgentClase, asignaciones, tokenId, origen, versionPapel, examenId } = args;
 
   const insertSesion = env.DB.prepare(
     `INSERT INTO sesiones (
-       id, creada_en, consentimiento, compromiso_honestidad, user_agent_clase, token_id, origen, version_papel,
+       id, creada_en, consentimiento, compromiso_honestidad, user_agent_clase, token_id, origen, version_papel, examen_id,
        anio_nacimiento, sexo, ccaa_educacion_secundaria,
        nivel_estudios, area_estudios, estudios_mayor_progenitor, libros_en_casa
-     ) VALUES (?,?,1,1,?,?,?,?, ?,?,?, ?,?,?,?)`
+     ) VALUES (?,?,1,1,?,?,?,?,?, ?,?,?, ?,?,?,?)`
   ).bind(
     id,
     creadaEn,
@@ -73,6 +76,7 @@ export async function crearSesion(
     tokenId,
     origen ?? "web",
     origen === "papel" ? versionPapel ?? null : null,
+    origen === "papel" ? examenId ?? null : null,
     d.anio_nacimiento,
     d.sexo,
     d.ccaa_educacion_secundaria,
@@ -95,6 +99,18 @@ export async function obtenerSesion(env: Env, sesionId: string): Promise<FilaSes
   const fila = await env.DB.prepare("SELECT * FROM sesiones WHERE id = ?")
     .bind(sesionId)
     .first<FilaSesion>();
+  return fila ?? null;
+}
+
+// Evita digitalizar dos veces la misma hoja física (README §4.10): antes de
+// crear una sesión con un examen_id concreto, se comprueba que no exista ya
+// una — puede pasar si la misma hoja se digitaliza por el flujo secuencial Y
+// por la subida en bloque, o si esta última se "Finaliza" dos veces por
+// error de doble clic.
+export async function buscarSesionPorExamenId(env: Env, examenId: string): Promise<{ id: string } | null> {
+  const fila = await env.DB.prepare("SELECT id FROM sesiones WHERE examen_id = ?")
+    .bind(examenId)
+    .first<{ id: string }>();
   return fila ?? null;
 }
 
@@ -539,6 +555,131 @@ export async function listarTokens(env: Env): Promise<FilaTokenConConteo[]> {
 // registro histórico de la remesa) ni las sesiones/respuestas creadas con él.
 export async function revocarToken(env: Env, id: string): Promise<void> {
   await env.DB.prepare("UPDATE tokens SET expira_en = ? WHERE id = ?").bind(new Date().toISOString(), id).run();
+}
+
+// --- Subida en bloque de hojas en papel (README §4.10) ---
+//
+// A diferencia del flujo secuencial de siempre (README §4.7, que solo vive
+// en memoria del navegador durante una única visita al panel), aquí cada
+// página sube su resultado YA DECODIFICADO (nunca la foto) en cuanto se lee,
+// identificada por exam_id (el QR de la propia hoja, no la remesa) y número
+// de página — así se puede ir completando una misma hoja física en varias
+// visitas, en cualquier orden, y el panel puede listar en cualquier momento
+// qué exámenes están a medio subir.
+
+export interface FilaExamenPapel {
+  exam_id: string;
+  token_id: string;
+  version: number;
+  creado_en: string;
+  sesion_id: string | null;
+}
+
+export interface FilaExamenPapelPagina {
+  pagina: number;
+  marcas_json: string;
+  miniatura_datauri: string | null;
+  subida_en: string;
+}
+
+// Registra una página ya decodificada. Si es la primera página que se ve de
+// este exam_id, crea también la fila de examenes_papel (token_id/version
+// quedan fijados por la PRIMERA página que llegue; las siguientes no los
+// vuelven a tocar, así que da igual que una página posterior traiga el QR
+// grande y otra no — solo la primera en llegar decide). Volver a subir la
+// MISMA página (mismo exam_id+pagina) sobrescribe lo que hubiera, para poder
+// corregir una lectura mala sin tener que borrar nada a mano primero.
+export async function upsertPaginaExamen(
+  env: Env,
+  args: {
+    examId: string;
+    tokenId: string;
+    version: number;
+    pagina: number;
+    marcasJson: string;
+    miniaturaDataUri: string | null;
+    subidaEn: string;
+  }
+): Promise<void> {
+  const { examId, tokenId, version, pagina, marcasJson, miniaturaDataUri, subidaEn } = args;
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO examenes_papel (exam_id, token_id, version, creado_en) VALUES (?,?,?,?)
+       ON CONFLICT(exam_id) DO NOTHING`
+    ).bind(examId, tokenId, version, subidaEn),
+    env.DB.prepare(
+      `INSERT INTO examenes_papel_paginas (exam_id, pagina, marcas_json, miniatura_datauri, subida_en) VALUES (?,?,?,?,?)
+       ON CONFLICT(exam_id, pagina) DO UPDATE SET
+         marcas_json = excluded.marcas_json,
+         miniatura_datauri = excluded.miniatura_datauri,
+         subida_en = excluded.subida_en`
+    ).bind(examId, pagina, marcasJson, miniaturaDataUri, subidaEn),
+  ]);
+}
+
+// Listado para la pantalla "exámenes en progreso" (README §4.10): un examen
+// por fila, con qué páginas tiene ya subidas (el total esperado lo calcula
+// el propio navegador reconstruyendo el layout de esa versión, ver
+// subirLote.js — el Worker no sabe nada de maquetación de hoja). Incluye los
+// ya finalizados (sesion_id no NULL) para que el panel pueda distinguirlos
+// en vez de que simplemente desaparezcan; que se filtren o no es cosa del
+// frontend.
+export async function listarExamenesPapel(
+  env: Env
+): Promise<(FilaExamenPapel & { paginas_subidas: number[] })[]> {
+  const [{ results: examenes }, { results: paginas }] = await Promise.all([
+    env.DB.prepare("SELECT exam_id, token_id, version, creado_en, sesion_id FROM examenes_papel ORDER BY creado_en DESC").all<FilaExamenPapel>(),
+    env.DB.prepare("SELECT exam_id, pagina FROM examenes_papel_paginas ORDER BY exam_id, pagina").all<{ exam_id: string; pagina: number }>(),
+  ]);
+  const paginasPorExamen = new Map<string, number[]>();
+  for (const p of paginas) {
+    if (!paginasPorExamen.has(p.exam_id)) paginasPorExamen.set(p.exam_id, []);
+    paginasPorExamen.get(p.exam_id)!.push(p.pagina);
+  }
+  return examenes.map((e) => ({ ...e, paginas_subidas: paginasPorExamen.get(e.exam_id) ?? [] }));
+}
+
+export async function obtenerExamenPapel(env: Env, examId: string): Promise<FilaExamenPapel | null> {
+  const fila = await env.DB.prepare(
+    "SELECT exam_id, token_id, version, creado_en, sesion_id FROM examenes_papel WHERE exam_id = ?"
+  )
+    .bind(examId)
+    .first<FilaExamenPapel>();
+  return fila ?? null;
+}
+
+// Detalle de un examen para la pantalla de confirmación al finalizar
+// (README §4.10): todas sus páginas ya decodificadas, en orden.
+export async function listarPaginasExamen(env: Env, examId: string): Promise<FilaExamenPapelPagina[]> {
+  const { results } = await env.DB.prepare(
+    "SELECT pagina, marcas_json, miniatura_datauri, subida_en FROM examenes_papel_paginas WHERE exam_id = ? ORDER BY pagina"
+  )
+    .bind(examId)
+    .all<FilaExamenPapelPagina>();
+  return results;
+}
+
+// Al finalizar (README §4.10): asocia el examen con la sesión recién creada,
+// para no volver a ofrecerlo en el listado de "en progreso" ni permitir
+// finalizarlo dos veces.
+export async function marcarExamenPapelFinalizado(env: Env, examId: string, sesionId: string): Promise<void> {
+  await env.DB.prepare("UPDATE examenes_papel SET sesion_id = ? WHERE exam_id = ?").bind(sesionId, examId).run();
+}
+
+// Borra una página suelta (para poder volver a subirla si salió mal, README
+// §4.10) o el examen entero (abandonar una hoja que no se va a completar) —
+// dos acciones separadas porque borrar el examen entero es más destructivo
+// (pierde TODAS sus páginas) y la pantalla lo pide con una confirmación
+// aparte.
+export async function borrarPaginaExamen(env: Env, examId: string, pagina: number): Promise<void> {
+  await env.DB.prepare("DELETE FROM examenes_papel_paginas WHERE exam_id = ? AND pagina = ?").bind(examId, pagina).run();
+}
+
+export async function borrarExamenPapel(env: Env, examId: string): Promise<void> {
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM examenes_papel_paginas WHERE exam_id = ?").bind(examId),
+    env.DB.prepare("DELETE FROM examenes_papel WHERE exam_id = ?").bind(examId),
+  ]);
 }
 
 // --- Solicitudes de acceso sin token ---

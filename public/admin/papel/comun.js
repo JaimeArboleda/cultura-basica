@@ -177,11 +177,28 @@ export const CSS_HOJA_BASE = `
   /* Código QR con el token de la remesa + versión del pipeline (README §4.9):
      así una hoja fotocopiada y repartida por un colaborador se puede
      digitalizar sin que el admin tenga que recordar a mano de qué remesa (ni
-     de qué versión de hoja) era cada foto. */
+     de qué versión de hoja) era cada foto. Solo en la primera página. */
   .hoja-qr { display: flex; align-items: flex-start; gap: 3mm; }
   .hoja-qr-caja { width: 22mm; height: 22mm; flex: none; }
   .hoja-qr-img { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
   .hoja-qr-texto { font-size: 7px; font-family: ui-monospace, monospace; color: #555; word-break: break-all; margin-top: 1mm; }
+
+  /* Código QR pequeño de PÁGINA (README §4.10, exam_id + número de página),
+     en TODAS las páginas: a diferencia de .hoja-qr de arriba (grande, solo en
+     la página 1, con el detalle completo remesa+versión), este es un sello
+     compacto que solo lleva {exam_id, página} — pensado para la subida en
+     bloque, donde una foto suelta de cualquier página tiene que poder
+     identificarse a qué hoja física pertenece y en qué posición va. Posición
+     ABSOLUTA (no participa en el paginado voraz, igual que los fiduciales:
+     por eso no desplaza ningún bloque de contenido) y deliberadamente FUERA
+     de los cuadrantes de búsqueda de fiduciales (8% del ancho/alto desde cada
+     esquina, comun.js::detectarFiduciales) — centrado en el borde derecho —
+     para no confundir la detección automática de esquinas con un blob oscuro
+     extra cerca de una de ellas. */
+  .hoja-qr-pagina {
+    position: absolute; top: 50%; right: 4mm; width: 10mm; height: 10mm; margin-top: -5mm;
+  }
+  .hoja-qr-pagina-img { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
 `;
 
 export function el(html) {
@@ -235,6 +252,10 @@ export function agregarBloqueAbierto(bloque, claveRespuesta, claveCorreccion) {
   bloque.appendChild(bloqueCasillasTexto(claveCorreccion));
 }
 
+// data-linea="meta:qr:pagina" en TODAS las páginas (README §4.10): se rellena
+// después de paginar, cuando ya se conoce el número global de página de cada
+// una (rellenarQrPaginas más abajo) — aquí solo se reserva el hueco, igual
+// que el resto de líneas/marcas que se miden con el layout ya puesto.
 function crearPagina(tituloDerecha) {
   return el(`
     <div class="hoja-pagina">
@@ -242,6 +263,9 @@ function crearPagina(tituloDerecha) {
       <span class="hoja-fiducial hoja-fiducial-tr" data-fiducial="tr"></span>
       <span class="hoja-fiducial hoja-fiducial-br" data-fiducial="br"></span>
       <span class="hoja-fiducial hoja-fiducial-bl" data-fiducial="bl"></span>
+      <div class="hoja-qr-pagina" data-linea="meta:qr:pagina">
+        <img class="hoja-qr-pagina-img" alt="" />
+      </div>
       <div class="hoja-cabecera">
         <strong>Test de Cultura General — hoja de respuestas</strong>
         <span>${escaparHtml(tituloDerecha)}</span>
@@ -705,26 +729,241 @@ export async function decodificarQr(canvas) {
   return resultado ? resultado.data : null;
 }
 
-// Payload del QR: token_id + versión del pipeline, en JSON. Formato
-// compartido por todas las versiones (necesario para que, más adelante, el
-// panel pueda leer un QR sin saber de antemano con qué versión se imprimió
-// esa hoja y despachar al decodificador correcto). Si el texto no es JSON
-// válido con esa forma, se asume una hoja de la primera versión (QR con solo
-// el token_id en plano).
-export function codificarPayloadQr({ tokenId, version }) {
-  return JSON.stringify({ token_id: tokenId, version });
+// Alfabeto sin caracteres ambiguos al leer a mano (sin 0/O, 1/I/L...) — el
+// mismo criterio que Crockford Base32, usado tanto para exam_id como para
+// que un admin pueda teclearlo sin dudar si algo falla al leer el QR
+// (README §4.10: entrada manual de respaldo en la subida en bloque).
+const ALFABETO_EXAM_ID = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+
+// Identificador de una hoja física concreta (README §4.10), distinto del
+// token_id de la remesa: una remesa se reparte en muchas hojas, cada una
+// necesita su propio id para poder recomponerlas a partir de fotos sueltas
+// subidas en cualquier orden. Deliberadamente CORTO (8 caracteres, ~2^39
+// combinaciones — de sobra para los cientos/miles de hojas de un piloto,
+// nunca miles de millones) en vez de un UUID v4 de 36 caracteres: cuanto más
+// corto el payload del QR pequeño de página (codificarPayloadQrPagina), más
+// grande puede ser cada módulo del QR impreso en los 10mm disponibles
+// (.hoja-qr-pagina) y más fiable la lectura desde una foto de móvil — un
+// UUID completo, repetido en las 10+ páginas de cada hoja a ese tamaño
+// físico, arriesgaba quedar por debajo de los píxeles por módulo que jsQR
+// necesita para decodificar con fiabilidad.
+export function generarExamId() {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  let id = "";
+  for (const b of bytes) id += ALFABETO_EXAM_ID[b % ALFABETO_EXAM_ID.length];
+  return id;
+}
+
+// Payload del QR GRANDE (solo página 1, README §4.9/§4.10): token_id +
+// versión del pipeline + exam_id + número de página, en JSON. Formato
+// compartido por todas las versiones (para que el panel pueda leer un QR sin
+// saber de antemano con qué versión se imprimió esa hoja y despachar al
+// decodificador correcto). Si el texto no es JSON válido con esa forma, se
+// asume una hoja de la primera versión (QR en plano con solo el token_id) —
+// de antes de que existiera versión siquiera, sin exam_id ni página.
+export function codificarPayloadQr({ tokenId, version, examId, pagina }) {
+  return JSON.stringify({ token_id: tokenId, version, exam_id: examId ?? null, pagina: pagina ?? null });
 }
 
 export function decodificarPayloadQr(texto) {
   try {
     const obj = JSON.parse(texto);
     if (obj && typeof obj.token_id === "string" && typeof obj.version === "number") {
-      return { tokenId: obj.token_id, version: obj.version };
+      return {
+        tokenId: obj.token_id,
+        version: obj.version,
+        examId: typeof obj.exam_id === "string" ? obj.exam_id : null,
+        pagina: typeof obj.pagina === "number" ? obj.pagina : null,
+      };
     }
   } catch {
-    // no era JSON: se asume un QR en plano con solo el token_id (v1)
+    // no era JSON: se asume un QR en plano con solo el token_id (v1, de antes
+    // incluso de que existiera el campo "version")
   }
-  return { tokenId: texto, version: 1 };
+  return { tokenId: texto, version: 1, examId: null, pagina: null };
+}
+
+// Payload del QR PEQUEÑO de página (README §4.10, en TODAS las páginas):
+// deliberadamente solo {exam_id, pagina} — ver generarExamId() para por qué
+// no lleva también token_id/versión (esos solo hacen falta una vez, al ver
+// la primera página de un exam_id nuevo; ../subirLote.js los resuelve
+// entonces contra el servidor o, si ni siquiera la página 1 es legible, a
+// mano). Claves de una letra a propósito, mismo motivo de tamaño.
+export function codificarPayloadQrPagina({ examId, pagina }) {
+  return JSON.stringify({ u: examId, p: pagina });
+}
+
+export function decodificarPayloadQrPagina(texto) {
+  try {
+    const obj = JSON.parse(texto);
+    if (obj && typeof obj.u === "string" && typeof obj.p === "number") {
+      return { examId: obj.u, pagina: obj.p };
+    }
+  } catch {
+    // QR ilegible o de formato inesperado: el llamador cae a resolución manual
+  }
+  return null;
+}
+
+// Rellena, DESPUÉS de paginar (cuando ya se sabe cuántas páginas tiene la
+// hoja y qué número le toca a cada una), el QR grande de la página 1
+// (payload completo) y el QR pequeño de TODAS las páginas (solo exam_id +
+// página) — README §4.10. Recibe el array que devuelve construirPaginas
+// (páginas de demografía + de ítems ya concatenadas) y lo muta in-place
+// rellenando el <img> reservado en cada una (ver crearPagina más arriba);
+// no hace falta reconstruir nada porque esos nodos siguen siendo los mismos
+// que se acaban imprimiendo (abrirVentanaImpresion usa su outerHTML).
+export async function rellenarQrPaginas(paginas, { tokenId, examId, version }) {
+  for (let i = 0; i < paginas.length; i++) {
+    const pagina = paginas[i];
+    const numeroPagina = i + 1;
+    const cajaGrande = pagina.elemento.querySelector('[data-linea="meta:qr"] .hoja-qr-img');
+    if (cajaGrande) {
+      cajaGrande.src = await generarQrDataUrl(codificarPayloadQr({ tokenId, version, examId, pagina: numeroPagina }));
+      // decode() (no solo asignar .src) para que la imagen esté REALMENTE
+      // pintada antes de seguir: sin esto, capturar la página justo después
+      // de esta función (README de ocr_tests/generar.mjs) es una carrera con
+      // la decodificación asíncrona del navegador — a veces gana, a veces no,
+      // y el QR sale en blanco en la captura de forma no determinista.
+      await cajaGrande.decode().catch(() => {});
+    }
+    const cajaPequena = pagina.elemento.querySelector('[data-linea="meta:qr:pagina"] .hoja-qr-pagina-img');
+    if (cajaPequena) {
+      cajaPequena.src = await generarQrDataUrl(codificarPayloadQrPagina({ examId, pagina: numeroPagina }));
+      await cajaPequena.decode().catch(() => {});
+    }
+    pagina.numeroPagina = numeroPagina;
+    pagina.totalPaginas = paginas.length;
+  }
+}
+
+// Posición (coordenadas de página, 0..PAGE_W x 0..PAGE_H) de la caja del QR
+// pequeño de página: FIJA, no depende de la versión del pipeline ni del
+// contenido de la hoja (comparte crearPagina()/CSS_HOJA_BASE con v1 y v2, y
+// está posicionada en absoluto, fuera del flujo). Por eso la subida en
+// bloque (../subirLote.js) puede recortar y decodificar este QR ANTES de
+// saber siquiera con qué versión se imprimió la hoja — necesario, porque la
+// versión es precisamente uno de los datos que hace falta leer del QR
+// grande (o consultar al servidor por exam_id) para poder interpretar el
+// resto de la página.
+// Lee UNA página ya enderezada (foto -> homografía -> canvas warp, hecho por
+// el llamador): muestrea la oscuridad de cada marca OMR y OCR-ea cada línea
+// de texto, más los dos QR posibles (grande en página 1, pequeño en todas,
+// README §4.9/§4.10). Genérico entre v1 y v2 (toda la diferencia entre
+// versiones está en qué whitelist de OCR usar por clave, que decide
+// opcionesOcrParaClave) y entre el flujo secuencial de siempre
+// (v{1,2}/digitalizar.js::iniciarEscaneo) y la subida en bloque
+// (subirLote.js) — ambos llaman a esto por página, cambia solo qué hacen con
+// el resultado (acumular en memoria vs. mandarlo al servidor).
+//
+// Devuelve { oscuridad, textos } como objetos planos (serializables con
+// JSON.stringify, a diferencia de un Map) más qrGrande/qrPagina con lo
+// decodificado de cada QR si estaba presente y se pudo leer (null si no).
+export async function leerPagina(pagina, warpCanvas, { opcionesOcrParaClave, avisar } = {}) {
+  const escala = ESCALA_DIGITALIZACION;
+  const imgData = warpCanvas.getContext("2d").getImageData(0, 0, warpCanvas.width, warpCanvas.height);
+
+  const oscuridad = {};
+  for (const m of pagina.marcas) {
+    oscuridad[m.clave] = calcularOscuridad(imgData, m.cx * escala, m.cy * escala, m.radio * escala);
+  }
+
+  const textos = {};
+  let qrGrande = null;
+  let qrPagina = null;
+  for (const l of pagina.lineas) {
+    const recorte = recortarLinea(warpCanvas, l, escala);
+    if (l.clave === "meta:qr" || l.clave === "meta:qr:pagina") {
+      avisar?.("Leyendo QR…");
+      try {
+        const leido = await decodificarQr(recorte);
+        if (leido) {
+          if (l.clave === "meta:qr") qrGrande = decodificarPayloadQr(leido);
+          else qrPagina = decodificarPayloadQrPagina(leido);
+        }
+      } catch {
+        // sin jsQR disponible (sin red, CDN caído…): se sigue sin el atajo
+        // del QR, el llamador cae a resolución manual
+      }
+      continue;
+    }
+    avisar?.(`Leyendo texto (${l.clave})…`);
+    const texto = await ocrLinea(recorte, { ...opcionesOcrParaClave?.(l.clave), avisar });
+    textos[l.clave] = texto;
+  }
+
+  return { oscuridad, textos, qrGrande, qrPagina };
+}
+
+// Devuelve { fiduciales, lineaQrPagina }: la posición canónica de los 4
+// fiduciales de esquina y la caja del QR pequeño de página — ninguna de las
+// dos depende de la versión del pipeline ni de qué items/demografía lleve
+// la hoja (fiduciales y QR de página son de comun.js::crearPagina, position
+// absolute, compartidos tal cual por v1 y v2). La subida en bloque
+// (../subirLote.js) usa esto UNA vez para poder enderezar cualquier foto y
+// leer su QR de página ANTES de saber siquiera con qué versión se imprimió
+// esa hoja concreta — la versión es, precisamente, uno de los datos que hace
+// falta para interpretar el resto del contenido de la página.
+export function medirGeometriaBaseEnBlanco() {
+  const estiloTemporal = document.createElement("style");
+  estiloTemporal.textContent = CSS_HOJA_BASE;
+  document.head.appendChild(estiloTemporal);
+  const medida = crearContenedorMedida();
+  try {
+    const pagina = crearPagina("x");
+    medida.appendChild(pagina);
+    const { lineas, fiduciales } = medirMarcas(pagina);
+    return { fiduciales, lineaQrPagina: lineas.find((l) => l.clave === "meta:qr:pagina") };
+  } finally {
+    medida.remove();
+    estiloTemporal.remove();
+  }
+}
+
+// ============================================================
+// PDF -> una imagen por página (README §4.10): la subida en bloque acepta
+// tanto fotos/escaneos sueltos (image/*) como un PDF con varias páginas ya
+// escaneadas (p. ej. un escáner de sobremesa que saca un único PDF de toda
+// la hoja) — en ese caso, mejor: no hay que ir subiendo página a página.
+// pdf.js no se publica como build ESM "de un solo fichero" tan simple como
+// qrcode-generator/jsQR, pero sí tiene un build .mjs en el CDN; se carga bajo
+// demanda igual que Tesseract.js, y necesita además fijar dónde está su
+// propio worker (pdf.worker.min.mjs) antes de usarlo.
+// ============================================================
+
+let promesaPdfJs = null;
+async function obtenerPdfJs() {
+  if (!promesaPdfJs) {
+    promesaPdfJs = import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs").then((mod) => {
+      mod.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
+      return mod;
+    });
+  }
+  return promesaPdfJs;
+}
+
+// Renderiza cada página del PDF a un canvas propio, a una resolución similar
+// a la que usa prepararImagenFuente() para una foto (~2200px de ancho): así
+// detectarFiduciales/warpearImagen trabajan con el mismo orden de magnitud
+// de píxeles venga la página de una foto o de un PDF ya escaneado.
+export async function cargarPaginasPdf(file) {
+  const pdfjsLib = await obtenerPdfJs();
+  const buffer = await file.arrayBuffer();
+  const doc = await pdfjsLib.getDocument({ data: buffer }).promise;
+  const paginas = [];
+  const ANCHO_OBJETIVO = 2200;
+  for (let i = 1; i <= doc.numPages; i++) {
+    const pagina = await doc.getPage(i);
+    const viewportBase = pagina.getViewport({ scale: 1 });
+    const escala = ANCHO_OBJETIVO / viewportBase.width;
+    const viewport = pagina.getViewport({ scale: escala });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+    await pagina.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    paginas.push(canvas);
+  }
+  return paginas;
 }
 
 // ============================================================

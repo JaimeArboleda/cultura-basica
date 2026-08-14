@@ -3,6 +3,7 @@
   "descripcion": "Letra desordenada, deja varias en blanco",
   "version_pipeline": 1,
   "token_id_qr": "TEST-V1-03-DESCUIDADA-INCOMPLETA",
+  "exam_id_qr": "A8CNUM2N",
   "paginas": 12,
   "demografia": {
     "consentimiento": true,

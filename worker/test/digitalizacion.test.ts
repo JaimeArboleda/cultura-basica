@@ -324,6 +324,52 @@ describe("POST /api/admin/digitalizacion", () => {
     expect(res.status).toBe(400);
   });
 
+  it("guarda examen_id (README §4.10) cuando viene en el body", async () => {
+    const auth = await tokenAdmin();
+    const token = await crearTokenViaAdmin(auth);
+
+    const res = await fetchAdmin(
+      "/api/admin/digitalizacion",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          token_id: token.id,
+          examen_id: "TESTEXAM1",
+          consentimiento: true,
+          compromiso_honestidad: true,
+          demografia: demografiaValida(),
+          respuestas: todasLasRespuestasCorrectas(),
+        }),
+      },
+      auth
+    );
+    expect(res.status).toBe(201);
+    const { sesion_id } = (await res.json()) as { sesion_id: string };
+    const fila = await env.DB.prepare("SELECT examen_id FROM sesiones WHERE id = ?")
+      .bind(sesion_id)
+      .first<{ examen_id: string | null }>();
+    expect(fila?.examen_id).toBe("TESTEXAM1");
+  });
+
+  it("rechaza (409) digitalizar dos veces la misma hoja física (mismo examen_id)", async () => {
+    const auth = await tokenAdmin();
+    const token = await crearTokenViaAdmin(auth);
+    const body = {
+      token_id: token.id,
+      examen_id: "TESTEXAM-DUP",
+      consentimiento: true,
+      compromiso_honestidad: true,
+      demografia: demografiaValida(),
+      respuestas: todasLasRespuestasCorrectas(),
+    };
+
+    const primera = await fetchAdmin("/api/admin/digitalizacion", { method: "POST", body: JSON.stringify(body) }, auth);
+    expect(primera.status).toBe(201);
+
+    const segunda = await fetchAdmin("/api/admin/digitalizacion", { method: "POST", body: JSON.stringify(body) }, auth);
+    expect(segunda.status).toBe(409);
+  });
+
   it("descarta (sin reventar) una respuesta con forma inválida para su formato", async () => {
     const auth = await tokenAdmin();
     const token = await crearTokenViaAdmin(auth);

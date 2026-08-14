@@ -36,6 +36,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { chromium } from "playwright";
+import { PDFDocument } from "pdf-lib";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ_REPO = path.resolve(__dirname, "..");
@@ -154,6 +155,19 @@ function barajar(rng, arr) {
     [copia[i], copia[j]] = [copia[j], copia[i]];
   }
   return copia;
+}
+
+// Mismo alfabeto que comun.js::generarExamId (README §4.10) — duplicado aquí
+// a propósito, con el `rng` determinista de este script en vez de
+// crypto.getRandomValues: exam_id_qr también tiene que ser reproducible como
+// el resto del plan (mismas semillas -> mismas hojas byte a byte), algo que
+// la función real de la app no puede dar porque su gracia es precisamente
+// ser aleatoria de verdad en cada hoja impresa.
+const ALFABETO_EXAM_ID = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+function generarExamIdDeterminista(rng) {
+  let id = "";
+  for (let i = 0; i < 8; i++) id += ALFABETO_EXAM_ID[Math.floor(rng() * ALFABETO_EXAM_ID.length)];
+  return id;
 }
 
 // ============================================================
@@ -477,6 +491,44 @@ async function capturarConEfecto(page, elementHandle, opts, seed) {
   return Buffer.from(resultado.split(",")[1], "base64");
 }
 
+// Recompresión SOLO para hoja-completa.pdf (README §4.10): las fotos sueltas
+// (pagina-NN.jpg / subida-en-bloque/foto-NN.jpg) se quedan a la resolución y
+// calidad "de foto real" de capturarConEfecto, pero un PDF con 10-12 páginas
+// a esa resolución pesaba varios MB — de sobra para un fixture de prueba,
+// que no necesita más nitidez que la que ya exige el propio pipeline de
+// digitalización (bastante menos que la de la imagen "fuente"). Reduce el
+// ancho y la calidad JPEG antes de incrustarla en el PDF.
+//
+// anchoMax/calidad por defecto verificados a mano contra las instancias
+// "descuidada-incompleta" (v1 y v2, el escaneo con más ruido/desenfoque/
+// ángulo de las tres personas): con estos valores el QR pequeño de página
+// se sigue leyendo en las 22/22 páginas de esas dos instancias; bajar más
+// (p. ej. 1200px/0.5) ya perdía alguna lectura — mejor un PDF algo más
+// pesado que un fixture cuyo QR no se pueda leer de verdad.
+async function comprimirParaPdf(page, buf, { anchoMax = 1600, calidad = 0.55 } = {}) {
+  const dataUrl = "data:image/jpeg;base64," + buf.toString("base64");
+  const resultado = await page.evaluate(
+    async ({ dataUrl, anchoMax, calidad }) => {
+      const img = await new Promise((res, rej) => {
+        const im = new Image();
+        im.onload = () => res(im);
+        im.onerror = rej;
+        im.src = dataUrl;
+      });
+      const factor = Math.min(1, anchoMax / img.width);
+      const w = Math.round(img.width * factor);
+      const h = Math.round(img.height * factor);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      return canvas.toDataURL("image/jpeg", calidad);
+    },
+    { dataUrl, anchoMax, calidad }
+  );
+  return Buffer.from(resultado.split(",")[1], "base64");
+}
+
 // ============================================================
 // Programa principal
 // ============================================================
@@ -498,7 +550,13 @@ async function main() {
 
   const cssFuentes = await construirCssFuentes();
 
-  const browser = await chromium.launch();
+  // executablePath fijo (README de este repo, "entorno remoto"): el Chromium
+  // preinstalado en /opt/pw-browsers no siempre coincide en versión con la
+  // que espera el playwright de node_modules (que intentaría descargar otro
+  // por su cuenta, con o sin red) — el symlink /opt/pw-browsers/chromium
+  // apunta siempre al que ya está instalado.
+  const chromiumPreinstalado = "/opt/pw-browsers/chromium";
+  const browser = await chromium.launch(fs.existsSync(chromiumPreinstalado) ? { executablePath: chromiumPreinstalado } : {});
   const context = await browser.newContext({ viewport: { width: 900, height: 1300 }, deviceScaleFactor: 2.2 });
   const page = await context.newPage();
   page.on("console", (msg) => {
@@ -543,8 +601,14 @@ async function main() {
       const plan = construirPlan(items, persona, rng, poolAbierto, version);
       const tokenId = `TEST-V${version}-${persona.slug.toUpperCase()}`;
 
-      const qrDataUrl = await page.evaluate(([t, v]) => window.__generarQr(t, v), [tokenId, version]);
-      const qr = { dataUrl: qrDataUrl, tokenId };
+      // exam_id (README §4.9/§4.10): identifica esta hoja física concreta,
+      // distinto del tokenId de arriba (la remesa). Generado en Node con el
+      // mismo `rng` determinista que el resto del plan (ver
+      // generarExamIdDeterminista más arriba) para que estas hojas sean
+      // reproducibles byte a byte, a diferencia de comun.js::generarExamId
+      // (la de la app real), que es aleatoria de verdad a propósito.
+      const examId = generarExamIdDeterminista(rng);
+      const qr = { tokenId, examId, version };
       const numPaginas = await page.evaluate(([v, its, q]) => window.__construirPaginas(v, its, q), [version, items, qr]);
       await page.evaluate(([v, its, p]) => {
         window.__version = v;
@@ -556,6 +620,7 @@ async function main() {
       fs.mkdirSync(dirInstancia, { recursive: true });
 
       const paginasAGenerar = modoRapido ? Math.min(Number(process.env.OCR_TESTS_QUICK_PAGES || 2), numPaginas) : numPaginas;
+      const buffersPorPagina = [];
       for (let i = 0; i < paginasAGenerar; i++) {
         await page.evaluate((i) => {
           window.__renderPagina(i);
@@ -563,8 +628,38 @@ async function main() {
         }, i);
         const el = await page.$(".hoja-pagina");
         const jpegBuf = await capturarConEfecto(page, el, persona.escaneo, hashCadena(`${persona.slug}:v${version}:pagina:${i}`));
+        buffersPorPagina.push(jpegBuf);
         const nombre = `pagina-${String(i + 1).padStart(2, "0")}.jpg`;
         fs.writeFileSync(path.join(dirInstancia, nombre), jpegBuf);
+      }
+
+      // Demo de la subida en bloque (README §4.10), solo en una pasada
+      // completa (no en OCR_TESTS_QUICK, que ya recorta a propósito para
+      // iterar rápido): las MISMAS fotos de arriba, pero organizadas de dos
+      // formas pensadas para ese flujo en vez del secuencial de siempre.
+      if (!modoRapido && paginasAGenerar === numPaginas) {
+        // 1) Sueltas y DESORDENADAS (nombre de archivo sin relación con el
+        //    número de página real): demuestra que subirLote.js recoloca
+        //    cada una solo por su QR, no por el nombre ni el orden de subida.
+        const dirLote = path.join(dirInstancia, "subida-en-bloque");
+        fs.mkdirSync(dirLote, { recursive: true });
+        const rngBarajado = rngDesde(hashCadena(`${persona.slug}:v${version}:barajado`));
+        const ordenBarajado = barajar(rngBarajado, buffersPorPagina.map((_, i) => i));
+        ordenBarajado.forEach((indicePagina, posicionSubida) => {
+          const nombre = `foto-${String(posicionSubida + 1).padStart(2, "0")}.jpg`;
+          fs.writeFileSync(path.join(dirLote, nombre), buffersPorPagina[indicePagina]);
+        });
+
+        // 2) Un único PDF con TODAS las páginas ya en orden: el caso "mejor"
+        //    de README §4.10 (si el PDF ya viene completo, se procesa de una).
+        const pdfDoc = await PDFDocument.create();
+        for (const buf of buffersPorPagina) {
+          const bufComprimido = await comprimirParaPdf(page, buf);
+          const jpg = await pdfDoc.embedJpg(bufComprimido);
+          const paginaPdf = pdfDoc.addPage([jpg.width, jpg.height]);
+          paginaPdf.drawImage(jpg, { x: 0, y: 0, width: jpg.width, height: jpg.height });
+        }
+        fs.writeFileSync(path.join(dirInstancia, "hoja-completa.pdf"), await pdfDoc.save());
       }
 
       const esperado = decodificarDesdePlan(items, plan, version);
@@ -576,6 +671,7 @@ async function main() {
             descripcion: persona.nombre,
             version_pipeline: version,
             token_id_qr: tokenId,
+            exam_id_qr: examId,
             paginas: numPaginas,
             demografia: plan.demografia,
             respuestas_esperadas: esperado,

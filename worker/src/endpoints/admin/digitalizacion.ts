@@ -5,7 +5,14 @@
 // OCR de Tesseract.js sobre los recuadros de texto, public/admin/papel/v1/digitalizar.js)
 // para convertirla en una sesión normal — misma corrección y puntuación que
 // una sesión respondida en la web, solo cambia de dónde vino la respuesta cruda.
-import { crearSesion, marcarCompleto, obtenerToken, upsertRespuesta } from "../../db";
+import {
+  buscarSesionPorExamenId,
+  crearSesion,
+  marcarCompleto,
+  marcarExamenPapelFinalizado,
+  obtenerToken,
+  upsertRespuesta,
+} from "../../db";
 import { corregirRespuesta } from "../../correccion";
 import { error, json } from "../../http";
 import { bancoItems, itemsPorId, paraCliente } from "../../items";
@@ -72,6 +79,18 @@ export async function postDigitalizacion(request: Request, env: Env): Promise<Re
   // existiera este campo, o del primer pipeline).
   const versionPapel = typeof b.version_papel === "number" ? b.version_papel : 1;
 
+  // Id de la hoja física (README §4.10), leído del QR de página — presente
+  // tanto si viene del flujo secuencial de siempre como de la subida en
+  // bloque. Null en hojas de antes de que existiera este campo (o si ningún
+  // QR de la hoja se pudo leer).
+  const examenId = typeof b.examen_id === "string" && b.examen_id ? b.examen_id : null;
+  if (examenId) {
+    const yaExiste = await buscarSesionPorExamenId(env, examenId);
+    if (yaExiste) {
+      return error(env, 409, `Esta hoja física ya se había digitalizado antes (sesión ${yaExiste.id})`);
+    }
+  }
+
   const id = crypto.randomUUID();
   const asignaciones = ordenarTest(bancoItems);
   const creadaEn = new Date().toISOString();
@@ -85,7 +104,16 @@ export async function postDigitalizacion(request: Request, env: Env): Promise<Re
     tokenId,
     origen: "papel",
     versionPapel,
+    examenId,
   });
+
+  // Si esta hoja venía de la subida en bloque (README §4.10), se marca ese
+  // examen como finalizado — deja de aparecer como "en progreso" y no se
+  // puede volver a finalizar. No falla la creación de la sesión si el
+  // exam_id no correspondía a ningún examen registrado en esa tabla (p. ej.
+  // una hoja digitalizada por el flujo secuencial de siempre, que nunca pasó
+  // por examenes_papel).
+  if (examenId) await marcarExamenPapelFinalizado(env, examenId, id);
 
   // Igual que un abandono parcial en la web: un ítem que la persona dejó en
   // blanco en el papel (o que el pipeline de OMR/OCR no pudo interpretar y el
