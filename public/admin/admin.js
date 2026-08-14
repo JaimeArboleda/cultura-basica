@@ -65,6 +65,9 @@ export const api = {
   // Digitalización de tests en papel (README §4.7).
   itemsImpresion: () => peticion("/api/admin/items-impresion"),
   digitalizar: (body) => peticion("/api/admin/digitalizacion", { method: "POST", body: JSON.stringify(body) }),
+  // Motor de OCR-IA de v2 (README §4.7, "Motor gpt-mini"): alternativa a
+  // Tesseract.js, corre en el Worker (necesita la API key de OpenAI).
+  ocrIa: (body) => peticion("/api/admin/ocr-ia", { method: "POST", body: JSON.stringify(body) }),
   // Subida en bloque de hojas en papel (README §4.10).
   examenesPapel: () => peticion("/api/admin/examenes-papel"),
   examenPapelDetalle: (examId) => peticion(`/api/admin/examenes-papel/${encodeURIComponent(examId)}`),

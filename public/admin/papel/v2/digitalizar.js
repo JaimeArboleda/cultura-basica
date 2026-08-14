@@ -308,7 +308,49 @@ export function opcionesOcrParaClave(clave) {
   return { soloLetras: true };
 }
 
-function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas }) {
+// ============================================================
+// Motor de OCR-IA (README §4.7, "Motor gpt-mini"): alternativa a Tesseract
+// para leer las casillas de texto, vía worker/src/endpoints/admin/ocrIa.ts.
+// La lectura del QR (README §4.9) no pasa por aquí — sigue siendo la misma
+// de siempre, determinista, en comun.js::leerPagina.
+// ============================================================
+
+// Traduce lo que ya calculaba opcionesOcrParaClave (para la whitelist de
+// Tesseract) al "tipo" que espera el endpoint de OCR-IA, sin duplicar esa
+// lógica en dos sitios.
+function tipoCasillaIA(opciones) {
+  if (opciones?.soloDigitos) return "digito";
+  if (opciones?.soloLetras) return "letra";
+  return "texto";
+}
+
+// Fábrica del callback ocrLote que consume comun.js::leerPagina (ver su
+// cabecera): construye el manifiesto de casillas de UNA página (recortes ya
+// codificados como data URL JPEG) y, según `agrupacion`:
+// - "pagina": llama a la API una vez por página, en cuanto esa página se lee.
+// - "examen": no llama a la API todavía — acumula el manifiesto en
+//   `pendientes` (compartido entre todas las páginas de la hoja) y devuelve
+//   un resultado vacío; iniciarEscaneo() hace UNA sola llamada con todo lo
+//   acumulado al terminar de escanear la hoja entera, justo antes de mostrar
+//   la confirmación (ver más abajo) — así "examen completo" es una única
+//   petición HTTP con las casillas de todas las páginas, no una por página.
+function crearOcrLote({ paginaId, modelo, agrupacion, pendientes }) {
+  return async (lineasTexto) => {
+    const casillas = lineasTexto.map(({ clave, recorte, opciones }) => ({
+      clave,
+      tipo: tipoCasillaIA(opciones),
+      imagen: recorte.toDataURL("image/jpeg", 0.85),
+    }));
+    if (agrupacion === "examen") {
+      pendientes.push({ id: paginaId, casillas });
+      return {};
+    }
+    const { resultados } = await api.ocrIa({ modelo, paginas: [{ id: paginaId, casillas }] });
+    return resultados[paginaId] ?? {};
+  };
+}
+
+function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas, motorOcr, modeloIA, agrupacionIA }) {
   const oscuridadGlobal = new Map();
   const textosGlobal = new Map();
   const paginasWarpeadas = [];
@@ -321,9 +363,26 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas }) {
   // nota equivalente en ../v1/digitalizar.js.
   let examIdDetectado = null;
   let indice = 0;
+  // Solo se usa con motorOcr === "ia" y agrupacionIA === "examen": manifiesto
+  // de casillas de las páginas ya escaneadas, pendiente de UNA sola llamada
+  // conjunta a la API al terminar (ver crearOcrLote y más abajo).
+  const pendientesIA = [];
 
-  function renderPasoActual() {
+  async function renderPasoActual() {
     if (indice >= paginas.length) {
+      if (motorOcr === "ia" && agrupacionIA === "examen" && pendientesIA.length > 0) {
+        zona.innerHTML = `<p>Leyendo todas las casillas con IA (examen completo)…</p>`;
+        try {
+          const { resultados } = await api.ocrIa({ modelo: modeloIA, paginas: pendientesIA });
+          for (const pag of pendientesIA) {
+            for (const [clave, texto] of Object.entries(resultados[pag.id] ?? {})) textosGlobal.set(clave, texto);
+          }
+          pendientesIA.length = 0; // no repetir la llamada si se vuelve a pasar por aquí (p. ej. tras cancelar)
+        } catch (e) {
+          zona.innerHTML = `<p class="mensaje-error">Error leyendo con IA: ${escaparHtml(e.message)}</p>`;
+          return;
+        }
+      }
       renderConfirmacionYCrear(zona, {
         tokenIdDetectado,
         examIdDetectado,
@@ -381,9 +440,9 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas }) {
       zona.querySelector("#botones-paso").hidden = false;
     });
 
-    zona.querySelector("#boton-saltar-pagina").addEventListener("click", () => {
+    zona.querySelector("#boton-saltar-pagina").addEventListener("click", async () => {
       indice++;
-      renderPasoActual();
+      await renderPasoActual();
     });
 
     zona.querySelector("#boton-confirmar-pagina").addEventListener("click", async () => {
@@ -406,12 +465,17 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas }) {
         const warp = warpearImagen(fuente, esquinasFuente, destW, destH, dst);
         paginasWarpeadas.push(warp);
 
+        if (motorOcr === "ia") estado.textContent = "Enviando casillas al motor de IA…";
         const { oscuridad, textos, qrGrande, qrPagina } = await leerPagina(pagina, warp, {
           opcionesOcrParaClave,
           avisar: (msg) => (estado.textContent = msg),
           canvasFuente: fuente,
           esquinas: esquinasFuente,
           dstFiduciales: dst,
+          ocrLote:
+            motorOcr === "ia"
+              ? crearOcrLote({ paginaId: `pagina-${indice}`, modelo: modeloIA, agrupacion: agrupacionIA, pendientes: pendientesIA })
+              : undefined,
         });
         // Solo consentimiento/compromiso siguen siendo marcas OMR en v2 (ver
         // cabecera de ./hoja.js) — pagina.marcas está vacío en páginas de
@@ -425,7 +489,7 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas }) {
         if (qrPagina?.examId) examIdDetectado = qrPagina.examId;
 
         indice++;
-        renderPasoActual();
+        await renderPasoActual();
       } catch (e) {
         estado.textContent = `Error leyendo la página: ${e.message}`;
         boton.disabled = false;
@@ -477,6 +541,34 @@ export async function renderDigitalizar(contenedor) {
           ${tokens.map((t) => `<option value="${t.id}">${escaparHtml(t.descripcion)}</option>`).join("")}
         </select>
       </label>
+      <label class="campo">
+        <span>Motor de OCR para las casillas de texto</span>
+        <select id="select-motor-ocr">
+          <option value="tesseract">Tesseract (local, sin coste)</option>
+          <option value="ia">IA — gpt-mini (vía Worker, API de pago, más precisión)</option>
+        </select>
+      </label>
+      <div id="opciones-motor-ia" hidden>
+        <label class="campo">
+          <span>Modelo</span>
+          <select id="select-modelo-ia">
+            <option value="gpt-4o-mini">gpt-4o-mini</option>
+            <option value="gpt-5-mini">gpt-5-mini</option>
+          </select>
+        </label>
+        <label class="campo">
+          <span>Agrupación de las llamadas a la API</span>
+          <select id="select-agrupacion-ia">
+            <option value="pagina">Una llamada por página</option>
+            <option value="examen">Una sola llamada con la hoja completa</option>
+          </select>
+        </label>
+        <p class="nota-formato">
+          Para poder comparar calidad/coste con datos reales antes de decidir un único ajuste (README §4.7):
+          el motor Tesseract sigue siendo el de siempre y no cambia, esto solo afecta a las casillas de texto
+          cuando eliges IA. La lectura del código QR de la hoja no pasa por ningún modelo en ningún caso.
+        </p>
+      </div>
       <button type="button" class="boton-principal boton-ancho-auto" id="boton-empezar-escaneo">Empezar digitalización</button>
       <div id="zona-escaneo"></div>
     </section>`;
@@ -508,7 +600,15 @@ export async function renderDigitalizar(contenedor) {
   });
 
   const selectToken = contenedor.querySelector("#select-token-digitalizar");
+  const selectMotorOcr = contenedor.querySelector("#select-motor-ocr");
+  const opcionesMotorIA = contenedor.querySelector("#opciones-motor-ia");
+  const selectModeloIA = contenedor.querySelector("#select-modelo-ia");
+  const selectAgrupacionIA = contenedor.querySelector("#select-agrupacion-ia");
   const botonEmpezar = contenedor.querySelector("#boton-empezar-escaneo");
+
+  selectMotorOcr.addEventListener("change", () => {
+    opcionesMotorIA.hidden = selectMotorOcr.value !== "ia";
+  });
 
   botonEmpezar.addEventListener("click", async () => {
     botonEmpezar.disabled = true;
@@ -517,7 +617,15 @@ export async function renderDigitalizar(contenedor) {
     try {
       const { items } = await api.itemsImpresion();
       const paginas = await construirHoja(items);
-      iniciarEscaneo(zona, { tokenIdInicial: selectToken.value || null, tokens, items, paginas });
+      iniciarEscaneo(zona, {
+        tokenIdInicial: selectToken.value || null,
+        tokens,
+        items,
+        paginas,
+        motorOcr: selectMotorOcr.value,
+        modeloIA: selectModeloIA.value,
+        agrupacionIA: selectAgrupacionIA.value,
+      });
     } catch (e) {
       zona.innerHTML = `<p class="mensaje-error">${escaparHtml(e.message)}</p>`;
     } finally {

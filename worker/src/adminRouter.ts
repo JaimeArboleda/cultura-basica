@@ -9,6 +9,7 @@ import { deleteAdmin, getAdmins, postAdmins } from "./endpoints/admin/admins";
 import { getAdminCallback, getAdminLogin, getAdminYo } from "./endpoints/admin/auth";
 import { getDataset } from "./endpoints/admin/dataset";
 import { getItemsImpresion, postDigitalizacion } from "./endpoints/admin/digitalizacion";
+import { postOcrIa } from "./endpoints/admin/ocrIa";
 import {
   deleteExamenPapel,
   deleteExamenPapelPagina,
@@ -67,6 +68,11 @@ export async function manejarRutaAdmin(request: Request, env: Env, pathname: str
   // Digitalización de tests en papel (README §4.7).
   if (method === "GET" && pathname === "/api/admin/items-impresion") return getItemsImpresion(env);
   if (method === "POST" && pathname === "/api/admin/digitalizacion") return postDigitalizacion(request, env);
+
+  // Motor de OCR-IA de v2 (README §4.7, "Motor gpt-mini"): recibe recortes de
+  // casillas ya hechos en el navegador y devuelve el texto reconocido por un
+  // modelo de OpenAI, alternativa a Tesseract.js.
+  if (method === "POST" && pathname === "/api/admin/ocr-ia") return postOcrIa(request, env);
 
   // Subida en bloque de hojas en papel (README §4.10): progreso por hoja
   // física (exam_id), independiente del flujo secuencial de arriba.

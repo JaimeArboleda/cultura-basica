@@ -1034,7 +1034,26 @@ export async function rellenarQrPaginas(paginas, { tokenId, examId, version }) {
 // recorte de siempre (compatibilidad, por si algún llamador no los tiene a
 // mano), pero los tres llamadores actuales (v1/v2 digitalizar.js,
 // subirLote.js) los pasan siempre.
-export async function leerPagina(pagina, warpCanvas, { opcionesOcrParaClave, avisar, canvasFuente, esquinas, dstFiduciales } = {}) {
+//
+// ocrLote (opcional, solo lo usa v2 con el motor IA — README §4.7, "Motor
+// gpt-mini"): si se pasa, sustituye a ocrLinea/Tesseract para TODAS las
+// líneas de texto de la página (nunca para los QR, que siguen leyéndose
+// igual arriba, deterministas). En vez de llamar a ocrLinea línea a línea,
+// se recortan primero TODAS las líneas de texto de la página y se llaman de
+// una sola vez con ocrLote(lineasTexto), donde lineasTexto es
+// [{clave, recorte, opciones}] (opciones = lo que devuelva
+// opcionesOcrParaClave(clave), igual que se le pasaría a ocrLinea) — así
+// quien orquesta el escaneo decide con una única llamada de red por página
+// (o acumula recortes de varias páginas para una única llamada por examen
+// completo, ver v2/digitalizar.js) en vez de una petición por casilla. Debe
+// devolver {clave: texto}; una clave ausente en el resultado se trata como
+// "no reconocido" (cadena vacía), igual que ocrLinea con un recorte en
+// blanco.
+export async function leerPagina(
+  pagina,
+  warpCanvas,
+  { opcionesOcrParaClave, avisar, canvasFuente, esquinas, dstFiduciales, ocrLote } = {}
+) {
   const escala = ESCALA_DIGITALIZACION;
   const imgData = warpCanvas.getContext("2d").getImageData(0, 0, warpCanvas.width, warpCanvas.height);
 
@@ -1046,6 +1065,7 @@ export async function leerPagina(pagina, warpCanvas, { opcionesOcrParaClave, avi
   const textos = {};
   let qrGrande = null;
   let qrPagina = null;
+  const lineasTexto = [];
   for (const l of pagina.lineas) {
     if (l.clave === "meta:qr" || l.clave === "meta:qr:pagina") {
       avisar?.("Leyendo QR…");
@@ -1065,10 +1085,19 @@ export async function leerPagina(pagina, warpCanvas, { opcionesOcrParaClave, avi
       }
       continue;
     }
-    avisar?.(`Leyendo texto (${l.clave})…`);
     const recorte = recortarLinea(warpCanvas, l, escala);
+    if (ocrLote) {
+      lineasTexto.push({ clave: l.clave, recorte, opciones: opcionesOcrParaClave?.(l.clave) });
+      continue;
+    }
+    avisar?.(`Leyendo texto (${l.clave})…`);
     const texto = await ocrLinea(recorte, { ...opcionesOcrParaClave?.(l.clave), avisar });
     textos[l.clave] = texto;
+  }
+
+  if (ocrLote && lineasTexto.length > 0) {
+    const resultado = await ocrLote(lineasTexto);
+    for (const { clave } of lineasTexto) textos[clave] = resultado[clave] ?? "";
   }
 
   return { oscuridad, textos, qrGrande, qrPagina };

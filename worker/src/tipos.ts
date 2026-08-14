@@ -95,6 +95,14 @@ export interface Env {
   GOOGLE_CLIENT_SECRET: string;
   // Clave con la que se firma (HMAC-SHA256) la cookie de sesión de admin.
   ADMIN_SESSION_SECRET: string;
+  // Backend de OCR-IA para v2 (README §4.7, "Motor gpt-mini"): OPENAI_API_KEY
+  // es secreto (wrangler secret put); OPENAI_MODEL no lo es (va en
+  // wrangler.toml [vars]) porque conviene poder cambiarlo sin redesplegar
+  // código mientras se compara gpt-4o-mini vs gpt-5-mini con datos reales del
+  // piloto — el cliente también puede pedir un modelo concreto por request
+  // (POST /api/admin/ocr-ia), OPENAI_MODEL es solo el valor por defecto.
+  OPENAI_API_KEY?: string;
+  OPENAI_MODEL?: string;
 }
 
 // --- Catálogos demográficos cerrados (README §2) ---

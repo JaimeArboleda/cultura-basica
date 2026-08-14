@@ -16,6 +16,12 @@ ALLOWED_ORIGIN = "https://cultura-basica.pages.dev"
 # secreto (va siempre en la petición de autorización, visible en el navegador).
 GOOGLE_CLIENT_ID = "240118355292-44gbi8798rq1ptlve0g94oi3i7232pt2.apps.googleusercontent.com"
 
+# Modelo por defecto del motor de OCR-IA de v2 (§4.7): se puede cambiar aquí
+# sin tocar código para comparar gpt-4o-mini vs gpt-5-mini con datos reales
+# del piloto (el panel también puede pedir un modelo concreto por request,
+# que gana sobre este valor). No es secreto.
+OPENAI_MODEL = "gpt-4o-mini"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "cultura-basica"
@@ -25,9 +31,14 @@ database_id = "7df34f15-cc38-4268-af72-8e5d9930a93b"
 binding = "RATE_LIMIT"
 id = "81f103c6a7e344b0bce4b449bdafb5c2"
 
-# EXPORT_TOKEN, GOOGLE_CLIENT_SECRET y ADMIN_SESSION_SECRET se definen como
-# secret, no aquí (§4.6):
+# EXPORT_TOKEN, GOOGLE_CLIENT_SECRET, ADMIN_SESSION_SECRET y OPENAI_API_KEY se
+# definen como secret, no aquí (§4.6/§4.7):
 #   wrangler secret put EXPORT_TOKEN
 #   wrangler secret put GOOGLE_CLIENT_SECRET
 #   wrangler secret put ADMIN_SESSION_SECRET   # cadena aleatoria larga cualquiera,
 #                                               # p. ej. `openssl rand -base64 32`
+#   wrangler secret put OPENAI_API_KEY         # API key de OpenAI para el motor de
+#                                               # OCR-IA de v2 (§4.7) — opcional: sin
+#                                               # ella, ese motor devuelve error y el
+#                                               # de Tesseract (siempre disponible)
+#                                               # sigue funcionando igual.
