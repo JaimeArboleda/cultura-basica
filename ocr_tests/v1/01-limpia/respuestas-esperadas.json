@@ -1,0 +1,102 @@
+{
+  "persona": "01-limpia",
+  "descripcion": "Cuidadosa, sin apenas correcciones",
+  "version_pipeline": 1,
+  "token_id_qr": "TEST-V1-01-LIMPIA",
+  "paginas": 12,
+  "demografia": {
+    "consentimiento": true,
+    "compromiso_honestidad": true,
+    "anio_nacimiento": "1994",
+    "sexo": "Mujer",
+    "ccaa_educacion_secundaria": "Comunidad de Madrid",
+    "nivel_estudios": "Grado o licenciatura",
+    "area_estudios": "Ciencias sociales y jurídicas",
+    "estudios_mayor_progenitor": "Bachillerato",
+    "libros_en_casa": "26-100"
+  },
+  "respuestas_esperadas": {
+    "10": "4 quinceavos",
+    "11": "velasquez",
+    "12": 4,
+    "13": 3,
+    "14": [
+      0,
+      2,
+      4,
+      6
+    ],
+    "15": [
+      "La Ilíada",
+      "El Coliseo de Roma",
+      "El Corán",
+      "El Cantar del Mío Cid",
+      "El David de Miguel Ángel",
+      "Don Quijote de la Mancha",
+      "La Novena Sinfonía de Beethoven",
+      "Crimen y Castigo de Dostoievsky",
+      "El Guernica de Picasso",
+      "Cien años de soledad"
+    ],
+    "16": 2,
+    "17": 2,
+    "18": [
+      1,
+      4,
+      8
+    ],
+    "19": "plusvalia",
+    "20": 1,
+    "21": 5,
+    "22": {
+      "Debussy": "Clasicismo",
+      "Palestrina": "Clasicismo",
+      "Beethoven": "Romanticismo",
+      "Chopin": "Romanticismo",
+      "Handel": "Clasicismo",
+      "Tomás Luis de Victoria": "Renacimiento",
+      "Ravel": "Impresionismo",
+      "Bach": "Barroco",
+      "Liszt": "Clasicismo",
+      "Mozart": "Clasicismo"
+    },
+    "23": 2,
+    "24": [
+      1,
+      2,
+      3
+    ],
+    "25": 4,
+    "01": "sigmund freud",
+    "02": "reyes catolicos",
+    "03": [
+      "Ramsés II",
+      "Alejandro Magno",
+      "Julio César",
+      "Mahoma",
+      null,
+      "Leonardo Da Vinci",
+      "Isaac Newton",
+      "Napoleón",
+      "Karl Marx",
+      null
+    ],
+    "04": {
+      "El entierro del Conde Orgaz": "El Greco",
+      "Ana Karenina": "Lev Tolstói",
+      "La Divina Comedia": "Dante Alighieri",
+      "La maja desnuda": "Francisco de Goya",
+      "La Piedad": "Miguel Ángel",
+      "Las señoritas de Avignon": "Pablo Picasso",
+      "La Regenta": "Leopoldo Alas \"Clarín\"",
+      "Analectas": "Confucio"
+    },
+    "05": 4,
+    "07": "sigmund freud",
+    "08": "la inflacion",
+    "09": [
+      0,
+      1
+    ]
+  }
+}

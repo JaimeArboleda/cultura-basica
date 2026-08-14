@@ -1,0 +1,96 @@
+{
+  "persona": "03-descuidada-incompleta",
+  "descripcion": "Letra desordenada, deja varias en blanco",
+  "version_pipeline": 2,
+  "token_id_qr": "TEST-V2-03-DESCUIDADA-INCOMPLETA",
+  "paginas": 10,
+  "demografia": {
+    "consentimiento": true,
+    "compromiso_honestidad": true,
+    "anio_nacimiento": "2001",
+    "sexo": "Otro",
+    "ccaa_educacion_secundaria": "Cataluña",
+    "nivel_estudios": "Bachillerato",
+    "area_estudios": "Artes y humanidades",
+    "estudios_mayor_progenitor": "ESO",
+    "libros_en_casa": null
+  },
+  "respuestas_esperadas": {
+    "10": "cuatro quinceavos",
+    "11": "velasquez",
+    "12": 4,
+    "13": 2,
+    "14": [
+      0,
+      2,
+      4,
+      6
+    ],
+    "15": [
+      "El David de Miguel Ángel",
+      "La Ilíada",
+      "El Guernica de Picasso",
+      "Cien años de soledad",
+      "Crimen y Castigo de Dostoievsky",
+      "Don Quijote de la Mancha",
+      "La Novena Sinfonía de Beethoven",
+      "El Corán",
+      "El Cantar del Mío Cid",
+      "El Coliseo de Roma"
+    ],
+    "16": 1,
+    "17": 5,
+    "20": 3,
+    "21": 5,
+    "22": {
+      "Debussy": "Romanticismo",
+      "Palestrina": "Barroco",
+      "Beethoven": "Renacimiento",
+      "Chopin": "Renacimiento",
+      "Handel": "Impresionismo",
+      "Tomás Luis de Victoria": "Clasicismo",
+      "Ravel": "Impresionismo",
+      "Bach": "Clasicismo",
+      "Liszt": "Renacimiento",
+      "Mozart": "Clasicismo"
+    },
+    "23": 4,
+    "24": [
+      1,
+      2,
+      3
+    ],
+    "25": 4,
+    "02": "los reyes catolicos",
+    "03": [
+      null,
+      "Mahoma",
+      "Julio César",
+      "Leonardo Da Vinci",
+      null,
+      "Alejandro Magno",
+      "Isaac Newton",
+      null,
+      "Karl Marx",
+      "Napoleón"
+    ],
+    "04": {
+      "El entierro del Conde Orgaz": "El Greco",
+      "Ana Karenina": "Lev Tolstói",
+      "La Divina Comedia": "Dante Alighieri",
+      "La maja desnuda": "Francisco de Goya",
+      "La Piedad": "Miguel Ángel",
+      "Las señoritas de Avignon": "Pablo Picasso",
+      "La Regenta": "Leopoldo Alas \"Clarín\"",
+      "Analectas": "Confucio"
+    },
+    "05": 0,
+    "06": "la fotosintesis",
+    "07": "freud",
+    "08": "los reyes catolicos",
+    "09": [
+      0,
+      1
+    ]
+  }
+}

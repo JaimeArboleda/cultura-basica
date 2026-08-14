@@ -1,0 +1,289 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Generador de hojas OCR de prueba</title>
+    <style id="estilo-hoja"></style>
+    <style id="estilo-tinta">
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #fff;
+      }
+      /* Centra la letra manuscrita dentro de cada casilla impresa, sin tocar
+         su tamaño/borde (eso sigue viniendo de CSS_HOJA_BASE). */
+      .hoja-casilla-texto {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: visible;
+        position: relative;
+      }
+      .ink-letra {
+        display: inline-block;
+        line-height: 1;
+        user-select: none;
+        white-space: pre;
+      }
+    </style>
+  </head>
+  <body></body>
+  <script type="module">
+    // Harness cargado por Playwright (ver ocr_tests/generar.mjs) para construir
+    // hojas v1/v2 reales (mismos módulos que usa el panel de admin) y, sobre esa
+    // MISMA maquetación, simular a mano alzada las respuestas de una "instancia"
+    // de prueba: busca cada nodo por su data-mark/data-linea real (el mismo
+    // protocolo de claves que usa cada digitalizar.js) y pinta encima tinta
+    // sintética (burbuja/casilla rellena con un SVG de garabato, o una letra con
+    // fuente de imitación manuscrita y jitter aleatorio). No reimplementa la
+    // maquetación: solo la rellena, para que las fotos resultantes sean tan
+    // reales como sea posible frente al pipeline de digitalización real.
+    import { construirHoja as construirHojaV1, CSS_HOJA as CSS_V1 } from "../public/admin/papel/v1/hoja.js";
+    import { construirHoja as construirHojaV2, CSS_HOJA as CSS_V2 } from "../public/admin/papel/v2/hoja.js";
+    import { codificarPayloadQr, generarQrDataUrl } from "../public/admin/papel/comun.js";
+    import { CATALOGOS } from "../public/js/demografia.js";
+
+    const LETRAS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const CAMPOS_CATALOGO = {
+      sexo: "sexo",
+      ccaa_educacion_secundaria: "ccaa",
+      nivel_estudios: "nivel_estudios",
+      area_estudios: "area_estudios",
+      estudios_mayor_progenitor: "nivel_estudios",
+      libros_en_casa: "libros_en_casa",
+    };
+
+    let paginasActuales = [];
+
+    // PRNG determinista (mulberry32) sembrado a partir de un string (la propia
+    // clave data-mark/data-linea): así el jitter de cada marca es estable entre
+    // ejecuciones sin tener que transportar semillas numéricas desde Node.
+    function hashCadena(s) {
+      let h = 2166136261;
+      for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    }
+    function rngDesde(seedStr) {
+      let s = hashCadena(seedStr) >>> 0;
+      return function () {
+        s |= 0;
+        s = (s + 0x6d2b79f5) | 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    // Garabato de relleno para una burbuja/casilla OMR: un blob irregular
+    // (polígono cerrado con vértices en radio aleatorio) más un par de trazos
+    // sueltos encima, simulando una marca hecha a bolígrafo en vez de un
+    // círculo perfecto.
+    function svgGarabato(colorHex, seedStr) {
+      const rng = rngDesde(seedStr);
+      const cx = 50;
+      const cy = 50;
+      const n = 9;
+      const puntos = [];
+      for (let i = 0; i < n; i++) {
+        const ang = (i / n) * Math.PI * 2;
+        const r = 30 + rng() * 15;
+        puntos.push([cx + Math.cos(ang) * r, cy + Math.sin(ang) * r]);
+      }
+      let d = `M ${puntos[0][0].toFixed(1)} ${puntos[0][1].toFixed(1)} `;
+      for (let i = 1; i <= n; i++) {
+        const p = puntos[i % n];
+        const prev = puntos[i - 1];
+        const mx = (prev[0] + p[0]) / 2;
+        const my = (prev[1] + p[1]) / 2;
+        d += `Q ${prev[0].toFixed(1)} ${prev[1].toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)} `;
+      }
+      d += "Z";
+      let trazos = "";
+      for (let i = 0; i < 2; i++) {
+        const x1 = 15 + rng() * 70;
+        const y1 = 15 + rng() * 70;
+        const x2 = 15 + rng() * 70;
+        const y2 = 15 + rng() * 70;
+        trazos += `<path d="M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}" stroke="${colorHex}" stroke-width="${(6 + rng() * 5).toFixed(1)}" stroke-linecap="round" opacity="${(0.3 + rng() * 0.25).toFixed(2)}" />`;
+      }
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="${d}" fill="${colorHex}" opacity="0.88" />${trazos}</svg>`;
+    }
+
+    function pintarMarca(nodo, colorHex, seedStr) {
+      const svg = svgGarabato(colorHex, seedStr);
+      nodo.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+      nodo.style.backgroundSize = "125% 125%";
+      nodo.style.backgroundPosition = "center";
+      nodo.style.backgroundRepeat = "no-repeat";
+    }
+
+    function pintarCasillaLetra(casilla, ch, fontFamily, colorHex, seedStr) {
+      const rng = rngDesde(seedStr);
+      const ink = document.createElement("span");
+      ink.textContent = ch;
+      ink.className = "ink-letra";
+      ink.style.fontFamily = `'${fontFamily}', cursive`;
+      ink.style.color = colorHex;
+      ink.style.fontSize = "5.3mm";
+      const rot = (rng() * 16 - 8).toFixed(1);
+      const dx = (rng() * 1.0 - 0.5).toFixed(2);
+      const dy = (rng() * 0.9 - 0.45).toFixed(2);
+      const escala = (0.9 + rng() * 0.24).toFixed(2);
+      ink.style.transform = `translate(${dx}mm, ${dy}mm) rotate(${rot}deg) scale(${escala})`;
+      ink.style.opacity = (0.85 + rng() * 0.15).toFixed(2);
+      casilla.appendChild(ink);
+    }
+
+    function marcar(root, clave, colorHex, seedPrefix) {
+      const nodo = root.querySelector(`[data-mark="${clave}"]`);
+      if (nodo) pintarMarca(nodo, colorHex, `${seedPrefix}:${clave}`);
+    }
+
+    function casillasDe(root, clave) {
+      const cont = root.querySelector(`[data-linea="${clave}"]`);
+      if (!cont) return [];
+      return Array.from(cont.querySelectorAll(".hoja-casilla-texto"));
+    }
+
+    function escribirTexto(root, clave, texto, fontFamily, colorHex, seedPrefix) {
+      const casillas = casillasDe(root, clave);
+      if (casillas.length === 0) return;
+      const chars = (texto || "").toUpperCase().slice(0, casillas.length);
+      for (let i = 0; i < chars.length; i++) {
+        const ch = chars[i];
+        if (ch === " ") continue;
+        pintarCasillaLetra(casillas[i], ch, fontFamily, colorHex, `${seedPrefix}:${clave}:${i}`);
+      }
+    }
+
+    // Selección múltiple / conjunto de índices: el orden dentro del bloque no
+    // importa (es un conjunto, README v2/hoja.js), así que basta con ocupar las
+    // primeras casillas disponibles, una letra por índice elegido.
+    function escribirConjunto(root, clave, indices, fontFamily, colorHex, seedPrefix) {
+      const casillas = casillasDe(root, clave);
+      if (casillas.length === 0) return;
+      indices.forEach((idx, k) => {
+        if (k >= casillas.length) return;
+        pintarCasillaLetra(casillas[k], LETRAS[idx], fontFamily, colorHex, `${seedPrefix}:${clave}:${k}`);
+      });
+    }
+
+    function aplicarItem(root, version, item, entrada, fontFamily, colorTinta) {
+      if (!entrada || entrada.blanco) return;
+      const pref = `item:${item.id}`;
+      const prefCorr = `${pref}:correccion`;
+
+      if (version === 1) {
+        switch (item.formato) {
+          case "opcion_multiple":
+            if (entrada.respuestaIndice != null) marcar(root, `${pref}:opcion:${entrada.respuestaIndice}`, colorTinta, pref);
+            if (entrada.correccionIndice != null) marcar(root, `${prefCorr}:opcion:${entrada.correccionIndice}`, colorTinta, prefCorr);
+            break;
+          case "seleccion_multiple":
+            (entrada.respuestaIndices || []).forEach((i) => marcar(root, `${pref}:opcion:${i}`, colorTinta, pref));
+            (entrada.correccionIndices || []).forEach((i) => marcar(root, `${prefCorr}:opcion:${i}`, colorTinta, prefCorr));
+            break;
+          case "ordenar":
+            (entrada.respuestaPosiciones || []).forEach((elIdx, pos) => {
+              if (elIdx != null) marcar(root, `${pref}:orden:${elIdx}:${pos}`, colorTinta, pref);
+            });
+            (entrada.correccionPosiciones || []).forEach((elIdx, pos) => {
+              if (elIdx != null) marcar(root, `${prefCorr}:orden:${elIdx}:${pos}`, colorTinta, prefCorr);
+            });
+            break;
+          case "clasificar":
+            (entrada.respuestaPorElemento || []).forEach((catIdx, i) => {
+              if (catIdx != null) marcar(root, `${pref}:clasificar:${i}:${catIdx}`, colorTinta, pref);
+            });
+            (entrada.correccionPorElemento || []).forEach((catIdx, i) => {
+              if (catIdx != null) marcar(root, `${prefCorr}:clasificar:${i}:${catIdx}`, colorTinta, prefCorr);
+            });
+            break;
+          case "abierto":
+            if (entrada.respuestaTexto) escribirTexto(root, `${pref}:abierto`, entrada.respuestaTexto, fontFamily, colorTinta, pref);
+            if (entrada.correccionTexto) escribirTexto(root, `${prefCorr}:abierto`, entrada.correccionTexto, fontFamily, colorTinta, prefCorr);
+            break;
+        }
+        if (entrada.anular) marcar(root, `${prefCorr}:blank`, colorTinta, prefCorr);
+      } else {
+        switch (item.formato) {
+          case "opcion_multiple":
+            if (entrada.respuestaIndice != null) escribirTexto(root, `${pref}:opcion`, LETRAS[entrada.respuestaIndice], fontFamily, colorTinta, pref);
+            if (entrada.correccionIndice != null) escribirTexto(root, `${prefCorr}:opcion`, LETRAS[entrada.correccionIndice], fontFamily, colorTinta, prefCorr);
+            break;
+          case "seleccion_multiple":
+            if (entrada.respuestaIndices?.length) escribirConjunto(root, `${pref}:seleccion`, entrada.respuestaIndices, fontFamily, colorTinta, pref);
+            if (entrada.correccionIndices?.length) escribirConjunto(root, `${prefCorr}:seleccion`, entrada.correccionIndices, fontFamily, colorTinta, prefCorr);
+            break;
+          case "ordenar":
+            (entrada.respuestaPosiciones || []).forEach((elIdx, pos) => {
+              if (elIdx != null) escribirTexto(root, `${pref}:orden:${pos}`, LETRAS[elIdx], fontFamily, colorTinta, pref);
+            });
+            (entrada.correccionPosiciones || []).forEach((elIdx, pos) => {
+              if (elIdx != null) escribirTexto(root, `${prefCorr}:orden:${pos}`, LETRAS[elIdx], fontFamily, colorTinta, prefCorr);
+            });
+            break;
+          case "clasificar":
+            (entrada.respuestaPorElemento || []).forEach((catIdx, i) => {
+              if (catIdx != null) escribirTexto(root, `${pref}:clasificar:${i}`, LETRAS[catIdx], fontFamily, colorTinta, pref);
+            });
+            (entrada.correccionPorElemento || []).forEach((catIdx, i) => {
+              if (catIdx != null) escribirTexto(root, `${prefCorr}:clasificar:${i}`, LETRAS[catIdx], fontFamily, colorTinta, prefCorr);
+            });
+            break;
+          case "abierto":
+            if (entrada.respuestaTexto) escribirTexto(root, `${pref}:abierto`, entrada.respuestaTexto, fontFamily, colorTinta, pref);
+            if (entrada.correccionTexto) escribirTexto(root, `${prefCorr}:abierto`, entrada.correccionTexto, fontFamily, colorTinta, prefCorr);
+            break;
+        }
+      }
+    }
+
+    window.__generarQr = async function (tokenId, version) {
+      return generarQrDataUrl(codificarPayloadQr({ tokenId, version }));
+    };
+
+    window.__construirPaginas = function (version, items, qr) {
+      document.querySelector("#estilo-hoja").textContent = version === 1 ? CSS_V1 : CSS_V2;
+      const construirHoja = version === 1 ? construirHojaV1 : construirHojaV2;
+      paginasActuales = construirHoja(items, qr);
+      return paginasActuales.length;
+    };
+
+    window.__renderPagina = function (indice) {
+      document.body.innerHTML = "";
+      document.body.appendChild(paginasActuales[indice].elemento);
+    };
+
+    window.__aplicarPlan = function (version, items, plan) {
+      const root = document.body;
+      const { fuente, colorTinta } = plan;
+
+      if (plan.demografia.consentimiento) marcar(root, "demografia:consentimiento", colorTinta, "demog");
+      if (plan.demografia.compromiso_honestidad) marcar(root, "demografia:compromiso_honestidad", colorTinta, "demog");
+      if (plan.demografia.anio_nacimiento) {
+        escribirTexto(root, "demografia:anio_nacimiento", plan.demografia.anio_nacimiento, fuente, colorTinta, "demog");
+      }
+      for (const [campo, claveCatalogo] of Object.entries(CAMPOS_CATALOGO)) {
+        const valor = plan.demografia[campo];
+        if (!valor) continue;
+        if (version === 1) {
+          marcar(root, `demografia:${campo}:${valor}`, colorTinta, "demog");
+        } else {
+          const idx = CATALOGOS[claveCatalogo].indexOf(valor);
+          if (idx >= 0) escribirTexto(root, `demografia:${campo}`, LETRAS[idx], fuente, colorTinta, "demog");
+        }
+      }
+
+      for (const item of items) {
+        aplicarItem(root, version, item, plan.items[item.id], fuente, colorTinta);
+      }
+    };
+
+    window.__harnessListo = true;
+  </script>
+</html>
