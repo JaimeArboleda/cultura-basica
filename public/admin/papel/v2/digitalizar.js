@@ -94,13 +94,6 @@ function letrasValidas(texto, limiteExclusivo) {
   return [...indices].sort((a, b) => a - b);
 }
 
-// Primer número reconocible en el texto (para el orden de 'ordenar') — null
-// si no hay ninguno.
-function primerNumero(texto) {
-  const m = texto.match(/\d+/);
-  return m ? Number(m[0]) : null;
-}
-
 // Traduce el texto ya reconocido en cada casilla a la forma que espera el
 // backend por formato (README §4.2): abierto=string, opcion_multiple=índice,
 // seleccion_multiple=[índices], ordenar=[nombres en orden], clasificar={elemento:categoría}.
@@ -129,23 +122,29 @@ export function decodificarRespuestas(items, textos) {
         break;
       }
       case "ordenar": {
+        // Cabecera fija = posición (1, 2, 3...); en la casilla de cada
+        // posición se escribe la letra del elemento que va ahí (ver
+        // ./hoja.js) — el reverso de 'clasificar' (cabecera fija =
+        // instancia, casilla = letra de categoría), mismo mecanismo.
         const n = item.elementos.length;
         const arr = new Array(n).fill(null);
         let alguna = false;
-        item.elementos.forEach((elemento, i) => {
-          const texto = leerConCorreccion(textos, `item:${item.id}:orden:${i}`, `${prefCorreccion}:orden:${i}`);
-          const orden = primerNumero(texto);
-          // Si dos elementos leen el mismo número (error de OCR o del propio
-          // participante), el último en iterarse gana y el hueco se queda
-          // sin cubrir — no hay validación de que sea una permutación válida
-          // de 1..N. Pendiente de revisar con datos reales (mismo espíritu
-          // que UMBRAL_MARCA en v1: mejor un criterio simple documentado que
-          // una regla de desambiguación inventada sin casos reales delante).
-          if (orden != null && orden >= 1 && orden <= n) {
-            arr[orden - 1] = elemento;
+        for (let pos = 0; pos < n; pos++) {
+          const texto = leerConCorreccion(textos, `item:${item.id}:orden:${pos}`, `${prefCorreccion}:orden:${pos}`);
+          const idx = primeraLetra(texto, n);
+          // Si la misma letra se lee en dos posiciones (error de OCR o del
+          // propio participante), el elemento se repite en el array y falla
+          // la comparación de permutación en worker/src/correccion.ts (no es
+          // una validación explícita, es la consecuencia natural de no ser
+          // igual a la respuesta correcta) — no hay desambiguación. Pendiente
+          // de revisar con datos reales, mismo espíritu que UMBRAL_MARCA en
+          // v1: mejor un criterio simple documentado que una regla de
+          // desambiguación inventada sin casos reales delante.
+          if (idx != null) {
+            arr[pos] = item.elementos[idx];
             alguna = true;
           }
-        });
+        }
         if (alguna) respuestas[item.id] = arr;
         break;
       }
@@ -287,13 +286,12 @@ function renderConfirmacionYCrear(
 // ============================================================
 
 // Qué lista blanca/modo de OCR usar según la clave de la región (README
-// §4.9): dígitos para el año de nacimiento y el orden de 'ordenar' (es un
-// número, no una letra de opción/categoría), alfanumérico por defecto para
-// 'abierto' (texto libre, puede llevar números), y letras para todo lo
-// demás — que en v2 es casi todo (opción/categoría elegida).
+// §4.9): dígitos solo para el año de nacimiento, alfanumérico por defecto
+// para 'abierto' (texto libre, puede llevar números), y letras para todo lo
+// demás — que en v2 es casi todo, incluido el orden de 'ordenar' (la casilla
+// de cada posición lleva la letra del elemento, no un número, ver ./hoja.js).
 function opcionesOcrParaClave(clave) {
   if (clave.endsWith(":anio_nacimiento")) return { soloDigitos: true };
-  if (/:orden:\d+$/.test(clave)) return { soloDigitos: true };
   if (clave.endsWith(":abierto")) return {};
   return { soloLetras: true };
 }

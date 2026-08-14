@@ -927,6 +927,26 @@ La pestaña "Digitalizar tests" del panel (`admin.js::PIPELINES_PAPEL`) deja
 elegir con qué versión imprimir/escanear, para poder probar las dos con
 datos reales antes de decidir cuál usar en el piloto.
 
+**Paginado fiable (`comun.js::construirPaginas`/`paginarBloques`), corregido
+en ambas versiones:** el empaquetado voraz mide cada bloque con
+`getBoundingClientRect()` en un contenedor oculto (README §4.7, "Impresión")
+antes de decidir qué cabe en cada página A4. Dos fallos hacían que esa
+medida no coincidiera con el tamaño real una vez impreso, desbordando
+`.hoja-pagina` (que recorta con `overflow: hidden`, así que el desbordamiento
+no se veía como error sino como preguntas cortadas o pegadas al margen
+inferior): (1) el contenedor de medida no tenía cargado el CSS de la hoja en
+absoluto — `CSS_HOJA` solo se inyecta dentro de la ventana de impresión
+(`abrirVentanaImpresion`), que todavía no existe en el momento de medir, así
+que cada bloque se medía con la tipografía y el ancho por defecto del
+navegador en vez de los 11px/174mm reales; y (2) `getBoundingClientRect().height`
+no incluye el margen del propio elemento (`.hoja-item{margin-bottom:5mm}`,
+`.hoja-cabecera{margin-bottom:5mm}`), así que la suma de alturas siempre se
+quedaba corta. Arreglado inyectando el `CSS_HOJA` de la versión en un
+`<style>` temporal antes de medir (`construirPaginas` recibe `css` como
+tercer argumento) y sumando margen + alto de caja en vez de solo el alto de
+caja. Con la medida ya fiable, el paginado necesita bastante más páginas de
+las que parecía antes (el empaquetado previo metía de más, no de menos).
+
 **v1 — decisión de diseño: la hoja es casi toda "rellena una burbuja", no
 letra manuscrita.** Opción múltiple y selección múltiple ya son
 burbujas/casillas de forma natural; `ordenar` y `clasificar` se resuelven
@@ -999,14 +1019,18 @@ rejilla distinta por tipo (`public/admin/papel/v2/hoja.js`). Por formato:
   `ordenar`/`clasificar` — esta línea se recorta y se lee como UN solo
   bloque de OCR, igual que `abierto`.
 - **Ordenar**: cada elemento se imprime con una letra de referencia fija
-  (A, B, C...); debajo de cada letra, una casilla donde se escribe el número
-  de orden (1 = primero) que le corresponde a ESE elemento. Aquí la posición
-  sí importa (cada casilla pertenece a un elemento concreto), así que cada
-  casilla se mide y se lee de forma independiente, no como bloque.
+  (A, B, C...) y las POSICIONES se numeran (1 = primero, 2 = segundo...);
+  debajo de cada número de posición, una casilla donde se escribe la letra
+  del elemento que va ahí. Mismo patrón que `clasificar` (cabecera numerada
+  fija + casilla con una letra debajo) — la diferencia es que aquí las
+  letras no se repiten (es una permutación) — y más natural de rellenar que
+  "qué número le toca a cada elemento". Cada casilla de posición se mide y
+  se lee de forma independiente, no como bloque.
 - **Clasificar**: los elementos se numeran (1, 2, 3...) y las categorías se
   etiquetan con letras (A, B, C...); debajo de cada número de elemento, una
   casilla con la letra de su categoría — mismo mecanismo de casilla
-  independiente que `ordenar`, con los roles de letra/número intercambiados.
+  independiente que `ordenar`, con las letras SÍ pudiendo repetirse (varios
+  elementos pueden compartir categoría).
 - Los 6 catálogos de opción única de demografía (sexo, CCAA...) pasan
   también de burbuja OMR a esta misma casilla de letra, por consistencia.
 - `abierto` y el año de nacimiento no cambian respecto a v1 (la doble línea
@@ -1023,10 +1047,11 @@ es simplemente "no se reconoció ningún carácter", así que no hace falta una
 marca explícita de "no responder" para poder anular; si la Corrección de esa
 casilla tiene algo, gana, si no, se usa la Respuesta. Caso sin resolver
 todavía, documentado en el propio código: si dos casillas de `ordenar`
-leyeran el mismo número de orden (fallo de OCR o del propio participante),
-no hay validación de que el resultado sea una permutación válida de 1..N —
-pendiente de revisar con datos reales del piloto, igual que el umbral de OMR
-en v1.
+leyeran la misma letra de elemento (fallo de OCR o del propio participante),
+no hay validación de que el resultado sea una permutación válida — el
+elemento se repite y la respuesta simplemente no coincide con la correcta al
+compararla, sin aviso explícito de "esto es ambiguo". Pendiente de revisar
+con datos reales del piloto, igual que el umbral de OMR en v1.
 
 **`POST /api/admin/digitalizacion`** crea la sesión igual que `POST
 /api/sesion` (mismo `ordenarTest()`, misma tabla `sesion_items`) pero:

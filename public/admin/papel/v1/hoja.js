@@ -319,6 +319,7 @@ function construirBloquesDemografia(qr) {
 export function construirHoja(items, qr) {
   return construirPaginas(
     construirBloquesDemografia(qr),
-    items.map((item, i) => construirBloqueItem(item, i + 1))
+    items.map((item, i) => construirBloqueItem(item, i + 1)),
+    CSS_HOJA
   );
 }

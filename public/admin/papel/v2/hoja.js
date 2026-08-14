@@ -30,16 +30,21 @@
 //   abajo, aquí SÍ vale recortar la línea entera como un único bloque de OCR
 //   (igual que 'abierto'), en vez de una casilla por opción.
 // - ordenar: cada elemento se imprime con una letra de referencia fija
-//   (A, B, C...); debajo de cada letra, una casilla donde se escribe el
-//   número de orden (1 = primero) que le corresponde a ESE elemento. Aquí sí
-//   importa la posición (cada casilla pertenece a un elemento concreto), así
-//   que cada casilla se mide y se lee de forma INDEPENDIENTE
-//   (bloqueCasillasTexto con 1 sola casilla por clave), no como bloque.
+//   (A, B, C...) y las POSICIONES se numeran (1 = primero, 2 = segundo...);
+//   debajo de cada número de posición, una casilla donde se escribe la letra
+//   del elemento que va ahí. Es más natural escribir "en qué orden van las
+//   letras" que "qué número le toca a cada elemento", y así casa con
+//   'clasificar' (mismo patrón: cabecera numerada fija + casilla con una
+//   letra debajo) — la diferencia es que aquí las letras NO se repiten (es
+//   una permutación), mientras que en 'clasificar' sí pueden repetirse
+//   (varios elementos pueden compartir categoría). Cada casilla de posición
+//   pertenece a una posición concreta, así que se mide y se lee de forma
+//   INDEPENDIENTE (bloqueCasillasTexto con 1 sola casilla por clave), no
+//   como bloque.
 // - clasificar: los elementos (instancias) se numeran (1, 2, 3...) y las
 //   categorías se etiquetan con letras (A, B, C...); debajo de cada número
 //   de instancia, una casilla donde se escribe la letra de su categoría —
-//   mismo mecanismo de casilla independiente que 'ordenar', con los roles de
-//   letra/número intercambiados.
+//   mismo mecanismo de casilla independiente que 'ordenar'.
 import { CATALOGOS } from "../../../js/demografia.js";
 import {
   agregarBloqueAbierto,
@@ -156,17 +161,19 @@ export function construirBloqueItem(item, numero) {
       break;
     }
     case "ordenar": {
+      const n = item.elementos.length;
       const letrasElementos = item.elementos.map((_, i) => LETRAS[i]);
+      const posiciones = Array.from({ length: n }, (_, i) => String(i + 1));
       bloque.appendChild(
-        el(`<div class="hoja-instruccion">Escribe, debajo de la letra de cada elemento, el número de orden que le corresponde (1 = primero).</div>`)
+        el(`<div class="hoja-instruccion">Escribe los elementos en orden: debajo de cada número de posición (1 = primero), la letra del elemento que va ahí.</div>`)
       );
       bloque.appendChild(listaEtiquetada(item.elementos, letrasElementos));
       bloque.appendChild(el(`<div class="hoja-bloque-texto-titulo">Respuesta</div>`));
-      bloque.appendChild(filaCabecera(letrasElementos));
-      bloque.appendChild(filaCasillasIndividuales(item.elementos.map((_, i) => `item:${item.id}:orden:${i}`)));
+      bloque.appendChild(filaCabecera(posiciones));
+      bloque.appendChild(filaCasillasIndividuales(posiciones.map((_, i) => `item:${item.id}:orden:${i}`)));
       bloque.appendChild(el(`<div class="hoja-bloque-texto-titulo">Corrección (solo si te equivocaste arriba)</div>`));
-      bloque.appendChild(filaCabecera(letrasElementos));
-      bloque.appendChild(filaCasillasIndividuales(item.elementos.map((_, i) => `${prefCorreccion}:orden:${i}`)));
+      bloque.appendChild(filaCabecera(posiciones));
+      bloque.appendChild(filaCasillasIndividuales(posiciones.map((_, i) => `${prefCorreccion}:orden:${i}`)));
       break;
     }
     case "clasificar": {
@@ -260,6 +267,7 @@ function construirBloquesDemografia(qr) {
 export function construirHoja(items, qr) {
   return construirPaginas(
     construirBloquesDemografia(qr),
-    items.map((item, i) => construirBloqueItem(item, i + 1))
+    items.map((item, i) => construirBloqueItem(item, i + 1)),
+    CSS_HOJA
   );
 }

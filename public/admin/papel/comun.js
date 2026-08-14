@@ -253,24 +253,52 @@ function crearPagina(tituloDerecha) {
 // getBoundingClientRect a cero): fuera de la pantalla en vez de oculto, para
 // poder medir alturas y luego coordenadas de marcas con las mismas reglas
 // exactas que se usan al imprimir.
+//
+// Lleva la clase "hoja-pagina" a propósito: así hereda exactamente el mismo
+// ancho de CONTENIDO (210mm de página menos los 2×18mm de padding = 174mm,
+// no los 210mm enteros) y la misma tipografía (font-family/tamaño/
+// line-height) que tendrá cada bloque cuando de verdad esté dentro de una
+// página — si se midiera en un contenedor más ancho y con la fuente por
+// defecto del navegador, el texto envolvería en menos líneas de las que
+// ocupa en la página real, subestimando la altura y desbordando
+// silenciosamente el "overflow: hidden" de .hoja-pagina (recortado sin
+// avisar). Se sobrescribe el alto fijo y el overflow:hidden propios de
+// .hoja-pagina (aquí no interesa un A4 exacto, sino poder medir bloques de
+// cualquier alto sin cortarlos).
 function crearContenedorMedida() {
   const cont = document.createElement("div");
+  cont.className = "hoja-pagina";
   cont.style.position = "fixed";
   cont.style.left = "-10000px";
   cont.style.top = "0";
-  cont.style.width = `${PAGE_W_MM}mm`;
+  cont.style.height = "auto";
+  cont.style.overflow = "visible";
   document.body.appendChild(cont);
   return cont;
 }
 
+// Alto que un nodo realmente OCUPA en el flujo (border-box + su propio
+// margen vertical): getBoundingClientRect().height NUNCA incluye el margen
+// (es parte del modelo de caja de CSS, no de la caja del propio elemento),
+// así que sumar solo .height para decidir cuántos bloques caben en una
+// página subestima sistemáticamente el espacio real — con
+// ".hoja-item{margin-bottom:5mm}" y varios ítems por página el error se
+// acumula rápido y acaba desbordando el "overflow:hidden" de .hoja-pagina
+// (contenido recortado en silencio). Se usa tanto para medir cada bloque
+// como la propia cabecera de la página.
+function alturaConMargenes(nodo) {
+  const cs = getComputedStyle(nodo);
+  return nodo.getBoundingClientRect().height + parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+}
+
 // Altura disponible dentro de una página para bloques de contenido: alto
 // total de página menos el padding vertical (arriba+abajo), menos la
-// cabecera, menos un margen de seguridad para no pegar el último bloque al
-// borde inferior.
+// cabecera (con su propio margen), menos un margen de seguridad para no
+// pegar el último bloque al borde inferior.
 function alturaDisponiblePorPagina(medida) {
   const sonda = crearPagina("x");
   medida.appendChild(sonda);
-  const altoCabecera = sonda.querySelector(".hoja-cabecera").getBoundingClientRect().height;
+  const altoCabecera = alturaConMargenes(sonda.querySelector(".hoja-cabecera"));
   sonda.remove();
   const paddingVerticalPx = 2 * PAGINA_PADDING_MM * PX_POR_MM;
   const MARGEN_SEGURIDAD_PX = 20;
@@ -327,7 +355,7 @@ function paginarBloques(medida, nodos, formatearTitulo) {
   const altoDisponible = alturaDisponiblePorPagina(medida);
   const medidos = nodos.map((nodo) => {
     medida.appendChild(nodo);
-    const alto = nodo.getBoundingClientRect().height;
+    const alto = alturaConMargenes(nodo);
     nodo.remove();
     return { nodo, alto };
   });
@@ -363,7 +391,21 @@ function paginarBloques(medida, nodos, formatearTitulo) {
 // (marcas/líneas/fiduciales en coordenadas de página). Cada versión define
 // cómo es cada bloque (construirBloqueItem, construirBloquesDemografia); esto
 // solo paginan y miden, con las mismas reglas para cualquier versión.
-export function construirPaginas(bloquesDemografia, bloquesItems) {
+//
+// css: el CSS_HOJA completo de la versión que llama (CSS_HOJA_BASE + el
+// suyo propio). Se inyecta aquí, en un <style> temporal, ANTES de medir nada
+// — el único otro sitio donde se usa CSS_HOJA es dentro de la ventana de
+// impresión que abre abrirVentanaImpresion(), que no existe todavía en este
+// punto. Sin este <style>, .hoja-pagina/.hoja-item/etc. no tienen NINGÚN
+// estilo asociado en el documento del panel de admin (donde corre esta
+// función) y la medición se haría con las reglas por defecto del navegador
+// — ni el padding de 18mm, ni la tipografía de 11px, ni los márgenes reales
+// — completamente desconectados de cómo se ve la página impresa. Se retira
+// al terminar para no dejar reglas de la hoja flotando en el resto del panel.
+export function construirPaginas(bloquesDemografia, bloquesItems, css) {
+  const estiloTemporal = document.createElement("style");
+  estiloTemporal.textContent = css;
+  document.head.appendChild(estiloTemporal);
   const medida = crearContenedorMedida();
   try {
     const paginasDemografia = paginarBloques(medida, bloquesDemografia, (n, total) =>
@@ -373,6 +415,7 @@ export function construirPaginas(bloquesDemografia, bloquesItems) {
     return [...paginasDemografia, ...paginasItems];
   } finally {
     medida.remove();
+    estiloTemporal.remove();
   }
 }
 
