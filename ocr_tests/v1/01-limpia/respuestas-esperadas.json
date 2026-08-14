@@ -3,6 +3,7 @@
   "descripcion": "Cuidadosa, sin apenas correcciones",
   "version_pipeline": 1,
   "token_id_qr": "TEST-V1-01-LIMPIA",
+  "exam_id_qr": "PGSAZCNM",
   "paginas": 12,
   "demografia": {
     "consentimiento": true,

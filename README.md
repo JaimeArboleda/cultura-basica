@@ -255,7 +255,8 @@ a CSV.
 │   │   ├── admin.js
 │   │   ├── admin.css
 │   │   ├── papel/
-│   │   │   ├── comun.js  # Helpers compartidos por TODAS las versiones del pipeline de papel (§4.9)
+│   │   │   ├── comun.js  # Helpers compartidos por TODAS las versiones del pipeline de papel (§4.9/§4.10)
+│   │   │   ├── subirLote.js # Subida en bloque, fotos/PDF sueltos en cualquier orden (§4.10)
 │   │   │   ├── v1/
 │   │   │   │   ├── hoja.js       # Maquetación de la hoja OMR v1 (§4.7)
 │   │   │   │   └── digitalizar.js # Impresión + escaneo/OMR v1 de tests en papel (§4.7)
@@ -574,7 +575,13 @@ POST /api/admin/admins              → añade un administrador { email }
 DELETE /api/admin/admins/:email     → quita un administrador (rechaza si es el último)
 
 GET  /api/admin/items-impresion     → banco en el orden fijo de presentación, sin respuestas (hoja OMR, §4.7)
-POST /api/admin/digitalizacion      → crea una sesión origen='papel' a partir de una hoja ya interpretada (§4.7)
+POST /api/admin/digitalizacion      → crea una sesión origen='papel' a partir de una hoja ya interpretada (§4.7/§4.10)
+
+POST /api/admin/examenes-papel/paginas        → guarda UNA página ya decodificada de una hoja física (§4.10)
+GET  /api/admin/examenes-papel                → lista exámenes en progreso (con qué páginas tienen ya subidas)
+GET  /api/admin/examenes-papel/:exam_id       → detalle de un examen: sus páginas ya decodificadas, para finalizarlo
+DELETE /api/admin/examenes-papel/:exam_id/paginas/:pagina → borra una página subida (para volver a subirla)
+DELETE /api/admin/examenes-papel/:exam_id     → abandona un examen entero (borra todas sus páginas)
 
 GET  /api/admin/sesiones/:id        → detalle editable de una sesión: demografía + los 25 ítems + respuestas dadas (§4.8)
 PUT  /api/admin/sesiones/:id        → reemplaza demografía y respuestas de una sesión ya existente, cualquiera que sea su origen (§4.8)
@@ -1081,6 +1088,19 @@ npx wrangler d1 execute cultura-basica --remote \
   --command="ALTER TABLE sesiones ADD COLUMN version_papel INTEGER"
 ```
 
+**Migrar una D1 ya desplegada (subida en bloque, README §4.10):**
+
+```bash
+npx wrangler d1 execute cultura-basica --remote \
+  --command="ALTER TABLE sesiones ADD COLUMN examen_id TEXT"
+npx wrangler d1 execute cultura-basica --remote \
+  --command="CREATE UNIQUE INDEX idx_sesiones_examen ON sesiones(examen_id)"
+npx wrangler d1 execute cultura-basica --remote \
+  --command="CREATE TABLE examenes_papel (exam_id TEXT PRIMARY KEY, token_id TEXT NOT NULL REFERENCES tokens(id), version INTEGER NOT NULL, creado_en TEXT NOT NULL, sesion_id TEXT REFERENCES sesiones(id))"
+npx wrangler d1 execute cultura-basica --remote \
+  --command="CREATE TABLE examenes_papel_paginas (exam_id TEXT NOT NULL REFERENCES examenes_papel(exam_id), pagina INTEGER NOT NULL, marcas_json TEXT NOT NULL, miniatura_datauri TEXT, subida_en TEXT NOT NULL, PRIMARY KEY (exam_id, pagina))"
+```
+
 **Qué falta validar con pruebas reales en papel** (por eso hay dos versiones
 en paralelo, ninguna es la definitiva todavía): la calidad de Tesseract.js
 sobre letra manuscrita real (aunque sea en mayúsculas de imprenta separadas)
@@ -1148,7 +1168,7 @@ mantener sincronizados.
   Gmail del propio equipo del estudio (autenticación del panel), no de
   participantes.
 
-### 4.9 Código QR con el token de la remesa y la versión del pipeline
+### 4.9 Código QR con el token de la remesa, la versión del pipeline, el examen y la página
 
 **Motivación:** cuando un colaborador externo reparte hojas impresas a un
 colectivo (§4.7) y luego las devuelve digitalizadas, el admin tiene que saber
@@ -1156,11 +1176,46 @@ a qué remesa (`token_id`) pertenece cada hoja para poder digitalizarla —y,
 existiendo ya más de una versión del pipeline de papel, con qué versión se
 imprimió, para poder despachar al decodificador correcto sin tener que
 recordarlo a mano. En vez de fiarse de que quede anotado o de tener que
-preguntar, la propia hoja lleva esa información: un **código QR con
-`{token_id, version}` en JSON** (`papel/comun.js::codificarPayloadQr`),
-impreso en la página de demografía junto al resto de marcas (fiduciales,
-§4.7). No lleva ningún dato de la persona ni de una sesión concreta — la
-sesión aún no existe en el momento de imprimir.
+preguntar, la propia hoja lleva esa información en un código QR. Además
+(§4.10), cada hoja física impresa lleva un **identificador individual**
+(`exam_id`, distinto del `token_id` de la remesa: una remesa se reparte en
+muchas hojas) y cada página lleva su **número de página** — necesario para
+poder recomponer una hoja a partir de fotos sueltas subidas en cualquier
+orden, sin depender de escanearlas ni subirlas en el orden físico.
+
+**Dos QR por hoja, uno grande (solo página 1) y uno pequeño (todas las
+páginas)** (`papel/comun.js`):
+
+- **QR grande**, en la página de demografía junto al resto de marcas
+  (fiduciales, §4.7): `{token_id, version, exam_id, pagina}` completo en JSON
+  (`codificarPayloadQr`/`decodificarPayloadQr`), con el `token_id` también en
+  texto plano al lado por si hace falta leerlo a ojo. Es el que ya existía
+  desde el principio; ahora además lleva `exam_id` y `pagina` (siempre `1`
+  para este QR, ya que solo aparece en la primera página).
+- **QR pequeño de página**, en **todas** las páginas de la hoja (incluida la
+  1): solo `{exam_id, pagina}` (`codificarPayloadQrPagina`/
+  `decodificarPayloadQrPagina`), sin repetir remesa ni versión — deliberadamente
+  corto para que, a igual tamaño físico impreso (10×10mm,
+  `.hoja-qr-pagina` en `CSS_HOJA_BASE`), el módulo de cada casilla del QR sea
+  más grande y la lectura desde una foto de móvil sea más fiable. `exam_id`
+  en sí también es corto por el mismo motivo: 8 caracteres de un alfabeto sin
+  ambigüedad visual (sin `0`/`O`, `1`/`I`/`L`...,
+  `papel/comun.js::generarExamId`, alfabeto tipo Crockford Base32) en vez de
+  un UUID v4 completo de 36 caracteres — de sobra único para los cientos de
+  hojas de un piloto, y mucho más legible si hay que teclearlo a mano
+  (§4.10, resolución manual) o leerlo a ojo en la propia hoja.
+
+**Por qué dos QR y no uno solo más grande:** el grande sigue haciendo falta
+para el flujo secuencial de siempre (§4.7, que solo necesita leer el QR una
+vez, al principio, para fijar la remesa) y para poder identificar la remesa
+a ojo desde la propia hoja. El pequeño es el que de verdad hace posible la
+subida en bloque (§4.10): tiene que estar en TODAS las páginas (una foto
+suelta de la página 7 no lleva ningún otro contexto), así que cuanto más
+corto su payload, más grande puede imprimirse cada módulo dentro de los
+10mm disponibles sin invadir el hueco de los fiduciales — repetir el
+`token_id`/`version` completos en cada una de las 10+ páginas de una hoja
+solo para volver a poder leerlos si el QR grande falla no compensaba el
+coste en fiabilidad de lectura.
 
 **Por qué QR y no PDF417 u otro simbología 1D/2D:** el contenido a codificar
 es corto y no hay dispositivo lector dedicado — se decodifica con la misma
@@ -1171,27 +1226,167 @@ nativas, con mejor tolerancia a ruido/perspectiva que PDF417 a la resolución
 de una foto de móvil, y sin necesitar más precisión de las que ya exige leer
 las burbujas de OMR de al lado.
 
-**Impresión** (`papel/v1/hoja.js::construirBloquesDemografia`): si se pasa un
-`qr` (`{dataUrl, tokenId}`) a `construirHoja()`, se antepone un bloque con la
-imagen del QR (generada por `papel/comun.js::generarQrDataUrl` sobre el
-payload de `codificarPayloadQr({tokenId, version})`, vía `qrcode-generator`
-cargado bajo demanda desde CDN — mismo patrón que Tesseract.js) y el
-`token_id` en texto por si hace falta leerlo a ojo. El botón de imprimir del
-panel exige elegir la remesa de una lista antes de generar la hoja,
-precisamente para poder generar ese QR.
+**Dónde se coloca cada uno en la página** (`papel/comun.js::crearPagina`,
+`CSS_HOJA_BASE`): el QR grande es CONTENIDO normal (ocupa espacio en el
+paginado voraz, `construirPaginas`), solo en el primer bloque de demografía.
+El QR pequeño es, en cambio, `position: absolute` — igual que los 4
+fiduciales de esquina — para no desplazar ningún bloque de contenido al
+añadirse a TODAS las páginas; se ancla al borde derecho, centrado
+verticalmente, **fuera** de los cuadrantes de búsqueda de fiduciales (8% del
+ancho/alto desde cada esquina, `detectarFiduciales`) a propósito — un blob
+oscuro adicional dentro de ese cuadrante rompería la detección automática de
+esquinas, que exige un fiducial "aislado" (README §4.7).
 
-**Digitalización** (`papel/comun.js::decodificarQr` + `decodificarPayloadQr`,
-vía `jsQR`): al escanear la primera página de cada hoja, se recorta la
-región del QR (medida igual que cualquier otra marca,
-`data-linea="meta:qr"`), se decodifica y se separa en `{tokenId, version}` —
-si el texto leído no es el JSON esperado, se asume una hoja de la primera
-versión (QR en plano con solo el `token_id`), por compatibilidad hacia
-atrás. Si el `tokenId` coincide con un token real, la remesa queda fijada
-automáticamente y la pantalla de confirmación (§4.7) la muestra como ya
-resuelta ("Remesa detectada automáticamente"); si no se puede leer el QR
-(foto borrosa, hoja fotocopiada en blanco y negro sin suficiente contraste,
-etc.) se cae al mismo desplegable manual de remesa que existía antes del QR,
-así el flujo nunca se bloquea por un QR ilegible.
+**Impresión** (`papel/v1/hoja.js`/`v2/hoja.js::construirHoja`, ambas ahora
+`async`): se genera un `exam_id` nuevo (`generarExamId()`) cada vez que se
+imprime una hoja y se pasa junto con `tokenId`/`version` a `construirHoja()`.
+Como el payload de cada QR necesita saber en qué página global cae (algo que
+solo se conoce DESPUÉS de paginar), la imagen de los QR no se genera de
+antemano: `construirPaginas()` reserva primero una caja vacía en cada página
+(el QR grande solo si se pidió, el pequeño siempre) y, ya con las páginas
+construidas, `comun.js::rellenarQrPaginas()` recorre el array resultante
+rellenando cada `<img>` con su QR correspondiente (`generarQrDataUrl` +
+`await imagen.decode()`, para no dejar la imagen a medio decodificar si algo
+mide/capturase la página inmediatamente después).
+
+**Digitalización:** cualquier `data-linea` con clave `meta:qr` o
+`meta:qr:pagina` que aparezca en el layout de una página se decodifica igual
+que cualquier otra región (`comun.js::leerPagina`, compartida entre el flujo
+secuencial de §4.7 y la subida en bloque de §4.10). Si el `token_id`
+detectado coincide con un token real, la remesa queda fijada automáticamente
+("Remesa detectada automáticamente" en la pantalla de confirmación); si el
+QR no se pudo leer (foto borrosa, hoja fotocopiada en blanco y negro sin
+suficiente contraste, etc.) se cae al desplegable manual de remesa de
+siempre, así el flujo secuencial nunca se bloquea por un QR ilegible. La
+subida en bloque (§4.10), que depende del QR pequeño para saber a qué examen
+pertenece cada foto suelta, tiene su propia resolución manual de respaldo
+página a página.
+
+**Compatibilidad hacia atrás:** una hoja impresa antes de que existiera
+`exam_id`/`pagina` (o incluso de antes de que existiera `version`, la
+primerísima hoja) sigue leyéndose: `decodificarPayloadQr` devuelve
+`examId: null`/`pagina: null` si esos campos no vienen en el JSON, y un texto
+plano sin JSON se interpreta como `{tokenId: texto, version: 1}`. Esas hojas
+solo pueden digitalizarse por el flujo secuencial (§4.7), no por la subida en
+bloque (§4.10), que necesita el QR pequeño en cada página para poder
+recolocarlas.
+
+### 4.10 Subida en bloque de hojas en papel, en cualquier orden
+
+**Motivación:** el flujo secuencial (§4.7) obliga a subir las páginas de UNA
+hoja, en su orden físico exacto, sin interrupciones, en una sola visita al
+panel — lo que funciona bien para digitalizar una hoja suelta al momento,
+pero no para el caso real de una remesa grande: alguien escanea o fotografía
+**todas** las hojas de golpe (mezcladas, sin cuidar el orden ni agruparlas
+por persona) y luego hace falta subirlas al panel, quizá en varias sesiones
+de trabajo, sin tener que reordenar cientos de fotos a mano primero. La
+pestaña **"Subir en bloque"** (`public/admin/papel/subirLote.js`) resuelve
+justo eso: cada foto o página de PDF se identifica sola por su QR pequeño de
+página (§4.9, `{exam_id, pagina}`) y se coloca en su sitio, sin importar en
+qué orden, en cuántos archivos ni en cuántas visitas se suba.
+
+**Qué acepta:** imágenes sueltas (`image/*`, una foto = una página) o un PDF
+con una o varias páginas ya escaneadas (`application/pdf`, dividido en
+imágenes en el propio navegador con **pdf.js**, cargado bajo demanda desde
+CDN igual que Tesseract.js/qrcode-generator/jsQR — `comun.js::cargarPaginasPdf`).
+Si el PDF ya trae TODAS las páginas de una hoja, mejor: se procesan todas de
+una subida y el examen puede quedar completo al momento; si no, sus páginas
+se acumulan igual que las de cualquier otra foto suelta, identificadas por
+`exam_id`.
+
+**Persistencia del progreso, en el servidor (no en el navegador):** a
+diferencia del flujo secuencial (que solo vive en memoria del navegador
+durante una única visita), cada página sube su resultado YA DECODIFICADO en
+cuanto se lee — nunca la foto en sí, mismo criterio de privacidad que el
+resto de la digitalización (§4.7: solo sale del navegador lo ya interpretado)
+— a dos tablas nuevas (`schema/schema.sql`):
+
+```sql
+CREATE TABLE examenes_papel (
+  exam_id     TEXT PRIMARY KEY,        -- id corto leído del QR de cada página
+  token_id    TEXT NOT NULL REFERENCES tokens(id),
+  version     INTEGER NOT NULL,        -- versión del pipeline (v1, v2...)
+  creado_en   TEXT NOT NULL,           -- cuándo se vio la primera página de esta hoja
+  sesion_id   TEXT REFERENCES sesiones(id) -- NULL mientras sigue en progreso
+);
+
+CREATE TABLE examenes_papel_paginas (
+  exam_id           TEXT NOT NULL REFERENCES examenes_papel(exam_id),
+  pagina            INTEGER NOT NULL,  -- 1-indexado, continuo entre páginas de datos e ítems
+  marcas_json       TEXT NOT NULL,     -- { oscuridad: {...}, textos: {...} }, lo que devuelve leerPagina()
+  miniatura_datauri TEXT,              -- JPEG de baja resolución, para revisar a ojo al finalizar
+  subida_en         TEXT NOT NULL,
+  PRIMARY KEY (exam_id, pagina)
+);
+```
+
+Así el progreso sobrevive a cerrar el navegador, se puede seguir subiendo
+páginas de la misma hoja otro día o desde otro dispositivo, y el panel puede
+listar en cualquier momento **qué exámenes están a medio subir** (`GET
+/api/admin/examenes-papel`) sin depender de que quede una pestaña abierta.
+El total de páginas esperado de cada examen NO se guarda en el servidor (que
+no sabe nada de maquetación de hoja): lo calcula el propio navegador
+reconstruyendo el layout de esa versión (`construirHoja(items)` sin `qr`,
+igual que el paso 2 del flujo secuencial) — determinista mientras no cambie
+el banco de ítems entre imprimir y digitalizar, la misma asunción que ya
+hacía el flujo secuencial.
+
+**Leer una página suelta, sin saber de antemano ni el orden ni la versión**
+(`subirLote.js::procesarUnidad`, reutilizando `comun.js::leerPagina` — la
+misma función que usa ahora también el flujo secuencial, §4.9): los
+fiduciales de esquina y la caja del QR pequeño están en la MISMA posición
+absoluta en cualquier página de cualquier versión (§4.9), así que se pueden
+localizar (`comun.js::medirGeometriaBaseEnBlanco`) y decodificar sin
+necesitar el layout específico de una versión todavía:
+
+1. Detectar los 4 fiduciales (`detectarFiduciales`) y enderezar la foto por
+   homografía, igual que el flujo secuencial; si la detección automática
+   falla, se pide ajustarlos a mano (mismo selector, `crearSelectorEsquinas`).
+2. Recortar y decodificar el QR pequeño → `{exam_id, pagina}`. Si no se
+   puede leer, se pide a mano (ID de examen + número de página).
+3. Resolver a qué remesa/versión pertenece ese `exam_id`: si ya se vio antes
+   en esta misma visita, o si el servidor ya tiene alguna página suya
+   (`GET /api/admin/examenes-papel/:exam_id`), se reutiliza sin preguntar. Si
+   es la PRIMERA página que se ve de un `exam_id` nuevo (en cualquier sesión
+   de trabajo), se pide una vez a mano (remesa + versión) — se recuerda para
+   el resto de páginas de esa misma hoja, no hace falta repetirlo.
+4. Con la versión ya conocida, reconstruir el layout de esa versión
+   (`construirHoja(items)`, cacheado) para saber dónde cae cada
+   marca/casilla en ESA página concreta, y leerla (`leerPagina`).
+5. Subir el resultado (`POST /api/admin/examenes-papel/paginas`).
+
+**Finalizar un examen completo** (`subirLote.js::finalizarExamen`): en
+cuanto un examen tiene todas sus páginas subidas, aparece en la lista listo
+para "Finalizar" — reutiliza tal cual `renderConfirmacionYCrear` (exportada
+por `v1/v2/digitalizar.js`, README §4.8, "revisión instantánea"), la MISMA
+pantalla que usa el flujo secuencial, solo que `oscuridadGlobal`/
+`textosGlobal`/las miniaturas para revisar a ojo vienen de las páginas ya
+persistidas (`GET /api/admin/examenes-papel/:exam_id`) en vez de venir de
+escanear en la propia visita — así no hay dos formularios de creación de
+sesión que mantener sincronizados. Al crear la sesión, `POST
+/api/admin/digitalizacion` recibe también el `exam_id` (`examen_id` en el
+body) y:
+
+- Lo guarda en la nueva columna `sesiones.examen_id` (trazabilidad: de qué
+  hoja física exacta viene cada sesión, no solo de qué remesa).
+- **Rechaza (409)** si ya existe una sesión con ese `exam_id` — evita
+  digitalizar dos veces la misma hoja física, tanto si se intenta por el
+  flujo secuencial y por la subida en bloque como si "Finalizar" se pulsa
+  dos veces por error (`idx_sesiones_examen`, índice `UNIQUE` que SQLite no
+  aplica entre varios `NULL`, así que no afecta a sesiones sin `exam_id`).
+- Marca `examenes_papel.sesion_id` con la sesión recién creada, para que ese
+  examen deje de aparecer como "en progreso" y no se pueda volver a
+  finalizar.
+
+**Qué NO resuelve todavía:** subir páginas de exámenes que compartan el
+mismo banco de ítems pero se hayan impreso con un `data/items.json` distinto
+del actual (el layout se reconstruye con el banco DE AHORA, no con el que
+había al imprimir) — mismo supuesto ya implícito en el flujo secuencial, no
+es nuevo de la subida en bloque. Tampoco valida que un `exam_id` tecleado a
+mano (resolución manual del paso 2) sea realmente el que corresponde a esa
+foto — un error de tecleo mezclaría esa página con las de otro examen; el
+coste de revisar al finalizar (miniaturas + revisión instantánea de las 25
+respuestas, §4.8) es la salvaguarda, no una validación automática.
 
 ---
 

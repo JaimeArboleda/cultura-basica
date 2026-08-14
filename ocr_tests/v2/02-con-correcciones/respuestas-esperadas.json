@@ -3,6 +3,7 @@
   "descripcion": "Se equivoca a menudo y corrige mucho",
   "version_pipeline": 2,
   "token_id_qr": "TEST-V2-02-CON-CORRECCIONES",
+  "exam_id_qr": "FPJMXPDF",
   "paginas": 10,
   "demografia": {
     "consentimiento": true,

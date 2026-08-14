@@ -56,6 +56,7 @@ import {
   escaparHtml,
   LETRAS,
   marcaCuadrado,
+  rellenarQrPaginas,
 } from "../comun.js";
 
 // --- CSS específico de v2: fila de casillas individuales alineadas (para
@@ -207,14 +208,16 @@ export function construirBloqueItem(item, numero) {
 // archivo) y el año de nacimiento sigue siendo solo dígitos, sin bloque de
 // Corrección (igual que v1: un error ahí se resuelve en la revisión manual
 // posterior, editarSesion.js).
+// qr: { tokenId } opcional — la imagen del QR grande se rellena DESPUÉS de
+// paginar (ver construirHoja más abajo), igual que en v1/hoja.js.
 function construirBloquesDemografia(qr) {
   const bloques = [];
-  if (qr?.dataUrl) {
+  if (qr?.tokenId) {
     bloques.push(
       el(`
         <div class="hoja-item hoja-qr">
           <div class="hoja-qr-caja" data-linea="meta:qr">
-            <img src="${qr.dataUrl}" alt="Código QR de la remesa" class="hoja-qr-img" />
+            <img alt="Código QR de la remesa" class="hoja-qr-img" />
           </div>
           <div>
             <div class="hoja-item-enunciado"><span>Código de la remesa</span></div>
@@ -269,10 +272,14 @@ function construirBloquesDemografia(qr) {
 // Construye la hoja completa v2: misma estructura que v1 (páginas de
 // demografía + páginas de ítems, medidas y paginadas por
 // comun.js::construirPaginas), solo cambia cómo se pinta cada bloque.
-export function construirHoja(items, qr) {
-  return construirPaginas(
+// qr: { tokenId, examId, version } opcional — ver v1/hoja.js::construirHoja
+// para el porqué de exam_id/página y de que esto sea async (README §4.10).
+export async function construirHoja(items, qr) {
+  const paginas = construirPaginas(
     construirBloquesDemografia(qr),
     items.map((item, i) => construirBloqueItem(item, i + 1)),
     CSS_HOJA
   );
+  if (qr?.examId) await rellenarQrPaginas(paginas, qr);
+  return paginas;
 }

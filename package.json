@@ -7,5 +7,9 @@
     "validate:items": "npm run build:items && node data/validate-items.mjs",
     "test:worker": "cd worker && npm test",
     "test": "npm run validate:items && npm run test:worker"
+  },
+  "devDependencies": {
+    "pdf-lib": "^1.17.1",
+    "playwright": "^1.62.1"
   }
 }

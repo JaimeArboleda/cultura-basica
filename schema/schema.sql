@@ -63,6 +63,15 @@ CREATE TABLE sesiones (
   -- saber nada de versiones: la corrección ya opera sobre la respuesta
   -- decodificada, no sobre cómo se capturó.
   version_papel     INTEGER,
+  -- Identificador individual de la hoja física de la que viene esta sesión
+  -- (README §4.9/§4.10): NULL si origen='web' o si la hoja es de antes de
+  -- este campo. Distinto de token_id (que identifica la REMESA, compartida
+  -- por muchas hojas): este es el "examenes_papel.exam_id" leído del QR de
+  -- cada página, único por hoja impresa. Sirve para trazabilidad y, sobre
+  -- todo, para que POST /api/admin/digitalizacion pueda rechazar digitalizar
+  -- dos veces la misma hoja física (una por el flujo secuencial de siempre,
+  -- otra por la subida en bloque, o dos subidas en bloque duplicadas).
+  examen_id         TEXT,
   -- demografía
   anio_nacimiento   INTEGER,
   sexo              TEXT,
@@ -74,6 +83,11 @@ CREATE TABLE sesiones (
 );
 
 CREATE INDEX idx_sesiones_token ON sesiones(token_id);
+-- UNIQUE (no solo INDEX): impide crear dos sesiones para la misma hoja física
+-- (mismo examen_id) por reintento o por subir la misma hoja dos veces desde
+-- la subida en bloque. SQLite no aplica UNIQUE entre varios NULL, así que no
+-- afecta a sesiones sin examen_id (origen='web' o papel de antes de este campo).
+CREATE UNIQUE INDEX idx_sesiones_examen ON sesiones(examen_id);
 
 CREATE TABLE respuestas (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,3 +134,40 @@ CREATE TABLE sesion_items (
 );
 
 CREATE INDEX idx_sesion_items_sesion ON sesion_items(sesion_id);
+
+-- Subida en bloque de hojas en papel (README §4.10): registro de progreso de
+-- una hoja física concreta ("examen") mientras se van subiendo sus páginas
+-- sueltas, en cualquier orden y posiblemente en varias visitas al panel — a
+-- diferencia del flujo secuencial de siempre (README §4.7), que solo vive en
+-- memoria del navegador durante una única sesión de trabajo. La fila se crea
+-- (o actualiza) con el primer POST /api/admin/examenes-papel/paginas que
+-- llegue de esa hoja (identificada por exam_id, leído del QR de cada
+-- página); no hace falta "registrarla" de antemano al imprimir.
+CREATE TABLE examenes_papel (
+  exam_id     TEXT PRIMARY KEY,        -- id corto leído del QR de cada página (comun.js::generarExamId)
+  token_id    TEXT NOT NULL REFERENCES tokens(id),
+  version     INTEGER NOT NULL,        -- versión del pipeline (v1, v2...), igual que sesiones.version_papel
+  creado_en   TEXT NOT NULL,           -- cuándo se vio la primera página de esta hoja
+  -- Sesión ya creada a partir de este examen (NULL mientras sigue en
+  -- progreso). Se rellena al finalizar desde la pantalla de confirmación
+  -- (misma que usa el flujo secuencial) y sirve para no ofrecerlo más en el
+  -- listado de "exámenes en progreso" ni permitir finalizarlo dos veces.
+  sesion_id   TEXT REFERENCES sesiones(id)
+);
+
+-- Una fila por página YA DECODIFICADA (nunca la foto en sí — mismo criterio
+-- que el resto de la digitalización, README §4.7: solo sale del navegador el
+-- resultado ya interpretado). marcas_json guarda lo mismo que produce
+-- leerPagina() en cada v{n}/digitalizar.js: { oscuridad: {clave: 0-1},
+-- textos: {clave: string} }. miniatura_datauri es opcional (JPEG de baja
+-- resolución de la foto ya enderezada, para poder revisar a ojo en la
+-- pantalla de confirmación igual que en el flujo secuencial); puede quedar
+-- NULL si se prefiere no guardarla.
+CREATE TABLE examenes_papel_paginas (
+  exam_id           TEXT NOT NULL REFERENCES examenes_papel(exam_id),
+  pagina            INTEGER NOT NULL,  -- 1-indexado, continuo entre páginas de datos e ítems
+  marcas_json       TEXT NOT NULL,
+  miniatura_datauri TEXT,
+  subida_en         TEXT NOT NULL,
+  PRIMARY KEY (exam_id, pagina)
+);

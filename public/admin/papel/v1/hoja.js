@@ -38,6 +38,7 @@ import {
   escaparHtml,
   LETRAS,
   marcaCuadrado,
+  rellenarQrPaginas,
 } from "../comun.js";
 
 // --- CSS específico de v1: cómo se pintan las burbujas OMR y su bloque de
@@ -248,18 +249,21 @@ export function construirBloqueItem(item, numero) {
 // tamaño de estas páginas sin aportar tanto. El año de nacimiento tampoco
 // lleva Corrección: un error ahí se resuelve en la revisión manual
 // posterior, igual que el resto de demografía.
-// qr: { dataUrl, tokenId } opcional (README §4.9) — si se pasa, la hoja
-// incluye el QR con el token de la remesa (+ versión del pipeline) como
-// primer bloque, para que ./digitalizar.js pueda leerlo solo al escanear en
-// vez de que el admin tenga que elegir la remesa a mano.
+// qr: { tokenId } opcional (README §4.9/§4.10) — si se pasa, la hoja incluye
+// una caja para el QR grande (token de la remesa + versión + exam_id) como
+// primer bloque de la página 1, para que ./digitalizar.js pueda leerlo solo
+// al escanear en vez de que el admin tenga que elegir la remesa a mano. La
+// imagen en sí se rellena DESPUÉS de paginar (construirHoja más abajo,
+// vía comun.js::rellenarQrPaginas) porque el payload necesita saber en qué
+// página global cae cada cosa, algo que solo se conoce una vez paginado.
 function construirBloquesDemografia(qr) {
   const bloques = [];
-  if (qr?.dataUrl) {
+  if (qr?.tokenId) {
     bloques.push(
       el(`
         <div class="hoja-item hoja-qr">
           <div class="hoja-qr-caja" data-linea="meta:qr">
-            <img src="${qr.dataUrl}" alt="Código QR de la remesa" class="hoja-qr-img" />
+            <img alt="Código QR de la remesa" class="hoja-qr-img" />
           </div>
           <div>
             <div class="hoja-item-enunciado"><span>Código de la remesa</span></div>
@@ -312,14 +316,27 @@ function construirBloquesDemografia(qr) {
 
 // Construye la hoja completa v1: páginas de demografía seguidas de las
 // páginas de ítems, en ese orden. Cada entrada del array devuelto es
-// { elemento, itemIds, marcas, lineas, fiduciales }, con marcas/líneas/
-// fiduciales ya medidos en coordenadas de página (0..PAGE_W, 0..PAGE_H) — lo
-// que necesita tanto la impresión (los .elemento) como el muestreo al
-// digitalizar. itemIds está vacío en las páginas de demografía.
-export function construirHoja(items, qr) {
-  return construirPaginas(
+// { elemento, itemIds, marcas, lineas, fiduciales, numeroPagina, totalPaginas },
+// con marcas/líneas/fiduciales ya medidos en coordenadas de página
+// (0..PAGE_W, 0..PAGE_H) — lo que necesita tanto la impresión (los
+// .elemento) como el muestreo al digitalizar. itemIds está vacío en las
+// páginas de demografía.
+//
+// qr: { tokenId, examId, version } opcional (README §4.9/§4.10) — si se
+// pasa, además de token+versión, esta hoja recibe un exam_id (identificador
+// individual de ESTA hoja física, distinto de la remesa) y cada página
+// recibe su propio QR pequeño con {exam_id, número de página} — necesario
+// para la subida en bloque, README §4.10. Async porque rellenarQrPaginas usa
+// generarQrDataUrl (carga qrcode-generator bajo demanda). Cuando se llama
+// sin qr (../digitalizar.js al reconstruir el layout para digitalizar, no
+// para imprimir) no se genera ningún QR y la función es efectivamente
+// inmediata.
+export async function construirHoja(items, qr) {
+  const paginas = construirPaginas(
     construirBloquesDemografia(qr),
     items.map((item, i) => construirBloqueItem(item, i + 1)),
     CSS_HOJA
   );
+  if (qr?.examId) await rellenarQrPaginas(paginas, qr);
+  return paginas;
 }

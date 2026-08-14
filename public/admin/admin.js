@@ -9,6 +9,7 @@
 //
 import { renderDigitalizar as renderDigitalizarV1 } from "./papel/v1/digitalizar.js";
 import { renderDigitalizar as renderDigitalizarV2 } from "./papel/v2/digitalizar.js";
+import { renderSubirLote } from "./papel/subirLote.js";
 import { renderEditarSesion } from "./editarSesion.js";
 
 // API_BASE duplica intencionalmente la constante de ../js/api.js: son despliegues
@@ -64,6 +65,15 @@ export const api = {
   // Digitalización de tests en papel (README §4.7).
   itemsImpresion: () => peticion("/api/admin/items-impresion"),
   digitalizar: (body) => peticion("/api/admin/digitalizacion", { method: "POST", body: JSON.stringify(body) }),
+  // Subida en bloque de hojas en papel (README §4.10).
+  examenesPapel: () => peticion("/api/admin/examenes-papel"),
+  examenPapelDetalle: (examId) => peticion(`/api/admin/examenes-papel/${encodeURIComponent(examId)}`),
+  examenPapelSubirPagina: (body) =>
+    peticion("/api/admin/examenes-papel/paginas", { method: "POST", body: JSON.stringify(body) }),
+  examenPapelBorrarPagina: (examId, pagina) =>
+    peticion(`/api/admin/examenes-papel/${encodeURIComponent(examId)}/paginas/${pagina}`, { method: "DELETE" }),
+  examenPapelBorrar: (examId) =>
+    peticion(`/api/admin/examenes-papel/${encodeURIComponent(examId)}`, { method: "DELETE" }),
   // Edición de demografía/respuestas de una sesión ya existente, cualquiera
   // que sea su origen (README §4.8).
   sesionDetalle: (id) => peticion(`/api/admin/sesiones/${encodeURIComponent(id)}`),
@@ -197,6 +207,7 @@ const PESTANAS = [
   { id: "tokens", etiqueta: "Tokens", render: renderTokens },
   { id: "sesiones", etiqueta: "Sesiones", render: renderSesiones },
   { id: "digitalizar", etiqueta: "Digitalizar tests", render: renderDigitalizarConVersion },
+  { id: "subir-lote", etiqueta: "Subir en bloque", render: renderSubirLote },
   { id: "solicitudes", etiqueta: "Solicitudes de acceso", render: renderSolicitudes },
   { id: "admins", etiqueta: "Administradores", render: renderAdmins },
 ];

@@ -9,6 +9,13 @@ import { deleteAdmin, getAdmins, postAdmins } from "./endpoints/admin/admins";
 import { getAdminCallback, getAdminLogin, getAdminYo } from "./endpoints/admin/auth";
 import { getDataset } from "./endpoints/admin/dataset";
 import { getItemsImpresion, postDigitalizacion } from "./endpoints/admin/digitalizacion";
+import {
+  deleteExamenPapel,
+  deleteExamenPapelPagina,
+  getExamenesPapel,
+  getExamenPapelDetalle,
+  postExamenPapelPagina,
+} from "./endpoints/admin/examenesPapel";
 import { deleteSesion, getSesionDetalle, getSesiones, putSesionEdicion } from "./endpoints/admin/sesiones";
 import { deleteSolicitud, getSolicitudes, patchSolicitud } from "./endpoints/admin/solicitudes";
 import { getStats } from "./endpoints/admin/stats";
@@ -60,6 +67,20 @@ export async function manejarRutaAdmin(request: Request, env: Env, pathname: str
   // Digitalización de tests en papel (README §4.7).
   if (method === "GET" && pathname === "/api/admin/items-impresion") return getItemsImpresion(env);
   if (method === "POST" && pathname === "/api/admin/digitalizacion") return postDigitalizacion(request, env);
+
+  // Subida en bloque de hojas en papel (README §4.10): progreso por hoja
+  // física (exam_id), independiente del flujo secuencial de arriba.
+  if (method === "POST" && pathname === "/api/admin/examenes-papel/paginas") return postExamenPapelPagina(request, env);
+  if (method === "GET" && pathname === "/api/admin/examenes-papel") return getExamenesPapel(env);
+
+  const mExamenPagina = pathname.match(/^\/api\/admin\/examenes-papel\/([^/]+)\/paginas\/(\d+)$/);
+  if (method === "DELETE" && mExamenPagina) {
+    return deleteExamenPapelPagina(env, decodeURIComponent(mExamenPagina[1]), Number(mExamenPagina[2]));
+  }
+
+  const mExamen = pathname.match(/^\/api\/admin\/examenes-papel\/([^/]+)$/);
+  if (method === "GET" && mExamen) return getExamenPapelDetalle(env, decodeURIComponent(mExamen[1]));
+  if (method === "DELETE" && mExamen) return deleteExamenPapel(env, decodeURIComponent(mExamen[1]));
 
   if (method === "GET" && pathname === "/api/admin/solicitudes") return getSolicitudes(env);
 

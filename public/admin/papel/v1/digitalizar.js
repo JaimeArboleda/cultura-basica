@@ -19,18 +19,13 @@ import { api, escaparHtml } from "../../admin.js";
 import { bloqueCamposDemografia, leerDemografiaDelFormulario, renderEditarSesion } from "../../editarSesion.js";
 import {
   abrirVentanaImpresion,
-  calcularOscuridad,
-  codificarPayloadQr,
-  decodificarPayloadQr,
-  decodificarQr,
   detectarFiduciales,
   ESCALA_DIGITALIZACION,
-  generarQrDataUrl,
-  ocrLinea,
+  generarExamId,
+  leerPagina,
   PAGE_H,
   PAGE_W,
   prepararImagenFuente,
-  recortarLinea,
   crearSelectorEsquinas,
   warpearImagen,
 } from "../comun.js";
@@ -39,8 +34,19 @@ import { construirHoja, CSS_HOJA } from "./hoja.js";
 // Versión de este pipeline: viaja en el QR de la hoja y se envía al backend
 // (worker/src/endpoints/admin/digitalizacion.ts) al crear la sesión, para
 // poder comparar en el dataset qué pipeline funciona mejor si conviven
-// varias versiones (README §4.9).
-const VERSION_PIPELINE = 1;
+// varias versiones (README §4.9). Exportada: la subida en bloque
+// (../subirLote.js) necesita saber qué VERSION_PIPELINE corresponde a cada
+// módulo para poder despachar al correcto una vez leído el QR.
+export const VERSION_PIPELINE = 1;
+
+// Whitelist de OCR por clave (README §4.9): en v1 el OCR solo se usa para
+// 'abierto' y el año de nacimiento (todo lo demás es OMR de burbujas) — ver
+// comun.js::leerPagina, que recibe esto para decidir cómo leer cada línea.
+// Exportada para que la subida en bloque pueda reutilizar exactamente el
+// mismo criterio sin duplicarlo.
+export function opcionesOcrParaClave(clave) {
+  return clave.endsWith(":anio_nacimiento") ? { soloDigitos: true } : {};
+}
 
 // Fracción de oscuridad (0=blanco, 1=negro) a partir de la cual una
 // burbuja/casilla se considera rellena. Ajustable durante las pruebas reales
@@ -52,7 +58,7 @@ const VERSION_PIPELINE = 1;
 // pequeñas del bloque de Corrección — con datos reales conviene revisar el
 // margen entre "vacía" y "rellena" (validarlo con hojas de prueba) antes de
 // tocar este número a ciegas.
-const UMBRAL_MARCA = 0.22;
+export const UMBRAL_MARCA = 0.22;
 
 // ============================================================
 // Decodificación OMR/OCR -> respuestas listas para guardar (específico de
@@ -177,9 +183,17 @@ export function decodificarRespuestas(items, oscuridad, textos) {
 // mantener sincronizado con el de edición.
 // ============================================================
 
-function renderConfirmacionYCrear(
+// Exportada: la subida en bloque (../subirLote.js) reutiliza esta MISMA
+// pantalla al finalizar un examen completo, para no mantener dos pantallas
+// de confirmación por separado (README §4.10) — la única diferencia es de
+// dónde vienen oscuridadGlobal/textosGlobal/paginasWarpeadas (aquí, de
+// escanear en la propia visita; allí, de las páginas ya subidas y
+// persistidas en el servidor) y que allí también se pasa examIdDetectado
+// para poder mandarlo a api.digitalizar y así marcar esa hoja como
+// digitalizada (examenes_papel.sesion_id).
+export function renderConfirmacionYCrear(
   zona,
-  { tokenIdDetectado, tokens, items, oscuridadGlobal, textosGlobal, paginasWarpeadas, alRecargar }
+  { tokenIdDetectado, examIdDetectado, tokens, items, oscuridadGlobal, textosGlobal, paginasWarpeadas, alRecargar }
 ) {
   const consentimientoSeed = (oscuridadGlobal.get("demografia:consentimiento") ?? 0) >= UMBRAL_MARCA;
   const honestidadSeed = (oscuridadGlobal.get("demografia:compromiso_honestidad") ?? 0) >= UMBRAL_MARCA;
@@ -194,14 +208,18 @@ function renderConfirmacionYCrear(
     libros_en_casa: ganadorDeGrupo(oscuridadGlobal, "demografia:libros_en_casa:"),
   };
 
+  // paginasWarpeadas: canvas (flujo secuencial, foto recién enderezada) o ya
+  // un data URL string (subida en bloque, README §4.10 — la miniatura viene
+  // de examenes_papel_paginas.miniatura_datauri, no hay canvas en memoria).
   const miniaturas = paginasWarpeadas
-    .map(
-      (canvas, i) => `
+    .map((canvasODataUrl, i) => {
+      const src = typeof canvasODataUrl === "string" ? canvasODataUrl : canvasODataUrl.toDataURL("image/jpeg", 0.7);
+      return `
       <details class="revision-miniatura">
         <summary>Ver foto enderezada — página ${i + 1}</summary>
-        <img src="${canvas.toDataURL("image/jpeg", 0.7)}" alt="Página ${i + 1} enderezada" />
-      </details>`
-    )
+        <img src="${src}" alt="Página ${i + 1} enderezada" />
+      </details>`;
+    })
     .join("");
 
   // Remesa (README §4.9): si el QR de la página de datos se leyó y coincide
@@ -279,6 +297,7 @@ function renderConfirmacionYCrear(
       const resultado = await api.digitalizar({
         token_id: tokenId,
         version_papel: VERSION_PIPELINE,
+        examen_id: examIdDetectado ?? null,
         consentimiento,
         compromiso_honestidad,
         demografia,
@@ -305,12 +324,18 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas }) {
   // había uno), pero un QR leído con éxito lo sustituye — es más fiable que
   // una preselección hecha sin haber visto aún la hoja física.
   let tokenIdDetectado = tokenIdInicial || null;
+  // exam_id detectado por el QR pequeño de página (README §4.10), presente
+  // en todas las páginas — a diferencia del token, que solo se lee del QR
+  // grande de la página 1. Se manda al crear la sesión para trazabilidad y
+  // para que el backend pueda rechazar digitalizar dos veces la misma hoja.
+  let examIdDetectado = null;
   let indice = 0;
 
   function renderPasoActual() {
     if (indice >= paginas.length) {
       renderConfirmacionYCrear(zona, {
         tokenIdDetectado,
+        examIdDetectado,
         tokens,
         items,
         oscuridadGlobal,
@@ -388,39 +413,18 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas }) {
         }));
         const warp = warpearImagen(fuente, esquinas.obtenerEsquinas(), destW, destH, dst);
         paginasWarpeadas.push(warp);
-        const imgData = warp.getContext("2d").getImageData(0, 0, destW, destH);
 
-        for (const m of pagina.marcas) {
-          oscuridadGlobal.set(
-            m.clave,
-            calcularOscuridad(imgData, m.cx * ESCALA_DIGITALIZACION, m.cy * ESCALA_DIGITALIZACION, m.radio * ESCALA_DIGITALIZACION)
-          );
+        const { oscuridad, textos, qrGrande, qrPagina } = await leerPagina(pagina, warp, {
+          opcionesOcrParaClave,
+          avisar: (msg) => (estado.textContent = msg),
+        });
+        for (const [clave, valor] of Object.entries(oscuridad)) oscuridadGlobal.set(clave, valor);
+        for (const [clave, valor] of Object.entries(textos)) textosGlobal.set(clave, valor);
+        if (qrGrande) {
+          if (tokens.some((t) => t.id === qrGrande.tokenId)) tokenIdDetectado = qrGrande.tokenId;
+          if (qrGrande.examId) examIdDetectado = qrGrande.examId;
         }
-
-        for (const l of pagina.lineas) {
-          const recorte = recortarLinea(warp, l, ESCALA_DIGITALIZACION);
-          if (l.clave === "meta:qr") {
-            estado.textContent = "Leyendo QR de la remesa…";
-            try {
-              const leido = await decodificarQr(recorte);
-              if (leido) {
-                const { tokenId } = decodificarPayloadQr(leido);
-                if (tokens.some((t) => t.id === tokenId)) tokenIdDetectado = tokenId;
-              }
-            } catch {
-              // sin jsQR disponible (sin red, CDN caído…): se sigue sin el
-              // atajo del QR, el admin elige la remesa a mano en la confirmación
-            }
-            continue;
-          }
-          estado.textContent = `Leyendo texto (${l.clave})…`;
-          const soloDigitos = l.clave.endsWith(":anio_nacimiento");
-          const texto = await ocrLinea(recorte, {
-            soloDigitos,
-            avisar: (msg) => (estado.textContent = msg),
-          });
-          textosGlobal.set(l.clave, texto);
-        }
+        if (qrPagina?.examId) examIdDetectado = qrPagina.examId;
 
         indice++;
         renderPasoActual();
@@ -490,14 +494,13 @@ export async function renderDigitalizar(contenedor) {
     const tokenId = selectTokenImprimir.value;
     if (!tokenId) return;
     boton.disabled = true;
-    estado.textContent = "Generando código QR…";
+    estado.textContent = "Generando hoja…";
     try {
-      const dataUrl = await generarQrDataUrl(codificarPayloadQr({ tokenId, version: VERSION_PIPELINE }));
-      estado.textContent = "Generando hoja…";
+      const examId = generarExamId();
       const { items } = await api.itemsImpresion();
-      const paginas = construirHoja(items, { dataUrl, tokenId });
+      const paginas = await construirHoja(items, { tokenId, examId, version: VERSION_PIPELINE });
       abrirVentanaImpresion(paginas, CSS_HOJA);
-      estado.textContent = `Hoja generada: ${paginas.length} páginas.`;
+      estado.textContent = `Hoja generada: ${paginas.length} páginas. ID de examen: ${examId}`;
     } catch (e) {
       estado.textContent = `Error: ${e.message}`;
     } finally {
@@ -514,7 +517,7 @@ export async function renderDigitalizar(contenedor) {
     zona.innerHTML = "<p>Cargando el banco de ítems…</p>";
     try {
       const { items } = await api.itemsImpresion();
-      const paginas = construirHoja(items);
+      const paginas = await construirHoja(items);
       iniciarEscaneo(zona, { tokenIdInicial: selectToken.value || null, tokens, items, paginas });
     } catch (e) {
       zona.innerHTML = `<p class="mensaje-error">${escaparHtml(e.message)}</p>`;
