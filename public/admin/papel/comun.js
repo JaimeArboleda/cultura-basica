@@ -552,14 +552,32 @@ export function aplicarHomografia([a, b, c, d, e, f, g, h, i], x, y) {
 // Deforma (warp) la región delimitada por las 4 esquinas (en coordenadas de
 // la imagen fuente) hacia un rectángulo destW x destH: para cada píxel de
 // destino se calcula, vía la homografía inversa, el píxel fuente
-// correspondiente y se muestrea por interpolación bilineal (warping inverso:
-// evita los huecos que dejaría proyectar hacia delante). `dst` son las
-// coordenadas destino de esas 4 esquinas (por defecto, las del propio
-// rectángulo destW x destH); al digitalizar se pasan las posiciones
+// correspondiente y se muestrea por interpolación bilineal por defecto
+// (warping inverso: evita los huecos que dejaría proyectar hacia delante).
+// `dst` son las coordenadas destino de esas 4 esquinas (por defecto, las del
+// propio rectángulo destW x destH); al digitalizar se pasan las posiciones
 // canónicas de los 4 fiduciales en vez de los bordes exactos del rectángulo,
 // porque los puntos de referencia (fuente Y destino) son los fiduciales, no
 // el borde físico del papel.
-export function warpearImagen(canvasFuente, esquinas, destW, destH, dst) {
+//
+// opciones.nearest: usa vecino más próximo en vez de bilineal — bilineal
+// promedia 4 píxeles fuente en cada uno de destino, lo que difumina un poco
+// cualquier borde (aceptable, incluso deseable, para la oscuridad de una
+// burbuja OMR o para el OCR de una letra, ambos de varios mm). Un código QR
+// no lo tolera igual de bien: sus módulos son mucho más pequeños y
+// numerosos, y ese difuminado basta para que jsQR deje de encontrar los
+// patrones de localización — más cuanto más denso el QR (el grande, con el
+// UUID del token_id, es bastante más denso que el pequeño de página, README
+// §4.9) — así que decodificarQr recorta el QR con nearest en vez de tomar el
+// recorte del warp bilineal de toda la página (ver recortarRegionNitida).
+// opciones.offsetX/offsetY: si se pasan, cada píxel de destino (x,y) se
+// interpreta como (x+offsetX, y+offsetY) en el espacio canónico ANTES de
+// aplicar la homografía inversa — permite generar solo una VENTANA pequeña
+// del resultado (p. ej. solo la caja del QR) sin tener que materializar la
+// página entera, con la MISMA homografía (misma esquinas/dst) que el warp
+// completo, así el recorte cae exactamente en el mismo sitio.
+export function warpearImagen(canvasFuente, esquinas, destW, destH, dst, opciones = {}) {
+  const { nearest = false, offsetX = 0, offsetY = 0 } = opciones;
   const sw = canvasFuente.width;
   const sh = canvasFuente.height;
   const srcData = canvasFuente.getContext("2d").getImageData(0, 0, sw, sh).data;
@@ -582,12 +600,22 @@ export function warpearImagen(canvasFuente, esquinas, destW, destH, dst) {
 
   for (let y = 0; y < destH; y++) {
     for (let x = 0; x < destW; x++) {
-      const { x: sx, y: sy } = aplicarHomografia(Hinv, x, y);
+      const { x: sx, y: sy } = aplicarHomografia(Hinv, x + offsetX, y + offsetY);
       const di = (y * destW + x) * 4;
       if (sx < 0 || sy < 0 || sx >= sw - 1 || sy >= sh - 1) {
         destData[di] = 255;
         destData[di + 1] = 255;
         destData[di + 2] = 255;
+        destData[di + 3] = 255;
+        continue;
+      }
+      if (nearest) {
+        const xi = Math.round(sx);
+        const yi = Math.round(sy);
+        const si = (yi * sw + xi) * 4;
+        destData[di] = srcData[si];
+        destData[di + 1] = srcData[si + 1];
+        destData[di + 2] = srcData[si + 2];
         destData[di + 3] = 255;
         continue;
       }
@@ -654,6 +682,42 @@ export function recortarLinea(canvasWarp, linea, escala) {
   recorte.height = h;
   recorte.getContext("2d").drawImage(canvasWarp, x, y, w, h, 0, 0, w, h);
   return recorte;
+}
+
+// Recorta una región (en las mismas coordenadas canónicas 0..PAGE_W/PAGE_H
+// que cualquier `linea` medida) directamente de la foto FUENTE (sin pasar
+// por el warp bilineal de toda la página), corrigiendo perspectiva con la
+// MISMA homografía (esquinas/dstFiduciales) pero muestreando con vecino más
+// próximo (warpearImagen({nearest:true}) — ver el porqué en su comentario) Y
+// con un margen generoso alrededor de la caja teórica del QR (margenRelativo,
+// fracción de su ancho/alto por cada lado). Nada de esto es cosmético:
+// probando contra una hoja generada por el propio código (sin cámara ni
+// escáner de por medio, para descartar ruido externo), recortar EXACTO a la
+// caja medida (`.hoja-qr-caja`) daba sistemáticamente un QR indecodificable
+// pese a verse perfectamente nítido a ojo — detectarFiduciales() localiza el
+// centro de cada fiducial con precisión de sobra para una marca OMR o un
+// bloque de OCR (varios mm), pero un error de solo un par de píxeles en la
+// homografía resultante ya desplaza la rejilla de módulos de un QR lo
+// bastante como para que jsQR no la reconozca. Con margen de sobra alrededor,
+// jsQR encuentra los patrones de localización él solo dentro de la imagen —
+// que es justo para lo que está diseñado (igual que localizar un QR en
+// cualquier posición dentro del encuadre de una cámara) — así que un
+// pequeño desalineamiento de la homografía deja de ser fatal. Verificado
+// recortando con margen creciente hasta que jsQR decodificaba de forma
+// fiable: por debajo de ~25% por lado, seguía fallando.
+//
+// Uso exclusivo de los QR (README §4.9): decodificarQr necesita módulos
+// nítidos y margen de sobra, mientras que recortarLinea + el warp normal
+// siguen siendo lo que usa el resto de leerPagina (oscuridad OMR / OCR), que
+// no necesita ninguna de las dos cosas.
+export function recortarRegionNitida(canvasFuente, esquinas, dstFiduciales, linea, escala, margenRelativo = 0.35) {
+  const margenX = linea.w * margenRelativo;
+  const margenY = linea.h * margenRelativo;
+  const destW = Math.round((linea.w + 2 * margenX) * escala);
+  const destH = Math.round((linea.h + 2 * margenY) * escala);
+  const offsetX = Math.round((linea.x - margenX) * escala);
+  const offsetY = Math.round((linea.y - margenY) * escala);
+  return warpearImagen(canvasFuente, esquinas, destW, destH, dstFiduciales, { nearest: true, offsetX, offsetY });
 }
 
 let promesaTesseractWorker = null;
@@ -918,7 +982,19 @@ export async function rellenarQrPaginas(paginas, { tokenId, examId, version }) {
 // Devuelve { oscuridad, textos } como objetos planos (serializables con
 // JSON.stringify, a diferencia de un Map) más qrGrande/qrPagina con lo
 // decodificado de cada QR si estaba presente y se pudo leer (null si no).
-export async function leerPagina(pagina, warpCanvas, { opcionesOcrParaClave, avisar } = {}) {
+//
+// canvasFuente/esquinas/dstFiduciales (opcionales, los mismos que se le
+// pasaron a warpearImagen() para producir warpCanvas): si se dan, los QR se
+// recortan de NUEVO directamente de la foto fuente con vecino más próximo
+// (recortarRegionNitida) en vez de recortarlos del propio warpCanvas
+// (bilineal) — el suavizado bilineal del warp normal, aceptable para
+// oscuridad OMR/OCR, difumina lo bastante los módulos de un QR como para que
+// jsQR deje de encontrarlo, sobre todo en el QR grande (más denso, lleva el
+// UUID del token_id — README §4.9). Sin estos tres parámetros se cae al
+// recorte de siempre (compatibilidad, por si algún llamador no los tiene a
+// mano), pero los tres llamadores actuales (v1/v2 digitalizar.js,
+// subirLote.js) los pasan siempre.
+export async function leerPagina(pagina, warpCanvas, { opcionesOcrParaClave, avisar, canvasFuente, esquinas, dstFiduciales } = {}) {
   const escala = ESCALA_DIGITALIZACION;
   const imgData = warpCanvas.getContext("2d").getImageData(0, 0, warpCanvas.width, warpCanvas.height);
 
@@ -931,11 +1007,14 @@ export async function leerPagina(pagina, warpCanvas, { opcionesOcrParaClave, avi
   let qrGrande = null;
   let qrPagina = null;
   for (const l of pagina.lineas) {
-    const recorte = recortarLinea(warpCanvas, l, escala);
     if (l.clave === "meta:qr" || l.clave === "meta:qr:pagina") {
       avisar?.("Leyendo QR…");
       try {
-        const leido = await decodificarQr(recorte);
+        const recorteQr =
+          canvasFuente && esquinas && dstFiduciales
+            ? recortarRegionNitida(canvasFuente, esquinas, dstFiduciales, l, escala)
+            : recortarLinea(warpCanvas, l, escala);
+        const leido = await decodificarQr(recorteQr);
         if (leido) {
           if (l.clave === "meta:qr") qrGrande = decodificarPayloadQr(leido);
           else qrPagina = decodificarPayloadQrPagina(leido);
@@ -947,6 +1026,7 @@ export async function leerPagina(pagina, warpCanvas, { opcionesOcrParaClave, avi
       continue;
     }
     avisar?.(`Leyendo texto (${l.clave})…`);
+    const recorte = recortarLinea(warpCanvas, l, escala);
     const texto = await ocrLinea(recorte, { ...opcionesOcrParaClave?.(l.clave), avisar });
     textos[l.clave] = texto;
   }

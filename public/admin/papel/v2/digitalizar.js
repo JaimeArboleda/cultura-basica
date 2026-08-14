@@ -394,12 +394,16 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas }) {
           x: pagina.fiduciales[esquina].cx * ESCALA_DIGITALIZACION,
           y: pagina.fiduciales[esquina].cy * ESCALA_DIGITALIZACION,
         }));
-        const warp = warpearImagen(fuente, esquinas.obtenerEsquinas(), destW, destH, dst);
+        const esquinasFuente = esquinas.obtenerEsquinas();
+        const warp = warpearImagen(fuente, esquinasFuente, destW, destH, dst);
         paginasWarpeadas.push(warp);
 
         const { oscuridad, textos, qrGrande, qrPagina } = await leerPagina(pagina, warp, {
           opcionesOcrParaClave,
           avisar: (msg) => (estado.textContent = msg),
+          canvasFuente: fuente,
+          esquinas: esquinasFuente,
+          dstFiduciales: dst,
         });
         // Solo consentimiento/compromiso siguen siendo marcas OMR en v2 (ver
         // cabecera de ./hoja.js) — pagina.marcas está vacío en páginas de

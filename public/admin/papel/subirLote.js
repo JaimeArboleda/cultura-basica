@@ -29,7 +29,7 @@ import {
   PAGE_H,
   PAGE_W,
   prepararImagenFuente,
-  recortarLinea,
+  recortarRegionNitida,
   warpearImagen,
 } from "./comun.js";
 import { construirHoja as construirHojaV1 } from "./v1/hoja.js";
@@ -223,7 +223,7 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log }) {
   log("Leyendo QR de página…");
   let identificacion = null;
   try {
-    const recorteQr = recortarLinea(warp, geometriaBase.lineaQrPagina, ESCALA_DIGITALIZACION);
+    const recorteQr = recortarRegionNitida(unidad.canvas, esquinas, dst, geometriaBase.lineaQrPagina, ESCALA_DIGITALIZACION);
     const leido = await decodificarQr(recorteQr);
     if (leido) identificacion = decodificarPayloadQrPagina(leido);
   } catch {
@@ -265,7 +265,7 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log }) {
   if (!info && pagina === 1) {
     log("Leyendo QR de la remesa…");
     try {
-      const recorteQrGrande = recortarLinea(warp, geometriaBase.lineaQrGrande, ESCALA_DIGITALIZACION);
+      const recorteQrGrande = recortarRegionNitida(unidad.canvas, esquinas, dst, geometriaBase.lineaQrGrande, ESCALA_DIGITALIZACION);
       const leidoGrande = await decodificarQr(recorteQrGrande);
       if (leidoGrande) {
         const datosGrande = decodificarPayloadQr(leidoGrande);
@@ -304,6 +304,9 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log }) {
   const { oscuridad, textos } = await leerPagina(paginaLayout, warp, {
     opcionesOcrParaClave: PIPELINES[info.version].opcionesOcrParaClave,
     avisar: log,
+    canvasFuente: unidad.canvas,
+    esquinas,
+    dstFiduciales: dst,
   });
 
   log("Guardando…");
