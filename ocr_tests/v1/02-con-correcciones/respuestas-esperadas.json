@@ -1,0 +1,101 @@
+{
+  "persona": "02-con-correcciones",
+  "descripcion": "Se equivoca a menudo y corrige mucho",
+  "version_pipeline": 1,
+  "token_id_qr": "TEST-V1-02-CON-CORRECCIONES",
+  "paginas": 12,
+  "demografia": {
+    "consentimiento": true,
+    "compromiso_honestidad": true,
+    "anio_nacimiento": "1976",
+    "sexo": "Hombre",
+    "ccaa_educacion_secundaria": "Andalucía",
+    "nivel_estudios": "FP grado superior",
+    "area_estudios": "Ingeniería y arquitectura",
+    "estudios_mayor_progenitor": "Primaria",
+    "libros_en_casa": "0-10"
+  },
+  "respuestas_esperadas": {
+    "10": "4/15",
+    "11": "velazquez",
+    "12": 4,
+    "13": 5,
+    "14": [
+      0,
+      2,
+      4,
+      6
+    ],
+    "15": [
+      "La Ilíada",
+      "El Coliseo de Roma",
+      "El Corán",
+      "El Cantar del Mío Cid",
+      "El David de Miguel Ángel",
+      "Don Quijote de la Mancha",
+      "La Novena Sinfonía de Beethoven",
+      "Crimen y Castigo de Dostoievsky",
+      "El Guernica de Picasso",
+      "Cien años de soledad"
+    ],
+    "16": 2,
+    "17": 2,
+    "18": [
+      1,
+      4,
+      8
+    ],
+    "19": "la plusvalia",
+    "20": 1,
+    "22": {
+      "Debussy": "Clasicismo",
+      "Palestrina": "Renacimiento",
+      "Beethoven": "Impresionismo",
+      "Chopin": "Barroco",
+      "Handel": "Renacimiento",
+      "Tomás Luis de Victoria": "Clasicismo",
+      "Ravel": "Romanticismo",
+      "Bach": "Barroco",
+      "Liszt": "Romanticismo",
+      "Mozart": "Impresionismo"
+    },
+    "23": 2,
+    "24": [
+      1,
+      2,
+      3
+    ],
+    "02": "reyes catolicos",
+    "03": [
+      "Ramsés II",
+      "Alejandro Magno",
+      "Julio César",
+      "Mahoma",
+      "Santo Tomás de Aquino",
+      "Leonardo Da Vinci",
+      "Isaac Newton",
+      "Napoleón",
+      "Karl Marx",
+      "Mao Zedong"
+    ],
+    "04": {
+      "El entierro del Conde Orgaz": "El Greco",
+      "Ana Karenina": "Lev Tolstói",
+      "La Divina Comedia": "Dante Alighieri",
+      "La maja desnuda": "Francisco de Goya",
+      "Macbeth": "William Shakespeare",
+      "La Piedad": "Miguel Ángel",
+      "Las señoritas de Avignon": "Pablo Picasso",
+      "La Regenta": "Leopoldo Alas \"Clarín\"",
+      "Analectas": "Confucio"
+    },
+    "05": 4,
+    "06": "la fotosintesis",
+    "07": "los aminoacidos",
+    "08": "inflacion",
+    "09": [
+      0,
+      1
+    ]
+  }
+}

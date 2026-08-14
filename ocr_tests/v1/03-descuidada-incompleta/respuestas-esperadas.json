@@ -1,0 +1,88 @@
+{
+  "persona": "03-descuidada-incompleta",
+  "descripcion": "Letra desordenada, deja varias en blanco",
+  "version_pipeline": 1,
+  "token_id_qr": "TEST-V1-03-DESCUIDADA-INCOMPLETA",
+  "paginas": 12,
+  "demografia": {
+    "consentimiento": true,
+    "compromiso_honestidad": true,
+    "anio_nacimiento": "2001",
+    "sexo": "Otro",
+    "ccaa_educacion_secundaria": "Cataluña",
+    "nivel_estudios": "Bachillerato",
+    "area_estudios": "Artes y humanidades",
+    "estudios_mayor_progenitor": "ESO",
+    "libros_en_casa": null
+  },
+  "respuestas_esperadas": {
+    "10": "sigmund freud",
+    "11": "isabel i y fernando",
+    "12": 4,
+    "13": 5,
+    "14": [
+      0,
+      2,
+      4,
+      6,
+      7
+    ],
+    "16": 2,
+    "17": 2,
+    "18": [
+      1,
+      4,
+      8
+    ],
+    "19": "valor plusvalia",
+    "22": {
+      "Debussy": "Clasicismo",
+      "Palestrina": "Renacimiento",
+      "Beethoven": "Renacimiento",
+      "Chopin": "Romanticismo",
+      "Handel": "Barroco",
+      "Tomás Luis de Victoria": "Romanticismo",
+      "Ravel": "Barroco",
+      "Bach": "Barroco",
+      "Mozart": "Clasicismo"
+    },
+    "23": 2,
+    "24": [
+      1,
+      2,
+      3
+    ],
+    "25": 4,
+    "01": "la fotosintesis",
+    "02": "isabel y fernando",
+    "03": [
+      "Ramsés II",
+      "Alejandro Magno",
+      "Julio César",
+      null,
+      "Santo Tomás de Aquino",
+      "Leonardo Da Vinci",
+      "Isaac Newton",
+      "Napoleón",
+      "Karl Marx",
+      "Mao Zedong"
+    ],
+    "04": {
+      "El entierro del Conde Orgaz": "El Greco",
+      "Ana Karenina": "Lev Tolstói",
+      "La Divina Comedia": "Dante Alighieri",
+      "La Piedad": "Miguel Ángel",
+      "Las señoritas de Avignon": "Pablo Picasso",
+      "La Regenta": "Leopoldo Alas \"Clarín\"",
+      "Analectas": "Confucio"
+    },
+    "05": 2,
+    "06": "fotosintesis",
+    "07": "los aminoacidos",
+    "08": "inflacion",
+    "09": [
+      0,
+      1
+    ]
+  }
+}
