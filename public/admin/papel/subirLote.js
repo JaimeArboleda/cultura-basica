@@ -154,15 +154,15 @@ function pedirIdentificacionManual(contenedor) {
   });
 }
 
-function pedirTokenYVersion(contenedor, { examId, tokens }) {
+function pedirTokenYVersion(contenedor, { examId, tokens, motivoFallback }) {
   return new Promise((resolve) => {
     contenedor.innerHTML = `
       <p class="nota-formato">
-        Examen <code>${escaparHtml(examId)}</code> nuevo para el servidor y no se pudo leer el QR grande de
-        la remesa (foto borrosa, no es la página 1, o el token/versión leídos no coinciden con nada
-        conocido): dime a mano a qué remesa y a qué versión de hoja pertenece — se recuerda para el resto de
-        páginas de este mismo examen, no hace falta repetirlo.
+        Examen <code>${escaparHtml(examId)}</code> nuevo para el servidor: dime a mano a qué remesa y a qué
+        versión de hoja pertenece — se recuerda para el resto de páginas de este mismo examen, no hace falta
+        repetirlo.
       </p>
+      ${motivoFallback ? `<p class="nota-formato">(Motivo: ${escaparHtml(motivoFallback)})</p>` : ""}
       <label class="campo">
         <span>Remesa</span>
         <select id="select-token-manual-lote" required>
@@ -256,6 +256,12 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log }) {
   // escanear. Si la página no es la 1, o el QR grande no se lee, o lee un
   // token_id/version que no cuadra con nada conocido, se cae a pedirlo a mano
   // (mismo respaldo de siempre).
+  // motivoFallback: diagnóstico de por qué no se pudo fijar `info` solo, para
+  // mostrarlo en el formulario manual (pedirTokenYVersion más abajo) — sin
+  // esto, un QR grande ilegible/no coincidente y "no es la página 1" se veían
+  // exactamente igual desde fuera (siempre "elige arriba a mano"), lo que
+  // hacía imposible saber por qué no se detectó solo sin abrir devtools.
+  let motivoFallback = null;
   if (!info && pagina === 1) {
     log("Leyendo QR de la remesa…");
     try {
@@ -266,16 +272,22 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log }) {
         if (tokens.some((t) => t.id === datosGrande.tokenId) && PIPELINES[datosGrande.version]) {
           info = { tokenId: datosGrande.tokenId, version: datosGrande.version };
           examenesConocidos.set(examId, info);
+        } else {
+          motivoFallback = `El QR grande se leyó (token_id="${datosGrande.tokenId}", versión ${datosGrande.version}) pero no coincide con ningún token activo ni versión conocida.`;
         }
+      } else {
+        motivoFallback = "El QR grande de la remesa no se pudo decodificar en esta foto (jsQR no encontró nada legible en esa zona).";
       }
-    } catch {
-      // sin jsQR disponible, o QR grande no legible: se cae a la resolución manual de abajo
+    } catch (e) {
+      motivoFallback = `Error leyendo el QR grande: ${e.message}`;
     }
+  } else if (!info) {
+    motivoFallback = `Esta foto es la página ${pagina}, no la 1 — el QR grande de la remesa solo está impreso en la página 1.`;
   }
   if (!info) {
     zonaIntervencion.hidden = false;
     log("Hoja nueva: elige arriba ↑ a qué remesa y versión pertenece…");
-    info = await pedirTokenYVersion(zonaIntervencion, { examId, tokens });
+    info = await pedirTokenYVersion(zonaIntervencion, { examId, tokens, motivoFallback });
     examenesConocidos.set(examId, info);
     zonaIntervencion.hidden = true;
   }
