@@ -1102,12 +1102,25 @@ misma forma `{clave: texto}` que espera
 rellenar la clave `:correccion:...` (el modelo ya resolvió esa precedencia él
 mismo). El esquema de salida se pide con **Structured Outputs**
 (`response_format: json_schema`, `strict: true`, una propiedad por
-ítem/campo, `additionalProperties: false`, y `enum: ["SI","NO"]` para las
-casillas de consentimiento/compromiso): la propia API de OpenAI garantiza
+ítem/campo, `additionalProperties: false`): la propia API de OpenAI garantiza
 que el JSON trae exactamente esas claves siempre, en vez de confiar en que el
 modelo siga la instrucción del prompt al pie de la letra — con `gpt-5-nano`
 (el más barato, el que peor sigue instrucciones de formato) pedirlo solo por
 prompt dejaba huecos en el JSON de vuelta con demasiada frecuencia.
+
+**Cada campo de una sola letra va restringido a sus letras válidas, no a
+un string libre** (`enum: ["SI","NO"]` para consentimiento/compromiso;
+`enum` con las letras A..última opción impresa para opción única y para
+cada catálogo cerrado de demografía — sexo, CCAA...; `pattern` acotado al
+mismo alfabeto para selección múltiple, que admite varias letras juntas; y
+`pattern: "^[0-9]{0,4}$"` para el año de nacimiento). El cliente calcula
+cuántas letras son válidas para cada ítem concreto a partir del propio
+manifiesto (`numOpciones`/`numCategorias` en
+`hoja.js::calcularManifiesto`) y el Worker exige esos campos en la
+validación de entrada. Esto ataca de raíz el fallo más reportado del
+motor anterior: escribir algo como `"F) 7"` en una casilla de una sola
+letra ya no es una posibilidad estructural para el modelo, no algo que
+dependa de que siga bien la instrucción del prompt.
 
 La lectura del **QR** (remesa/`exam_id`/página, §4.9) sigue siendo
 determinista, con jsQR en el propio navegador, sin pasar por ningún modelo —

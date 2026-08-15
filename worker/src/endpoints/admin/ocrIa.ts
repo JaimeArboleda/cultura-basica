@@ -23,7 +23,14 @@
 // teoría, mantenerlo evita depender de IA para algo que puede resolverse
 // determinista y gratis.
 import { error, json } from "../../http";
+import { AREA_ESTUDIOS, CCAA, LIBROS_EN_CASA, NIVEL_ESTUDIOS, SEXO } from "../../tipos";
 import type { Env } from "../../tipos";
+
+// Mismo alfabeto que public/admin/papel/hoja.js::LETRAS — no se puede
+// importar ese módulo aquí (es cliente, con dependencias de pdf-lib/DOM que
+// no tienen sentido en el Worker), así que se duplica la constante, mismo
+// motivo que CATALOGOS entre worker/ y public/ (tipos.ts arriba).
+const LETRAS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 const MODELO_POR_DEFECTO = "gpt-5-mini";
 // Límites de la petición: generosos para cualquier hoja real del banco de
@@ -50,6 +57,16 @@ interface ItemEntrada {
   // esos dos formatos, la forma de la respuesta depende de él; irrelevante
   // (y ausente) para el resto.
   n?: number;
+  // Nº de opciones realmente impresas — obligatorio para opcion_multiple y
+  // seleccion_multiple, restringe el esquema JSON a exactamente esas letras
+  // (LETRAS[0..numOpciones-1]) en vez de aceptar cualquier string: así el
+  // modelo no puede devolver algo como "F) 7" en vez de "F" (README §4.7).
+  numOpciones?: number;
+  // Nº de categorías realmente impresas — obligatorio para clasificar (item.n
+  // ahí es el nº de ELEMENTOS a clasificar, no el de categorías: son cosas
+  // distintas, hace falta este campo aparte para restringir el esquema a las
+  // letras de categoría válidas).
+  numCategorias?: number;
 }
 
 interface PaginaEntrada {
@@ -89,6 +106,20 @@ const CAMPOS_DEMOGRAFIA_VALIDOS = new Set<string>([
   "anio_nacimiento",
 ]);
 
+// Nº de opciones de cada catálogo cerrado (worker/src/tipos.ts) — igual que
+// numOpciones/numCategorias para los ítems del banco, restringe el esquema
+// JSON de cada campo de demografía a exactamente las letras impresas
+// (A..última), en vez de un string libre. Los campos censales son justo los
+// que más se perdían antes de este cambio (README §4.7).
+const LONGITUD_CATALOGO: Record<(typeof CAMPOS_DEMOGRAFIA_CATALOGO)[number], number> = {
+  sexo: SEXO.length,
+  ccaa_educacion_secundaria: CCAA.length,
+  nivel_estudios: NIVEL_ESTUDIOS.length,
+  area_estudios: AREA_ESTUDIOS.length,
+  estudios_mayor_progenitor: NIVEL_ESTUDIOS.length,
+  libros_en_casa: LIBROS_EN_CASA.length,
+};
+
 // Devuelven un motivo (string) si la entrada es inválida, o null si es
 // válida — a diferencia de un simple boolean, esto permite que el 400 diga
 // EXACTAMENTE qué campo de qué página falló (id, índice, campos concretos)
@@ -107,6 +138,18 @@ function motivoItemInvalido(it: unknown): string | null {
   }
   if ((o.formato === "ordenar" || o.formato === "clasificar") && !(typeof o.n === "number" && Number.isInteger(o.n) && o.n > 0)) {
     return `formato "${o.formato}" necesita n (entero > 0): ${JSON.stringify(o.n)}`;
+  }
+  if (
+    (o.formato === "opcion_multiple" || o.formato === "seleccion_multiple") &&
+    !(typeof o.numOpciones === "number" && Number.isInteger(o.numOpciones) && o.numOpciones > 0 && o.numOpciones <= LETRAS.length)
+  ) {
+    return `formato "${o.formato}" necesita numOpciones (entero entre 1 y ${LETRAS.length}): ${JSON.stringify(o.numOpciones)}`;
+  }
+  if (
+    o.formato === "clasificar" &&
+    !(typeof o.numCategorias === "number" && Number.isInteger(o.numCategorias) && o.numCategorias > 0 && o.numCategorias <= LETRAS.length)
+  ) {
+    return `formato "clasificar" necesita numCategorias (entero entre 1 y ${LETRAS.length}): ${JSON.stringify(o.numCategorias)}`;
   }
   return null;
 }
@@ -156,20 +199,35 @@ const SYSTEM_PROMPT =
   'tiene algo escrito, esa es la respuesta definitiva (ignora "Respuesta"); si "Corrección" está en blanco, la ' +
   'respuesta definitiva es lo que haya en "Respuesta". Todo el texto está en MAYÚSCULAS de imprenta, una letra o ' +
   "dígito por casilla. Si una pregunta entera está en blanco o no se distingue nada, su respuesta definitiva es " +
-  "cadena vacía. Devuelve siempre JSON, nunca prosa ni markdown.";
+  "cadena vacía.\n" +
+  "En las casillas de una sola letra (opción única, selección múltiple, ordenar, clasificar, catálogos de datos " +
+  'personales), a veces alguien escribe algo más que la letra dentro o junto a la casilla — p. ej. "F) 7" o "B. La ' +
+  'presión" en vez de simplemente "F" o "B". En esos casos, identifica cuál es la LETRA de la opción marcada e ' +
+  "ignora cualquier otro carácter, número o palabra que la acompañe: la respuesta es solo esa letra, nunca la letra " +
+  "más texto adicional.\n" +
+  "En las respuestas de texto libre, transcribe exactamente lo que esté escrito, aunque parezca incompleto, mal " +
+  "escrito o abreviado — no la dejes en blanco solo porque no es la respuesta completa o \"perfecta\" que " +
+  "esperarías; una respuesta parcial transcrita fielmente vale más que un campo vacío. Deja la respuesta vacía " +
+  "ÚNICAMENTE si de verdad no hay nada escrito en la casilla.\n" +
+  "Responde SIEMPRE a todos los campos e ítems que se te piden, uno por uno, sin saltarte ninguno aunque su casilla " +
+  "esté en blanco (en ese caso, cadena vacía). Devuelve siempre JSON, nunca prosa ni markdown.";
 
 function describirFormatoItem(item: ItemEntrada): string {
+  const letraMax = (n: number) => LETRAS[n - 1];
   switch (item.formato) {
     case "abierto":
       return "respuesta libre corta (varias casillas de letra formando una palabra o sigla)";
     case "opcion_multiple":
-      return "opción única: UNA letra";
+      return `opción única: UNA letra entre A y ${letraMax(item.numOpciones!)}`;
     case "seleccion_multiple":
-      return 'selección múltiple: TODAS las letras elegidas juntas, sin separadores (p. ej. "AC")';
+      return (
+        `selección múltiple: TODAS las letras elegidas (entre A y ${letraMax(item.numOpciones!)}) juntas, sin ` +
+        'separadores (p. ej. "AC")'
+      );
     case "ordenar":
-      return `ordenar: ${item.n} posiciones numeradas de 1 a ${item.n}, cada una con la letra del elemento que va ahí`;
+      return `ordenar: ${item.n} posiciones numeradas de 1 a ${item.n}, cada una con la letra (entre A y ${letraMax(item.n!)}) del elemento que va ahí`;
     case "clasificar":
-      return `clasificar: ${item.n} elementos numerados de 1 a ${item.n}, cada uno con la letra de su categoría`;
+      return `clasificar: ${item.n} elementos numerados de 1 a ${item.n}, cada uno con la letra (entre A y ${letraMax(item.numCategorias!)}) de su categoría`;
   }
 }
 
@@ -181,10 +239,14 @@ function construirContenidoPagina(pagina: PaginaEntrada): Array<Record<string, u
     const checkboxes = campos.filter((c) => CAMPOS_DEMOGRAFIA_CHECKBOX.includes(c as (typeof CAMPOS_DEMOGRAFIA_CHECKBOX)[number]));
     const partes: string[] = [`Página "${pagina.id}": es (una parte de) la página de datos de la hoja (demografía).`];
     if (catalogos.length > 0) {
+      const conRango = catalogos.map((c) => {
+        const n = LONGITUD_CATALOGO[c as (typeof CAMPOS_DEMOGRAFIA_CATALOGO)[number]];
+        return `${c} (letra entre A y ${LETRAS[n - 1]}, según las opciones que veas impresas en esta imagen)`;
+      });
       partes.push(
         `Necesito la letra escrita en la casilla de cada uno de estos campos, TAL COMO APARECEN EN ESTA IMAGEN ` +
           `(si alguno de estos nombres no aparece impreso aquí, es que está en otra página — en ese caso no ` +
-          `deberías verlo en absoluto en esta imagen): ${catalogos.join(", ")}.`
+          `deberías verlo en absoluto en esta imagen): ${conRango.join(", ")}.`
       );
     }
     if (campos.includes("anio_nacimiento")) {
@@ -230,30 +292,70 @@ function construirContenidoPagina(pagina: PaginaEntrada): Array<Record<string, u
 // en el JSON de vuelta con demasiada frecuencia.
 // ============================================================
 
-function esquemaOrdenClasificar(n: number) {
+function esquemaLetraEnum(numLetras: number) {
+  return { type: "string", enum: [...LETRAS.slice(0, numLetras)] };
+}
+
+// Un objeto {"1": <letra>, "2": <letra>, ...} con una propiedad por posición
+// (ordenar) o por elemento (clasificar) — cada valor restringido por enum a
+// las letras realmente válidas para ESE ítem (elementos en ordenar,
+// categorías en clasificar: dos conjuntos de letras distintos y de tamaño
+// distinto, ver numCategorias en ItemEntrada).
+function esquemaPosiciones(numPosiciones: number, numLetrasValidas: number) {
   const properties: Record<string, unknown> = {};
   const required: string[] = [];
-  for (let i = 1; i <= n; i++) {
-    properties[String(i)] = { type: "string" };
+  for (let i = 1; i <= numPosiciones; i++) {
+    properties[String(i)] = esquemaLetraEnum(numLetrasValidas);
     required.push(String(i));
   }
   return { type: "object", properties, required, additionalProperties: false };
 }
 
 function esquemaItem(item: ItemEntrada) {
-  if (item.formato === "ordenar" || item.formato === "clasificar") return esquemaOrdenClasificar(item.n!);
-  return { type: "string" };
+  switch (item.formato) {
+    case "ordenar":
+      // Una permutación de sus propios elementos: n posiciones, n letras válidas.
+      return esquemaPosiciones(item.n!, item.n!);
+    case "clasificar":
+      return esquemaPosiciones(item.n!, item.numCategorias!);
+    case "opcion_multiple":
+      return esquemaLetraEnum(item.numOpciones!);
+    case "seleccion_multiple":
+      // Conjunto de letras válidas, en cualquier orden, sin separadores (p.
+      // ej. "AC") — un enum no sirve para una combinación variable, así que
+      // se restringe con un patrón al alfabeto válido de ESTE ítem
+      // (A..última letra impresa) y a como mucho una casilla por opción; los
+      // duplicados no invalidan nada (el decodificador los trata como
+      // conjunto), así que no hace falta prohibirlos con el propio patrón.
+      return {
+        type: "string",
+        pattern: `^[A-${LETRAS[item.numOpciones! - 1]}]{0,${item.numOpciones}}$`,
+      };
+    default:
+      return { type: "string" };
+  }
 }
 
-function construirEsquemaCompleto(paginas: PaginaEntrada[]) {
+// Exportado únicamente para poder testear directamente la forma del esquema
+// (enums/patterns) sin tener que mockear la API de OpenAI — mismo criterio
+// que las funciones puras de worker/src/correccion.ts.
+export function construirEsquemaCompleto(paginas: PaginaEntrada[]) {
   const properties: Record<string, unknown> = {};
   const required: string[] = [];
   for (const pagina of paginas) {
     if (pagina.tipo === "demografia") {
       for (const campo of pagina.campos!) {
         const clave = `${pagina.id}::${campo}`;
-        const esCheckbox = (CAMPOS_DEMOGRAFIA_CHECKBOX as readonly string[]).includes(campo);
-        properties[clave] = esCheckbox ? { type: "string", enum: ["SI", "NO"] } : { type: "string" };
+        if ((CAMPOS_DEMOGRAFIA_CHECKBOX as readonly string[]).includes(campo)) {
+          properties[clave] = { type: "string", enum: ["SI", "NO"] };
+        } else if (campo === "anio_nacimiento") {
+          // Solo dígitos, como mucho 4 (una casilla por dígito impreso) — no
+          // impide una respuesta incompleta (2 dígitos escritos, 2 en
+          // blanco), pero sí cualquier carácter que no sea un dígito.
+          properties[clave] = { type: "string", pattern: "^[0-9]{0,4}$" };
+        } else {
+          properties[clave] = esquemaLetraEnum(LONGITUD_CATALOGO[campo as (typeof CAMPOS_DEMOGRAFIA_CATALOGO)[number]]);
+        }
         required.push(clave);
       }
     } else {

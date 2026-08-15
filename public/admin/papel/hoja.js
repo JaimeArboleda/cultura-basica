@@ -517,6 +517,16 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       formato: item.formato,
       numero,
       ...(contarNecesitaN(item.formato) ? { n: item.elementos.length } : {}),
+      // numOpciones/numCategorias: cuántas letras válidas (A, B, C...) hay
+      // realmente impresas para este ítem — se lo pasamos al motor de OCR-IA
+      // (worker/src/endpoints/admin/ocrIa.ts) para que restrinja el esquema
+      // JSON a exactamente esas letras (Structured Outputs `enum`), en vez de
+      // aceptar cualquier string. Sin esto el modelo a veces devolvía cosas
+      // como "F) 7" en vez de "F" (README §4.7).
+      ...((item.formato === "opcion_multiple" || item.formato === "seleccion_multiple") && {
+        numOpciones: item.opciones.length,
+      }),
+      ...(item.formato === "clasificar" && { numCategorias: item.categorias.length }),
     },
   };
 }
