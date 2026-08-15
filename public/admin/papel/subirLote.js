@@ -18,6 +18,7 @@
 import { api, escaparHtml } from "../admin.js";
 import {
   cargarPaginasPdf,
+  crearOcrLote,
   crearSelectorEsquinas,
   decodificarPayloadQr,
   decodificarPayloadQrPagina,
@@ -200,7 +201,7 @@ function pedirTokenYVersion(contenedor, { examId, tokens, motivoFallback }) {
 // lo resuelve a mano.
 // ============================================================
 
-async function procesarUnidad(unidad, { tokens, zonaIntervencion, log }) {
+async function procesarUnidad(unidad, { tokens, zonaIntervencion, log, motorOcr, modeloIA }) {
   log("Detectando esquinas…");
   const detectados = detectarFiduciales(unidad.canvas);
   let esquinas = detectados;
@@ -301,12 +302,23 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log }) {
   }
 
   log(`Leyendo contenido (examen ${examId}, página ${pagina})…`);
+  // Motor IA (README §4.7): siempre "una llamada por página" aquí, a
+  // diferencia del flujo secuencial (v2/digitalizar.js), que también ofrece
+  // "examen completo" — en la subida en bloque las páginas de una misma hoja
+  // pueden llegar en visitas o dispositivos distintos y cada una se persiste
+  // en cuanto se lee (README §4.10), así que no existe un momento único de
+  // "hoja completa" antes de guardar donde acumular varias páginas en una
+  // sola llamada.
   const { oscuridad, textos } = await leerPagina(paginaLayout, warp, {
     opcionesOcrParaClave: PIPELINES[info.version].opcionesOcrParaClave,
     avisar: log,
     canvasFuente: unidad.canvas,
     esquinas,
     dstFiduciales: dst,
+    ocrLote:
+      motorOcr === "ia"
+        ? crearOcrLote({ paginaId: `${examId}-${pagina}`, modelo: modeloIA, llamarOcrIa: api.ocrIa })
+        : undefined,
   });
 
   log("Guardando…");
@@ -452,6 +464,28 @@ export async function renderSubirLote(contenedorRaiz) {
         mejor: se procesa de una vez. Cuando un examen tenga todas sus páginas, aparece abajo listo para
         "Finalizar".
       </p>
+      <label class="campo">
+        <span>Motor de OCR para las casillas de texto</span>
+        <select id="select-motor-ocr-lote">
+          <option value="tesseract">Tesseract (local, sin coste)</option>
+          <option value="ia">IA — gpt-mini (vía Worker, API de pago, más precisión)</option>
+        </select>
+      </label>
+      <div id="opciones-motor-ia-lote" hidden>
+        <label class="campo">
+          <span>Modelo</span>
+          <select id="select-modelo-ia-lote">
+            <option value="gpt-4o-mini">gpt-4o-mini</option>
+            <option value="gpt-5-mini">gpt-5-mini</option>
+          </select>
+        </label>
+        <p class="nota-formato">
+          Se aplica página a página conforme se van subiendo (README §4.7): aquí no hay opción de "examen
+          completo" porque cada página se guarda en cuanto se lee, y las páginas de una misma hoja pueden
+          llegar en visitas o dispositivos distintos. El código QR sigue leyéndose igual, sin IA, en
+          cualquier caso.
+        </p>
+      </div>
       <input type="file" id="campo-archivos-lote" accept="image/*,application/pdf" multiple />
       <div id="zona-intervencion-lote" class="escaneo-paso" hidden></div>
       <ul id="lista-progreso-lote" class="lista-progreso"></ul>
@@ -464,6 +498,13 @@ export async function renderSubirLote(contenedorRaiz) {
   const zonaIntervencion = contenedorRaiz.querySelector("#zona-intervencion-lote");
   const listaProgreso = contenedorRaiz.querySelector("#lista-progreso-lote");
   const zonaExamenes = contenedorRaiz.querySelector("#zona-examenes-lote");
+  const selectMotorOcr = contenedorRaiz.querySelector("#select-motor-ocr-lote");
+  const opcionesMotorIA = contenedorRaiz.querySelector("#opciones-motor-ia-lote");
+  const selectModeloIA = contenedorRaiz.querySelector("#select-modelo-ia-lote");
+
+  selectMotorOcr.addEventListener("change", () => {
+    opcionesMotorIA.hidden = selectMotorOcr.value !== "ia";
+  });
 
   async function refrescarExamenes() {
     zonaExamenes.innerHTML = "<p>Cargando…</p>";
@@ -512,6 +553,8 @@ export async function renderSubirLote(contenedorRaiz) {
           tokens,
           zonaIntervencion,
           log: (msg) => (unidad.item.textContent = `${unidad.etiqueta}: ${msg}`),
+          motorOcr: selectMotorOcr.value,
+          modeloIA: selectModeloIA.value,
         });
         unidad.item.textContent = `${unidad.etiqueta}: ✓ examen ${resultado.examId}, página ${resultado.pagina}`;
         unidad.item.className = "progreso-ok";

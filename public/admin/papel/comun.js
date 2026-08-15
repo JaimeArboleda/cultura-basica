@@ -1103,6 +1103,60 @@ export async function leerPagina(
   return { oscuridad, textos, qrGrande, qrPagina };
 }
 
+// ============================================================
+// Motor de OCR-IA (README §4.7, "Motor gpt-mini"): construcción del callback
+// `ocrLote` que consume leerPagina() de arriba, compartida por CUALQUIER
+// orquestador de escaneo que quiera ofrecer el motor IA además de Tesseract
+// (hoy v2/digitalizar.js — flujo secuencial — y subirLote.js — subida en
+// bloque, README §4.10). Deliberadamente aquí y no duplicada en cada uno:
+// ambos flujos arman el mismo manifiesto de casillas y llaman al mismo
+// endpoint, solo cambia CUÁNDO se dispara la llamada (ver `agrupacion` más
+// abajo) y de qué versión de hoja vienen las claves — que ya resuelve
+// opcionesOcrParaClave de cada pipeline (v1/v2), no esta función.
+//
+// Nunca importa admin.js (comun.js se mantiene sin dependencias de red/framework,
+// ver cabecera del fichero): quien llama pasa `llamarOcrIa` (normalmente
+// admin.js::api.ocrIa) por inyección, en vez de que esto haga fetch() él solo.
+// ============================================================
+
+// Traduce lo que ya calculaba opcionesOcrParaClave (para la whitelist de
+// Tesseract) al "tipo" que espera POST /api/admin/ocr-ia.
+export function tipoCasillaOcrIA(opciones) {
+  if (opciones?.soloDigitos) return "digito";
+  if (opciones?.soloLetras) return "letra";
+  return "texto";
+}
+
+// Fábrica del callback ocrLote: construye el manifiesto de casillas de UNA
+// página (recortes ya codificados como data URL JPEG) y, según `agrupacion`:
+// - "pagina" (o sin especificar): llama a llamarOcrIa una vez por página, en
+//   cuanto esa página se lee — la única opción que tiene sentido cuando cada
+//   página se persiste de forma independiente en cuanto se lee (subirLote.js:
+//   páginas de un mismo examen pueden subirse en visitas o dispositivos
+//   distintos, no hay un momento único de "hoja completa" antes de guardar).
+// - "examen": NO llama a la API todavía — acumula el manifiesto en
+//   `pendientes` (un array que el llamador comparte entre todas las páginas
+//   de una misma hoja) y devuelve un resultado vacío; es responsabilidad de
+//   quien orquesta hacer la llamada real con todo lo acumulado cuando
+//   corresponda y volcar el resultado a sus propios textos (ver
+//   v2/digitalizar.js::iniciarEscaneo, que sí conoce el momento en que la
+//   hoja entera ya se ha escaneado).
+export function crearOcrLote({ paginaId, modelo, agrupacion, pendientes, llamarOcrIa }) {
+  return async (lineasTexto) => {
+    const casillas = lineasTexto.map(({ clave, recorte, opciones }) => ({
+      clave,
+      tipo: tipoCasillaOcrIA(opciones),
+      imagen: recorte.toDataURL("image/jpeg", 0.85),
+    }));
+    if (agrupacion === "examen" && pendientes) {
+      pendientes.push({ id: paginaId, casillas });
+      return {};
+    }
+    const { resultados } = await llamarOcrIa({ modelo, paginas: [{ id: paginaId, casillas }] });
+    return resultados[paginaId] ?? {};
+  };
+}
+
 // Devuelve { fiduciales, lineaQrPagina, lineaQrGrande }: la posición canónica
 // de los 4 fiduciales de esquina, la caja del QR pequeño de página y la caja
 // del QR grande de la remesa — ninguna de las tres depende de la versión del

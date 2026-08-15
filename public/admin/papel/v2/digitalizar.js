@@ -13,6 +13,7 @@ import { bloqueCamposDemografia, leerDemografiaDelFormulario, renderEditarSesion
 import { CATALOGOS } from "../../../js/demografia.js";
 import {
   abrirVentanaImpresion,
+  crearOcrLote,
   detectarFiduciales,
   ESCALA_DIGITALIZACION,
   generarExamId,
@@ -308,47 +309,12 @@ export function opcionesOcrParaClave(clave) {
   return { soloLetras: true };
 }
 
-// ============================================================
-// Motor de OCR-IA (README §4.7, "Motor gpt-mini"): alternativa a Tesseract
-// para leer las casillas de texto, vía worker/src/endpoints/admin/ocrIa.ts.
-// La lectura del QR (README §4.9) no pasa por aquí — sigue siendo la misma
-// de siempre, determinista, en comun.js::leerPagina.
-// ============================================================
-
-// Traduce lo que ya calculaba opcionesOcrParaClave (para la whitelist de
-// Tesseract) al "tipo" que espera el endpoint de OCR-IA, sin duplicar esa
-// lógica en dos sitios.
-function tipoCasillaIA(opciones) {
-  if (opciones?.soloDigitos) return "digito";
-  if (opciones?.soloLetras) return "letra";
-  return "texto";
-}
-
-// Fábrica del callback ocrLote que consume comun.js::leerPagina (ver su
-// cabecera): construye el manifiesto de casillas de UNA página (recortes ya
-// codificados como data URL JPEG) y, según `agrupacion`:
-// - "pagina": llama a la API una vez por página, en cuanto esa página se lee.
-// - "examen": no llama a la API todavía — acumula el manifiesto en
-//   `pendientes` (compartido entre todas las páginas de la hoja) y devuelve
-//   un resultado vacío; iniciarEscaneo() hace UNA sola llamada con todo lo
-//   acumulado al terminar de escanear la hoja entera, justo antes de mostrar
-//   la confirmación (ver más abajo) — así "examen completo" es una única
-//   petición HTTP con las casillas de todas las páginas, no una por página.
-function crearOcrLote({ paginaId, modelo, agrupacion, pendientes }) {
-  return async (lineasTexto) => {
-    const casillas = lineasTexto.map(({ clave, recorte, opciones }) => ({
-      clave,
-      tipo: tipoCasillaIA(opciones),
-      imagen: recorte.toDataURL("image/jpeg", 0.85),
-    }));
-    if (agrupacion === "examen") {
-      pendientes.push({ id: paginaId, casillas });
-      return {};
-    }
-    const { resultados } = await api.ocrIa({ modelo, paginas: [{ id: paginaId, casillas }] });
-    return resultados[paginaId] ?? {};
-  };
-}
+// El motor de OCR-IA (README §4.7, "Motor gpt-mini") en sí — tipoCasillaOcrIA
+// y crearOcrLote — vive en ../comun.js, compartido con ../subirLote.js (README
+// §4.10): aquí solo se orquesta CUÁNDO se llama (ver `pendientesIA` más abajo)
+// y se le inyecta api.ocrIa como `llamarOcrIa`. La lectura del QR (README
+// §4.9) no pasa por aquí en ningún caso — sigue siendo la misma de siempre,
+// determinista, en comun.js::leerPagina.
 
 function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas, motorOcr, modeloIA, agrupacionIA }) {
   const oscuridadGlobal = new Map();
@@ -474,7 +440,13 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas, motorOcr
           dstFiduciales: dst,
           ocrLote:
             motorOcr === "ia"
-              ? crearOcrLote({ paginaId: `pagina-${indice}`, modelo: modeloIA, agrupacion: agrupacionIA, pendientes: pendientesIA })
+              ? crearOcrLote({
+                  paginaId: `pagina-${indice}`,
+                  modelo: modeloIA,
+                  agrupacion: agrupacionIA,
+                  pendientes: pendientesIA,
+                  llamarOcrIa: api.ocrIa,
+                })
               : undefined,
         });
         // Solo consentimiento/compromiso siguen siendo marcas OMR en v2 (ver

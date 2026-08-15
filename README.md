@@ -1113,47 +1113,65 @@ con datos reales del piloto antes de decidir cuál usar — o si conviene seguir
 con las dos según el contexto (p. ej. v1 en encuestas presenciales con poco
 tiempo para explicar el formato, v2 cuando el espacio en papel importa más).
 
-**Motor de OCR-IA para v2 (gpt-mini), alternativa a Tesseract.js:** la mejora
-futura que apuntaba el párrafo anterior en versiones previas de este README
-("subir a una API de visión de pago si la tasa de error resulta demasiado
-alta") ya está implementada como una segunda opción, no como sustituto: la
-pantalla "2. Digitalizar una hoja rellenada" de v2
-(`public/admin/papel/v2/digitalizar.js`) deja elegir, hoja a hoja, entre el
-motor **Tesseract** (local, de siempre, sin coste) y un motor **IA**
-que manda los recortes de cada casilla a `POST /api/admin/ocr-ia`
-(`worker/src/endpoints/admin/ocrIa.ts`), que a su vez hace una única llamada
-a la API de OpenAI (`chat/completions` con visión, `response_format:
-json_object`) con todas las casillas de la petición como partes de imagen de
-un mismo mensaje — así una hoja entera se lee con una sola petición HTTP (o
-con una por página), no una por casilla, mucho más barato que el enfoque
-ingenuo. El panel deja elegir también el **modelo** (`gpt-4o-mini` /
-`gpt-5-mini`, con más que se puedan añadir después) y la **agrupación**
-(una llamada por página, o una sola con la hoja completa acumulada hasta el
-final del escaneo) precisamente para poder comparar calidad y coste con
-datos reales del piloto antes de fijar un único ajuste — el mismo espíritu
-que el versionado v1/v2 de más arriba, un nivel más abajo.
+**Motor de OCR-IA (gpt-mini), alternativa a Tesseract.js:** la mejora futura
+que apuntaba el párrafo anterior en versiones previas de este README ("subir
+a una API de visión de pago si la tasa de error resulta demasiado alta") ya
+está implementada como una segunda opción, no como sustituto — y disponible
+en las dos pantallas donde se OCR-ea una hoja, no solo en una:
+
+- **Flujo secuencial de v2** ("2. Digitalizar una hoja rellenada",
+  `public/admin/papel/v2/digitalizar.js`): deja elegir, hoja a hoja, entre el
+  motor **Tesseract** (local, de siempre, sin coste) y un motor **IA**, con
+  selector de **modelo** (`gpt-4o-mini` / `gpt-5-mini`, con más que se puedan
+  añadir después) y de **agrupación**: una llamada por página, o una sola con
+  la hoja completa acumulada hasta el final del escaneo.
+- **Subida en bloque** ("Subir en bloque", `public/admin/papel/subirLote.js`,
+  §4.10): mismo selector de motor + modelo, pero sin opción de agrupación —
+  siempre una llamada por página, en cuanto esa página se lee. No es una
+  limitación pendiente: cada página se persiste sola en cuanto se sube (puede
+  que en visitas o dispositivos distintos, README §4.10), así que no existe
+  un momento de "hoja completa" antes de guardar donde acumular varias
+  páginas en una sola llamada. Al despachar dinámicamente según la versión
+  que traiga el QR de cada hoja (§4.9), el motor IA funciona igual de bien
+  sobre una hoja v1 que sobre una v2 aquí, aunque en v1 solo haya casillas de
+  texto en `abierto` y el año de nacimiento (el resto es OMR).
+
+Ambas pantallas mandan los recortes de casilla a `POST /api/admin/ocr-ia`
+(`worker/src/endpoints/admin/ocrIa.ts`), que hace una única llamada a la API
+de OpenAI (`chat/completions` con visión, `response_format: json_object`) con
+todas las casillas de la petición como partes de imagen de un mismo mensaje —
+así una página (o una hoja entera, en el modo "examen completo" del flujo
+secuencial) se lee con una sola petición HTTP, no una por casilla, mucho más
+barato que el enfoque ingenuo. El selector de modelo/agrupación existe
+precisamente para poder comparar calidad y coste con datos reales del piloto
+antes de fijar un único ajuste — el mismo espíritu que el versionado v1/v2 de
+más arriba, un nivel más abajo.
 
 Solo cambia **cómo se leen las casillas de texto**; nada más del pipeline se
 ve afectado:
 - La lectura del **QR** (remesa/`exam_id`/página, §4.9) sigue siendo
-  exactamente la misma en cualquier motor — determinista, con jsQR en el
-  propio navegador, sin pasar por ningún modelo. Aunque con un modelo de
-  visión ya no haría falta en teoría para identificar la hoja, mantenerlo tal
-  cual evita tener DOS diseños distintos de identificación (uno determinista,
-  otro dependiente de IA) conviviendo a la vez — mismo QR, mismo mecanismo,
-  para las dos hojas.
-- El OMR de consentimiento/compromiso (única marca que no es de letra en v2)
-  tampoco cambia: sigue siendo oscuridad umbralizada, no pasa por IA.
+  exactamente la misma en cualquier motor, en cualquiera de las dos
+  pantallas — determinista, con jsQR en el propio navegador, sin pasar por
+  ningún modelo. Aunque con un modelo de visión ya no haría falta en teoría
+  para identificar la hoja, mantenerlo tal cual evita tener DOS diseños
+  distintos de identificación (uno determinista, otro dependiente de IA)
+  conviviendo a la vez — mismo QR, mismo mecanismo, para cualquier hoja.
+- El OMR de consentimiento/compromiso (en v2, la única marca que no es de
+  letra) tampoco cambia: sigue siendo oscuridad umbralizada, no pasa por IA.
 - `comun.js::leerPagina` acepta un parámetro opcional `ocrLote`: si se pasa,
   sustituye las llamadas a `ocrLinea`/Tesseract casilla a casilla por una
   única llamada por página con todos los recortes de texto de esa página —
-  v1 y la subida en bloque (§4.10) no lo pasan, así que siguen exactamente
-  igual que antes.
+  sin él, comportamiento idéntico a siempre (motor Tesseract). El propio
+  callback `ocrLote` se construye con `comun.js::crearOcrLote`, compartido
+  por las dos pantallas para no mantener dos implementaciones del mismo
+  manifiesto de casillas — `comun.js` no importa `admin.js` (se mantiene sin
+  dependencias de red, ver cabecera del fichero), así que cada pantalla le
+  inyecta `api.ocrIa` como `llamarOcrIa`.
 - El backend guarda `sesiones.version_papel` igual que siempre (README
   arriba): el motor de OCR usado NO viaja al servidor ni se distingue en el
-  dataset, porque no cambia el diseño de la hoja (sigue siendo v2) ni el
-  formato de la respuesta ya decodificada — es una decisión de qué pipeline
-  de lectura usar en el navegador del admin, transparente para
+  dataset, porque no cambia el diseño de la hoja ni el formato de la
+  respuesta ya decodificada — es una decisión de qué pipeline de lectura usar
+  en el navegador del admin, transparente para
   `POST /api/admin/digitalizacion`.
 
 **Configuración:** requiere una API key de OpenAI como secreto del Worker
