@@ -42,10 +42,14 @@ async function sembrarAdmin(email = ADMIN_EMAIL) {
     .run();
 }
 
-async function crearTokenViaAdmin(auth: string, descripcion = "familia de Gerardo") {
-  const res = await fetchAdmin("/api/admin/tokens", { method: "POST", body: JSON.stringify({ descripcion }) }, auth);
+async function crearTokenViaAdmin(auth: string, descripcion = "familia de Gerardo", opciones: Record<string, unknown> = {}) {
+  const res = await fetchAdmin(
+    "/api/admin/tokens",
+    { method: "POST", body: JSON.stringify({ descripcion, ...opciones }) },
+    auth
+  );
   expect(res.status).toBe(201);
-  return (await res.json()) as { id: string };
+  return (await res.json()) as { id: string; es_prueba: number };
 }
 
 async function crearSesionConToken(tokenId: string) {
@@ -120,7 +124,7 @@ describe("Gestión de tokens", () => {
     expect(res.status).toBe(400);
   });
 
-  it("permite fijar horas_validez dentro de rango (2h-10 días) y rechaza fuera de rango", async () => {
+  it("permite fijar horas_validez >= 2h (sin tope superior) y rechaza por debajo del mínimo", async () => {
     const auth = await tokenAdmin();
 
     const valido = await fetchAdmin(
@@ -130,19 +134,49 @@ describe("Gestión de tokens", () => {
     );
     expect(valido.status).toBe(201);
 
+    // Ya no hay tope superior (README: se eliminó el límite de 240h en favor de
+    // sin_caducidad para remesas permanentes) — un número grande de horas es válido.
+    const largo = await fetchAdmin(
+      "/api/admin/tokens",
+      { method: "POST", body: JSON.stringify({ descripcion: "largo", horas_validez: 10000 }) },
+      auth
+    );
+    expect(largo.status).toBe(201);
+
     const muyCorto = await fetchAdmin(
       "/api/admin/tokens",
       { method: "POST", body: JSON.stringify({ descripcion: "x", horas_validez: 1 }) },
       auth
     );
     expect(muyCorto.status).toBe(400);
+  });
 
-    const muyLargo = await fetchAdmin(
+  it("es_prueba crea un token normal (id impredecible, UUID) marcado como remesa de pruebas", async () => {
+    const auth = await tokenAdmin();
+    const token = await crearTokenViaAdmin(auth, "remesa de pruebas", { es_prueba: true });
+    expect(token.es_prueba).toBe(1);
+    // El id sigue siendo un UUID cualquiera, nunca un valor fijo/adivinable
+    // como "tests": eso sería una puerta de acceso pública al test.
+    expect(token.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(token.id).not.toBe("tests");
+
+    const normal = await crearTokenViaAdmin(auth);
+    expect(normal.es_prueba).toBe(0);
+  });
+
+  it("sin_caducidad crea un token que nunca aparece como caducado", async () => {
+    const auth = await tokenAdmin();
+    const res = await fetchAdmin(
       "/api/admin/tokens",
-      { method: "POST", body: JSON.stringify({ descripcion: "x", horas_validez: 241 }) },
+      { method: "POST", body: JSON.stringify({ descripcion: "remesa permanente", sin_caducidad: true }) },
       auth
     );
-    expect(muyLargo.status).toBe(400);
+    expect(res.status).toBe(201);
+    const token = (await res.json()) as { id: string; expira_en: string };
+    expect(token.expira_en).toBe("9999-12-31T23:59:59.999Z");
+
+    const valido = await fetchAdmin(`/api/token-valido?token=${token.id}`);
+    expect(await valido.json()).toEqual({ valido: true, descripcion: "remesa permanente" });
   });
 });
 
@@ -234,6 +268,25 @@ describe("Estadísticas", () => {
     expect(stats.objetivo_min).toBe(100);
     expect(stats.objetivo_max).toBe(150);
   });
+
+  it("excluye las remesas de pruebas (es_prueba) de los agregados sin filtro, pero las incluye si se filtra por ellas", async () => {
+    const auth = await tokenAdmin();
+    const tokenPrueba = await crearTokenViaAdmin(auth, "remesa de pruebas", { es_prueba: true });
+    expect(tokenPrueba.es_prueba).toBe(1);
+
+    const antesSinFiltro = await fetchAdmin("/api/admin/stats", {}, auth);
+    const totalAntes = ((await antesSinFiltro.json()) as { total: number }).total;
+
+    await crearSesionConToken(tokenPrueba.id);
+
+    const despuesSinFiltro = await fetchAdmin("/api/admin/stats", {}, auth);
+    const totalDespues = ((await despuesSinFiltro.json()) as { total: number }).total;
+    expect(totalDespues).toBe(totalAntes);
+
+    const filtradoPorPrueba = await fetchAdmin(`/api/admin/stats?token_id=${tokenPrueba.id}`, {}, auth);
+    const statsPrueba = (await filtradoPorPrueba.json()) as { total: number };
+    expect(statsPrueba.total).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe("Dataset para la consola de estadísticas avanzadas", () => {
@@ -287,6 +340,20 @@ describe("Dataset para la consola de estadísticas avanzadas", () => {
     const datasetCompleto = (await sinFiltro.json()) as { sesiones: { token_id: string | null }[] };
     expect(datasetCompleto.sesiones.some((s) => s.token_id === otroToken.id)).toBe(true);
     expect(datasetCompleto.sesiones.some((s) => s.token_id === token.id)).toBe(true);
+  });
+
+  it("excluye las remesas de pruebas (es_prueba) del dataset sin filtro, pero las incluye si se filtra por ellas", async () => {
+    const auth = await tokenAdmin();
+    const tokenPrueba = await crearTokenViaAdmin(auth, "remesa de pruebas", { es_prueba: true });
+    const { sesion_id } = await crearSesionConToken(tokenPrueba.id);
+
+    const sinFiltro = await fetchAdmin("/api/admin/dataset", {}, auth);
+    const datasetSinFiltro = (await sinFiltro.json()) as { sesiones: { id: string }[] };
+    expect(datasetSinFiltro.sesiones.some((s) => s.id === sesion_id)).toBe(false);
+
+    const conFiltro = await fetchAdmin(`/api/admin/dataset?token_id=${tokenPrueba.id}`, {}, auth);
+    const datasetConFiltro = (await conFiltro.json()) as { sesiones: { id: string }[] };
+    expect(datasetConFiltro.sesiones.some((s) => s.id === sesion_id)).toBe(true);
   });
 
   it("no incluye solicitudes de acceso (no forman parte del dataset anónimo)", async () => {

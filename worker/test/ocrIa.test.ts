@@ -142,6 +142,21 @@ describe("POST /api/admin/ocr-ia", () => {
     expect(res.status).toBe(400);
   });
 
+  it("acepta consentimiento/compromiso_honestidad como campos de demografía válidos (antes solo OMR)", async () => {
+    const auth = await tokenAdmin();
+    const res = await postOcrIa(
+      {
+        paginas: [
+          { id: "p1", imagen: IMAGEN_VALIDA, tipo: "demografia", campos: ["consentimiento", "compromiso_honestidad"] },
+        ],
+      },
+      auth
+    );
+    // Body válido: sin OPENAI_API_KEY en el entorno de test, el 400 de validación
+    // ya no debería dispararse — solo el 500 de "falta la API key" más abajo.
+    expect(res.status).toBe(500);
+  });
+
   it("500 con mensaje claro si el Worker no tiene OPENAI_API_KEY configurada (aunque el body sea válido)", async () => {
     const auth = await tokenAdmin();
     const res = await postOcrIa({ paginas: [PAGINA_DEMOGRAFIA_VALIDA, PAGINA_ITEMS_VALIDA] }, auth);

@@ -158,6 +158,19 @@ export const AREA_ESTUDIOS = [
 
 export const LIBROS_EN_CASA = ["0-10", "11-25", "26-100", "101-200", "+200"] as const;
 
+// --- Tokens de acceso (README §4.5) ---
+//
+// "Sin caducidad" se representa con este centinela en vez de NULL: D1/SQLite no
+// permite relajar un NOT NULL con ALTER TABLE (solo add/drop/rename columna, no
+// modificar constraints), así que en vez de migrar el esquema se usa una fecha
+// deliberadamente lejana. Cualquier comparación existente
+// (`new Date(token.expira_en).getTime() < Date.now()`) sigue funcionando sin
+// tocarla: nunca es "menor que ahora". public/admin/admin.js duplica este mismo
+// valor (no puede importar TypeScript del Worker, son despliegues separados,
+// mismo motivo que CATALOGOS en public/js/demografia.js) para mostrar "Sin
+// caducidad" en vez de una fecha.
+export const EXPIRA_EN_INFINITO = "9999-12-31T23:59:59.999Z";
+
 export interface Demografia {
   anio_nacimiento: number;
   sexo: (typeof SEXO)[number];

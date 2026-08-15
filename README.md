@@ -255,14 +255,13 @@ a CSV.
 │   │   ├── admin.js
 │   │   ├── admin.css
 │   │   ├── papel/
-│   │   │   ├── comun.js  # Helpers compartidos por TODAS las versiones del pipeline de papel (§4.9/§4.10)
-│   │   │   ├── subirLote.js # Subida en bloque, fotos/PDF sueltos en cualquier orden (§4.10)
-│   │   │   ├── v1/
-│   │   │   │   ├── hoja.js       # Maquetación de la hoja OMR v1 (§4.7)
-│   │   │   │   └── digitalizar.js # Impresión + escaneo/OMR v1 de tests en papel (§4.7)
-│   │   │   └── v2/
-│   │   │       ├── hoja.js       # Maquetación de la hoja OCR-de-letras v2 (§4.7)
-│   │   │       └── digitalizar.js # Impresión + escaneo/OCR v2 de tests en papel (§4.7)
+│   │   │   ├── geometria.js # Geometría fija de la hoja: fiduciales, QR (§4.7/§4.9)
+│   │   │   ├── pdfLayout.js # Envuelto de texto y columnas por métricas de fuente (§4.7)
+│   │   │   ├── qr.js        # Generación/lectura de los 2 QR de la hoja (§4.9)
+│   │   │   ├── hoja.js      # Genera el PDF de la hoja con pdf-lib (§4.7)
+│   │   │   ├── comun.js     # Homografía, fiduciales, carga de librerías vía CDN (§4.7)
+│   │   │   ├── digitalizar.js # Impresión + escaneo/OCR-IA de tests en papel (§4.7)
+│   │   │   └── subirLote.js # Subida en bloque, fotos/PDF sueltos en cualquier orden (§4.10)
 │   │   └── editarSesion.js # Edición de demografía/respuestas de cualquier sesión (§4.8)
 │   └── styles.css
 ├── worker/              # Cloudflare Worker (API)
@@ -291,11 +290,25 @@ CREATE TABLE admins (
 );
 
 CREATE TABLE tokens (
-  id          TEXT PRIMARY KEY,    -- código compartido en la URL (?token=)
+  id          TEXT PRIMARY KEY,    -- código compartido en la URL (?token=), siempre un UUID
   descripcion TEXT NOT NULL,       -- p. ej. "familia de Gerardo": de qué remesa viene
   creado_por  TEXT NOT NULL,
   creado_en   TEXT NOT NULL,
-  expira_en   TEXT NOT NULL
+  -- "Sin caducidad" usa un centinela muy lejano (EXPIRA_EN_INFINITO =
+  -- "9999-12-31T23:59:59.999Z", worker/src/tipos.ts) en vez de NULL: D1/SQLite
+  -- no permite relajar un NOT NULL con ALTER TABLE (solo add/drop/rename
+  -- columna), así que en vez de migrar el esquema se usa una fecha lejana —
+  -- toda comparación existente (`new Date(expira_en) < Date.now()`) sigue
+  -- funcionando sin tocarla.
+  expira_en   TEXT NOT NULL,
+  -- Remesa de pruebas (0/1, por defecto 0): sigue siendo un token normal con
+  -- un id igual de impredecible (nunca un id fijo/adivinable como "tests" —
+  -- sería una puerta de acceso pública), pero sus sesiones se excluyen de los
+  -- agregados sin filtro (worker/src/db.ts::obtenerEstadisticas/
+  -- obtenerDatasetCompleto) — siguen visibles filtrando el panel por ese
+  -- token a propósito. Pensado para probar el pipeline de digitalización
+  -- contra la API real de OpenAI sin ensuciar las estadísticas del piloto.
+  es_prueba   INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE solicitudes_acceso (
@@ -559,7 +572,7 @@ GET  /api/admin/auth/login          → redirige a Google OAuth
 GET  /api/admin/auth/callback       → callback de Google, redirige a /admin/#token=… (sesión, §4.5)
 GET  /api/admin/me                  → { email } del admin autenticado
 GET  /api/admin/tokens              → lista tokens (con nº de sesiones/completas)
-POST /api/admin/tokens              → crea un token { descripcion, horas_validez? }
+POST /api/admin/tokens              → crea un token { descripcion, horas_validez?, sin_caducidad?, es_prueba? }
 DELETE /api/admin/tokens/:id        → revoca (caduca de inmediato) un token
 DELETE /api/admin/tokens/:id/sesiones → borra todas las sesiones de esa remesa; el token sigue activo
 DELETE /api/admin/tokens/:id/completo → papelera: borra el token y todas sus sesiones/respuestas, sin dejar rastro
@@ -574,7 +587,7 @@ GET  /api/admin/admins              → lista administradores
 POST /api/admin/admins              → añade un administrador { email }
 DELETE /api/admin/admins/:email     → quita un administrador (rechaza si es el último)
 
-GET  /api/admin/items-impresion     → banco en el orden fijo de presentación, sin respuestas (hoja OMR, §4.7)
+GET  /api/admin/items-impresion     → banco en el orden fijo de presentación, sin respuestas (hoja en papel, §4.7)
 POST /api/admin/digitalizacion      → crea una sesión origen='papel' a partir de una hoja ya interpretada (§4.7/§4.10)
 
 POST /api/admin/examenes-papel/paginas        → guarda UNA página ya decodificada de una hoja física (§4.10)
@@ -718,6 +731,18 @@ npx wrangler d1 execute cultura-basica --remote \
   --command="ALTER TABLE respuestas ADD COLUMN puntuacion REAL"
 ```
 
+**Remesas de pruebas** (`tokens.es_prueba`, §4.5 — tokens sin caducidad y remesa
+reservada de pruebas):
+
+```bash
+npx wrangler d1 execute cultura-basica --remote \
+  --command="ALTER TABLE tokens ADD COLUMN es_prueba INTEGER NOT NULL DEFAULT 0"
+```
+
+No hace falta ninguna migración para "sin caducidad" (`expira_en` sigue siendo
+`NOT NULL`, solo cambia qué valor se le puede pedir al crear un token — ver
+más abajo).
+
 ### 4.5 Control de acceso y panel de administración (issue #2)
 
 **Motivación:** publicado sin control, el test es vulnerable a respuestas fuera del
@@ -730,9 +755,22 @@ una *remesa* de invitación compartida por varias personas ("familia de Gerardo"
 - `POST /api/sesion` exige un `token` válido y no caducado; sin él, o caducado, o
   inexistente, se rechaza (401/403).
 - Un token **no tiene límite de usos**: sirve para cualquier número de personas
-  mientras no caduque. La validez se fija al crearlo (2 horas - 10 días, panel de
-  admin), 48h por defecto.
-- "Revocar" un token lo caduca de inmediato (no borra sus sesiones/respuestas).
+  mientras no caduque. La validez se fija al crearlo (mínimo 2 horas, sin tope
+  superior, panel de admin), 48h por defecto — o **sin caducidad** (`sin_caducidad:
+  true`, remesas permanentes) con el centinela `EXPIRA_EN_INFINITO` de §4.1, sin
+  necesitar ninguna migración de esquema.
+- "Revocar" un token lo caduca de inmediato (no borra sus sesiones/respuestas);
+  un token sin caducidad se puede revocar igual (deja de valer para
+  `POST /api/sesion` desde ese momento, aunque su `expira_en` siga siendo el
+  centinela hasta que se revoque).
+- **Remesas de pruebas** (`tokens.es_prueba`, §4.1): al crear un token se puede
+  marcar como "de pruebas" (`es_prueba: true`, panel de admin) — sigue siendo un
+  token normal, con un id igual de impredecible que cualquier otro (nunca un id
+  fijo/adivinable), pero sus sesiones quedan excluidas de `GET /api/admin/stats`
+  y `GET /api/admin/dataset` cuando se piden SIN filtrar por `token_id` (siguen
+  siendo visibles filtrando el panel explícitamente por ese token). Pensado para
+  poder digitalizar hojas de prueba contra la API real de OpenAI (§4.7/§6) sin
+  ensuciar las estadísticas del piloto.
 - `GET /api/resultado/:id` **nunca exige token**: reanudar el test o ver un
   resultado ya existente depende solo de conocer el `sesion_id` (§8), nunca de que
   el token siga vivo. Esto es intencional: separa "permiso para crear una sesión
@@ -896,7 +934,7 @@ issue #2) a las tablas nuevas, igual que el ejemplo de más arriba:
 ```bash
 npx wrangler d1 execute cultura-basica --remote --command="
   CREATE TABLE admins (email TEXT PRIMARY KEY, anadido_por TEXT, anadido_en TEXT NOT NULL);
-  CREATE TABLE tokens (id TEXT PRIMARY KEY, descripcion TEXT NOT NULL, creado_por TEXT NOT NULL, creado_en TEXT NOT NULL, expira_en TEXT NOT NULL);
+  CREATE TABLE tokens (id TEXT PRIMARY KEY, descripcion TEXT NOT NULL, creado_por TEXT NOT NULL, creado_en TEXT NOT NULL, expira_en TEXT NOT NULL, es_prueba INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE solicitudes_acceso (id INTEGER PRIMARY KEY AUTOINCREMENT, contacto TEXT NOT NULL, motivo TEXT, creada_en TEXT NOT NULL, atendida INTEGER DEFAULT 0);
   ALTER TABLE sesiones ADD COLUMN token_id TEXT REFERENCES tokens(id);
   CREATE INDEX idx_sesiones_token ON sesiones(token_id);
@@ -908,211 +946,91 @@ Las sesiones creadas antes de esta migración quedan con `token_id` a `NULL`
 remesa). A partir de aquí, `POST /api/sesion` empezará a exigir un token, así que
 conviene crear al menos uno desde el panel antes de anunciar el test de nuevo.
 
-### 4.7 Digitalización de tests en papel (OMR + OCR, sin API de pago)
+### 4.7 Digitalización de tests en papel (PDF + OCR-IA)
 
 **Motivación:** para poder pasar el test también a quien no quiere/puede
 hacerlo en pantalla (encuestas presenciales, personas mayores, aulas sin
 dispositivo por persona), hace falta una versión impresa y una forma de meter
 esas respuestas en el mismo dataset que las sesiones web, bajo el mismo
-control de acceso por token (§4.5) — sin depender de una API de pago de
-visión, dado el volumen del piloto (300-400 sesiones, §6).
+control de acceso por token (§4.5).
 
-**Pipeline versionado (`public/admin/papel/`): conviven dos diseños de
-hoja, v1 y v2.** `public/admin/papel/comun.js` reúne todo lo que no depende
-de cómo se marca una respuesta (geometría de página, paginado, homografía,
-OCR, QR, detección de fiduciales, la casilla OMR simple de
-consentimiento/compromiso); cada versión concreta (`public/admin/papel/v1/`,
-`.../v2/`, y las que se añadan después) define solo su propio `hoja.js`
-(maquetación + CSS) y `digitalizar.js` (cómo se interpreta cada marca/
-casilla). El propio QR de la hoja (§4.9) lleva la versión además del
-`token_id`, y esa versión se guarda en `sesiones.version_papel` — así se
-puede comparar en el dataset qué pipeline funciona mejor sin que el resto
-del backend necesite saber nada de versiones: `worker/src/correccion.ts` ya
-opera sobre la respuesta decodificada (número/array/objeto), no sobre cómo
-se capturó, así que es exactamente el mismo código para cualquier versión.
-La pestaña "Digitalizar tests" del panel (`admin.js::PIPELINES_PAPEL`) deja
-elegir con qué versión imprimir/escanear, para poder probar las dos con
-datos reales antes de decidir cuál usar en el piloto.
+**Historia (por qué hay solo un pipeline hoy):** hubo dos diseños en
+paralelo mientras se decidía cómo leer la hoja — v1 (burbujas OMR,
+umbralizando tinta) y v2 (casillas de letra, con Tesseract.js o un motor de
+visión de OpenAI como alternativas) — más un sistema de paginado que medía
+el DOM del navegador y necesitaba un precálculo con Playwright
+(`data/build-paginacion.mjs`) para no divergir entre dispositivos. Con datos
+reales quedó claro que Tesseract.js no es la herramienta adecuada para leer
+caracteres aislados (es un motor de líneas de texto, no de un alfabeto
+cerrado tipo MNIST) y que `gpt-5-mini`/`gpt-5-nano` sí funcionan bien — así
+que v1, Tesseract y el paginado por medición de DOM se retiraron enteros
+(`git log` conserva el diseño anterior si hace falta consultarlo). Queda un
+único pipeline (`public/admin/papel/`), más simple en dos frentes a la vez:
 
-**Paginado fiable (`comun.js::construirPaginas`/`paginarBloques`), corregido
-en ambas versiones:** el empaquetado voraz mide cada bloque con
-`getBoundingClientRect()` en un contenedor oculto (README §4.7, "Impresión")
-antes de decidir qué cabe en cada página A4. Dos fallos hacían que esa
-medida no coincidiera con el tamaño real una vez impreso, desbordando
-`.hoja-pagina` (que recorta con `overflow: hidden`, así que el desbordamiento
-no se veía como error sino como preguntas cortadas o pegadas al margen
-inferior): (1) el contenedor de medida no tenía cargado el CSS de la hoja en
-absoluto — `CSS_HOJA` solo se inyecta dentro de la ventana de impresión
-(`abrirVentanaImpresion`), que todavía no existe en el momento de medir, así
-que cada bloque se medía con la tipografía y el ancho por defecto del
-navegador en vez de los 11px/174mm reales; y (2) `getBoundingClientRect().height`
-no incluye el margen del propio elemento (`.hoja-item{margin-bottom:5mm}`,
-`.hoja-cabecera{margin-bottom:5mm}`), así que la suma de alturas siempre se
-quedaba corta. Arreglado inyectando el `CSS_HOJA` de la versión en un
-`<style>` temporal antes de medir (`construirPaginas` recibe `css` como
-tercer argumento) y sumando margen + alto de caja en vez de solo el alto de
-caja. Con la medida ya fiable, el paginado necesita bastante más páginas de
-las que parecía antes (el empaquetado previo metía de más, no de menos).
+- **Generación determinista con `pdf-lib` (`hoja.js`), sin DOM ni
+  navegador:** el PDF se construye por aritmética directa sobre las métricas
+  reales de la fuente ya incrustada (`font.widthOfTextAtSize`, Liberation
+  Sans, `public/admin/papel/fonts/`, licencia OFL-1.1) — nunca midiendo nada
+  en pantalla. Esto hace que el mismo banco de ítems produzca EXACTAMENTE
+  los mismos bytes de PDF en Node, en Chrome, en Firefox o en cualquier
+  dispositivo, así que ya no hace falta precalcular ni commitear ninguna
+  paginación: `hoja.js::calcularManifiesto(ctx, items)` la calcula al vuelo,
+  en milisegundos, tanto para imprimir como para reconstruir el layout al
+  leer una hoja escaneada. `pdf-lib`/`@pdf-lib/fontkit`/`@pdf-lib/upng` se
+  cargan bajo demanda desde CDN en el navegador (mismo patrón que
+  Tesseract.js antes, o Pyodide en "Estadísticas avanzadas", §4.5) y como
+  paquetes npm normales en scripts Node (`ocr_tests/`).
+- **Lectura 100% con OCR-IA, sin recortar nada salvo los 2 códigos QR:**
+  como cada página se manda entera a un modelo de visión (ver más abajo), ya
+  no hace falta OMR ni recortar casillas — lo único que se recorta de la
+  foto en el navegador son las dos cajas de QR (posiciones FIJAS,
+  `public/admin/papel/geometria.js`, ya no medidas). Incluso las casillas de
+  consentimiento y compromiso de honestidad (antes las únicas marcas OMR que
+  quedaban) se leen ahora como parte de la misma imagen de la página de
+  demografía.
 
-**Fuente incrustada (`comun.js::FUENTE_HOJA`/`cargarFuenteHoja`), no la del
-sistema — tercer fallo del mismo estilo, encontrado con la subida en bloque
-de verdad:** `getBoundingClientRect()` es fiable solo si mide con la MISMA
-fuente en cualquier dispositivo; `font-family: "Helvetica Neue", Arial,
-Helvetica, sans-serif` confía en que el sistema operativo tenga alguna de
-esas instaladas, y si no (p. ej. un Linux sin Helvetica/Arial, como el
-entorno donde corre `ocr_tests/generar.mjs`) el navegador sustituye por otra
-fuente con métricas distintas — suficiente para desplazar dónde cae cada
-salto de página. Como el número de página va incrustado en el QR pequeño de
-cada hoja (README §4.9/§4.10), esto puede hacer que "página 11" exista en el
-dispositivo donde se IMPRIMIÓ pero no en el dispositivo donde se LEE después
-(o al revés): la subida en bloque falla con "la página N no existe en la
-hoja de la versión V" sin que haya cambiado el banco de ítems, solo el
-dispositivo. Arreglado incrustando **Liberation Sans**
-(`public/admin/papel/fonts/`, licencia OFL-1.1, metricamente compatible con
-Arial) como fichero propio vía `@font-face` — no un CDN externo tipo Google
-Fonts: así no depende de que ese servicio esté accesible (importante para
-`ocr_tests/generar.mjs`, que corre en un entorno con red restringida) ni
-añade una dependencia de red a algo tan central como el paginado. El
-`@font-face` viaja dentro de `CSS_HOJA_BASE` (llega automáticamente tanto al
-`<style>` de medición como al de la ventana de impresión) y
-`construirPaginas`/`abrirVentanaImpresion` esperan a que el archivo esté
-REALMENTE descargado (`document.fonts.load`/`document.fonts.ready`, no basta
-con inyectar el `<style>`) antes de medir o de imprimir.
+**Hoja compacta con opciones en columnas (`hoja.js`):** las listas de
+opciones/elementos/categorías se reparten en 1, 2 o 3 columnas según la
+longitud máxima del texto de esa lista concreta
+(`pdfLayout.js::elegirColumnas`) — nunca se arriesga a partir una opción en
+dos líneas dentro de una columna estrecha: si ni 2 ni 3 columnas garantizan
+una sola línea por opción, se cae a lista simple de una columna con
+envoltura normal. Con el banco de ítems actual, esto reduce la hoja de 11 a
+7 páginas (1 de datos censales + 6 de ítems).
 
-**Paginación precalculada y persistida (`data/paginacion.json`,
-`data/build-paginacion.mjs`), la solución definitiva — la fuente incrustada
-de arriba no bastaba:** incluso con el MISMO fichero de fuente, dos motores
-de renderizado de texto (DirectWrite en Windows, CoreText en macOS,
-FreeType/HarfBuzz en Linux/Chromium headless — cada navegador, y a veces cada
-versión del mismo navegador) pueden aplicar hinting/redondeo de subpíxel
-ligeramente distinto y medir una altura de línea distinta en fracciones de
-píxel — de sobra para desplazar dónde cae un salto de página cuando se
-acumula sobre 25 ítems. Con el número de página incrustado en el QR pequeño
-de cada hoja (README §4.9/§4.10), eso seguía dando "la página N no existe en
-la hoja de la versión V" entre imprimir en un dispositivo y leer en otro,
-aunque ambos usaran exactamente la misma fuente. La solución de fondo es no
-depender NUNCA de medir en el dispositivo que ejecuta la app: `data/
-build-paginacion.mjs` (Playwright, mismo patrón que `ocr_tests/generar.mjs`)
-calcula UNA vez, con el layout real, cuántos bloques caben en cada página
-(usando el empaquetado voraz por altura de siempre) y lo escribe en
-`data/paginacion.json` (`{"1": {demografia: [...], items: [...]}, "2":
-{...}}`, un array de conteos por página); ese fichero se commitea al repo.
-`GET /api/admin/items-impresion` lo sirve junto a `items`
-(`digitalizacion.ts::getItemsImpresion`), y `comun.js::paginarBloques` lo usa
-para repartir los bloques por conteo (`agruparPorConteos`) en vez de medir
-alturas (`agruparPorAltura`, que sigue existiendo solo como fallback y como
-lo que usa el propio `build-paginacion.mjs` para calcular el manifiesto la
-primera vez) — tanto imprimir como reconstruir el layout para leer usan
-siempre el mismo `paginacion.json`, así que el número de páginas ya no puede
-divergir entre dispositivos. Hay que volver a ejecutar
-`node data/build-paginacion.mjs` (y commitear el resultado) si cambia el
-banco de ítems, el orden de presentación o el layout de la hoja.
-
-**v1 — decisión de diseño: la hoja es casi toda "rellena una burbuja", no
-letra manuscrita.** Opción múltiple y selección múltiple ya son
-burbujas/casillas de forma natural; `ordenar` y `clasificar` se resuelven
-igual, con una rejilla de burbujas por elemento (una burbuja por posición o
-por categoría, en vez de escribir un número o una letra a mano). Eso
-convierte la mayor parte de la hoja en un problema de **OMR** (reconocimiento
-de marcas: umbralizar cuánta tinta hay en una región conocida), que es
-determinista y no necesita ningún modelo — ni de pago ni local. Solo los ~10
-ítems `abierto` y el año de nacimiento piden texto, y ahí se pide
-**MAYÚSCULAS de imprenta, una letra por casilla** para maximizar el acierto
-del OCR (una única línea de casillas: de sobra para una respuesta breve tipo
-alias, sin ocupar más espacio del necesario).
-
-**Pipeline v1, todo en el navegador del admin, sin coste:**
-1. **Impresión** (`public/admin/papel/v1/hoja.js`): construye la hoja a
-   partir de `GET /api/admin/items-impresion` (mismo
-   `paraCliente()`/`ordenarTest()` que ve la web, así que hoja y web nunca
-   pueden divergir en contenido). El maquetado usa HTML/CSS real (no
-   canvas): cada bloque de ítem/demografía se mide con
-   `getBoundingClientRect()` en un contenedor oculto del mismo ancho que la
-   página impresa y se empaqueta vorazmente en páginas A4 sin partir ningún
-   bloque (`papel/comun.js::construirPaginas`) — el número de páginas es
-   dinámico según cuánto ocupe el banco en ese momento, no un valor fijo. La
-   versión en PDF sale del propio diálogo de impresión del navegador
-   ("Guardar como PDF"): no hace falta ninguna librería de generación de PDF.
-2. **Escaneo** (`public/admin/papel/v1/digitalizar.js`): el admin sube una
-   foto/escaneo por página y ajusta 4 puntos sobre las esquinas de la hoja.
-   Con esas 4 correspondencias se resuelve una **homografía** (sistema
-   lineal 8×8, sin ninguna librería de visión, `papel/comun.js`) y se
-   "endereza" la foto a un canvas del tamaño exacto de la página de
-   referencia (interpolación bilineal, warping inverso). Sobre esa imagen ya
-   alineada, cada burbuja se muestrea en la coordenada exacta medida en el
-   paso 1 (fracción de tinta en la región: burbuja rellena si supera un
-   umbral, ajustable en `papel/v1/digitalizar.js::UMBRAL_MARCA`) y cada
-   recuadro de texto libre se recorta y se pasa por
-   **[Tesseract.js](https://tesseract.projectnaptha.com/)** (WASM, cargado
-   bajo demanda desde CDN — mismo patrón que Pyodide en "Estadísticas
-   avanzadas", §4.5, ambos en `papel/comun.js`). Nada de esto sale del
-   navegador salvo el resultado final ya revisado, que se manda a `POST
-   /api/admin/digitalizacion`.
-3. **Confirmación mínima y traspaso a la edición (§4.8), no una revisión
-   aparte de las 25 respuestas.** Tras escanear todas las páginas, la única
-   pantalla propia de este flujo pide confirmar lo imprescindible para poder
-   crear la sesión (consentimiento, compromiso de honestidad y demografía —
-   `POST /api/admin/digitalizacion` los exige, §4.7), con la foto ya
-   enderezada de cada página disponible por si hace falta comparar a ojo. En
-   cuanto la sesión existe, se abre **la misma pantalla de edición que usa la
-   pestaña Sesiones para cualquier sesión** (`editarSesion.js`, §4.8): ahí es
-   donde se revisan y corrigen las 25 respuestas, ya persistidas. No es la
-   revisión sistemática del 5-10% de respuestas abiertas de la web (§1.6) —
-   el admin puede corregir el 100% ahí mismo, porque el volumen de hojas en
-   papel es bajo y el coste de revisar es prácticamente cero comparado con
-   dejar pasar un error de OCR/OMR sin detectar. El año de nacimiento no
-   lleva bloque de Corrección propio (a diferencia de los ítems del test,
-   ver más abajo): un error ahí se resuelve también en esta revisión, igual
-   que el resto de demografía.
-
-**v2 — decisión de diseño: todo se resuelve escribiendo letras/números en
-casillas (OCR), no sombreando burbujas (OMR).** Motivación frente a v1: el
-bloque de Corrección de v1 duplica ENTERA la rejilla de burbujas de la
-Respuesta (con el texto de cada opción repetido); en v2 basta una fila más
-de casillas del mismo ancho, sin repetir ningún enunciado — mucho más
-compacto en ítems con muchas opciones/elementos, y el mecanismo de
-corrección es idéntico en los 4 formatos en vez de tener una variante de
-rejilla distinta por tipo (`public/admin/papel/v2/hoja.js`). Por formato:
+**Por formato, igual que antes de este cambio (solo cambia el motor de
+lectura, no el diseño de casillas):**
 - **Opción única**: 1 casilla; se escribe la letra de la opción elegida.
 - **Selección múltiple**: N casillas (N = nº de opciones) en una sola línea;
   se escriben, en cualquiera de ellas, las letras de todas las opciones
-  elegidas. El orden no importa (es un conjunto), así que — a diferencia de
-  `ordenar`/`clasificar` — esta línea se recorta y se lee como UN solo
-  bloque de OCR, igual que `abierto`.
-- **Ordenar**: cada elemento se imprime con una letra de referencia fija
-  (A, B, C...) y las POSICIONES se numeran (1 = primero, 2 = segundo...);
-  debajo de cada número de posición, una casilla donde se escribe la letra
-  del elemento que va ahí. Mismo patrón que `clasificar` (cabecera numerada
-  fija + casilla con una letra debajo) — la diferencia es que aquí las
-  letras no se repiten (es una permutación) — y más natural de rellenar que
-  "qué número le toca a cada elemento". Cada casilla de posición se mide y
-  se lee de forma independiente, no como bloque.
+  elegidas (el orden no importa, es un conjunto).
+- **Ordenar**: cada elemento lleva una letra de referencia fija (A, B, C...)
+  y las POSICIONES se numeran (1 = primero, 2 = segundo...); debajo de cada
+  número de posición, una casilla con la letra del elemento que va ahí.
 - **Clasificar**: los elementos se numeran (1, 2, 3...) y las categorías se
-  etiquetan con letras (A, B, C...); debajo de cada número de elemento, una
-  casilla con la letra de su categoría — mismo mecanismo de casilla
-  independiente que `ordenar`, con las letras SÍ pudiendo repetirse (varios
-  elementos pueden compartir categoría).
-- Los 6 catálogos de opción única de demografía (sexo, CCAA...) pasan
-  también de burbuja OMR a esta misma casilla de letra, por consistencia.
-- `abierto` y el año de nacimiento no cambian respecto a v1 (la doble línea
-  de Respuesta/Corrección ya tenía sentido para texto libre,
-  `comun.js::agregarBloqueAbierto`, reutilizado tal cual). Consentimiento y
-  compromiso de honestidad tampoco cambian: son un gesto binario sí/no, no
-  "una letra entre varias", así que se quedan como la única casilla OMR que
-  sobrevive en v2 (`comun.js::marcaCuadrado`).
+  etiquetan con letras; debajo de cada número de elemento, una casilla con
+  la letra de su categoría (las letras SÍ pueden repetirse: varios elementos
+  pueden compartir categoría).
+- `abierto`: por defecto, una fila de casillas (una letra por casilla,
+  fuerza mayúsculas de imprenta); `hoja.js::CONFIG_POR_DEFECTO.estiloAbierto`
+  también admite `"linea"` (una raya para escribir en natural, más compacta
+  — ya no hace falta la disciplina de una letra por casilla que necesitaba
+  Tesseract, un modelo de visión lee bien una línea de escritura seguida).
+- Los 6 catálogos de opción única de demografía (sexo, CCAA...) y
+  consentimiento/compromiso de honestidad se leen igual que cualquier otro
+  campo de esa misma imagen.
 
-Precedencia Respuesta/Corrección en v2 (`papel/v2/digitalizar.js`): a
-diferencia de v1 (todo o nada por bloque completo), aquí es **por casilla
-individual** — como cada casilla es su propia región de texto, "en blanco"
-es simplemente "no se reconoció ningún carácter", así que no hace falta una
-marca explícita de "no responder" para poder anular; si la Corrección de esa
-casilla tiene algo, gana, si no, se usa la Respuesta. Caso sin resolver
-todavía, documentado en el propio código: si dos casillas de `ordenar`
-leyeran la misma letra de elemento (fallo de OCR o del propio participante),
-no hay validación de que el resultado sea una permutación válida — el
-elemento se repite y la respuesta simplemente no coincide con la correcta al
-compararla, sin aviso explícito de "esto es ambiguo". Pendiente de revisar
-con datos reales del piloto, igual que el umbral de OMR en v1.
+**Precedencia Respuesta/Corrección, por casilla individual:** cada casilla
+es su propia región de texto en la imagen, así que "en blanco" es
+simplemente "no hay nada escrito ahí" — no hace falta ninguna marca
+explícita de "no responder". El propio modelo de OCR-IA resuelve esta
+precedencia (si "Corrección" tiene algo, esa es la respuesta definitiva; si
+no, se usa "Respuesta") como parte de su respuesta — ver más abajo. Caso sin
+resolver todavía, documentado en el propio código: si dos casillas de
+`ordenar` leyeran la misma letra de elemento (fallo del modelo o del propio
+participante), no hay validación de que el resultado sea una permutación
+válida — el elemento se repite y la respuesta simplemente no coincide con la
+correcta al compararla, sin aviso explícito de "esto es ambiguo".
 
 **`POST /api/admin/digitalizacion`** crea la sesión igual que `POST
 /api/sesion` (mismo `ordenarTest()`, misma tabla `sesion_items`) pero:
@@ -1122,15 +1040,14 @@ con datos reales del piloto, igual que el umbral de OMR en v1.
   ventana de validez del token y digitalizarse después.
 - Corrige y puntúa con el mismo `corregirRespuesta()`/`puntuarItem()` que usa
   `POST /api/respuesta` (extraído a `worker/src/correccion.ts` para
-  compartirlo entre los dos flujos, y entre todas las versiones del pipeline
-  de papel): una respuesta ya interpretada por OMR/OCR se trata exactamente
-  igual que una tecleada en la web.
+  compartirlo entre los dos flujos): una respuesta ya interpretada por
+  OCR-IA se trata exactamente igual que una tecleada en la web.
 - Marca la sesión con **`sesiones.origen = 'papel'`** (frente a `'web'` por
-  defecto) y **`sesiones.version_papel`** con la versión del pipeline
-  (leída del QR, `1` si el cliente no la manda), visibles en la pestaña
-  Sesiones del panel y en el dataset/CSV — para poder controlar por
-  modalidad de respuesta y por versión de hoja en el análisis (§7) si se
-  detectaran diferencias sistemáticas.
+  defecto) y **`sesiones.version_papel`** con la versión del diseño de hoja
+  (leída del QR; la actual si el cliente no la manda) — se conserva por si
+  se vuelve a rediseñar la hoja en el futuro y conviene distinguir en el
+  dataset qué diseño produjo cada sesión, aunque hoy solo haya un pipeline
+  activo.
 
 **Migrar una D1 ya desplegada** (test publicado antes de esta funcionalidad),
 igual que los ejemplos de §4.4:
@@ -1155,115 +1072,56 @@ npx wrangler d1 execute cultura-basica --remote \
   --command="CREATE TABLE examenes_papel_paginas (exam_id TEXT NOT NULL REFERENCES examenes_papel(exam_id), pagina INTEGER NOT NULL, marcas_json TEXT NOT NULL, miniatura_datauri TEXT, subida_en TEXT NOT NULL, PRIMARY KEY (exam_id, pagina))"
 ```
 
-**Qué falta validar con pruebas reales en papel** (por eso hay dos versiones
-en paralelo, ninguna es la definitiva todavía): la calidad de Tesseract.js
-sobre letra manuscrita real (aunque sea en mayúsculas de imprenta separadas)
-es la incógnita principal — y pesa más en v2, que depende de OCR para casi
-toda la hoja, que en v1, donde solo depende de él para `abierto` y el año de
-nacimiento. El umbral de OMR (v1, y las 2 casillas de consentimiento en v2)
-puede necesitar ajuste según el escáner/cámara y el tipo de bolígrafo. El
-versionado del pipeline (arriba) es precisamente para poder comparar v1 y v2
-con datos reales del piloto antes de decidir cuál usar — o si conviene seguir
-con las dos según el contexto (p. ej. v1 en encuestas presenciales con poco
-tiempo para explicar el formato, v2 cuando el espacio en papel importa más).
-
-**Motor de OCR-IA (gpt-mini), alternativa a Tesseract.js — solo v2:** la
-mejora futura que apuntaba el párrafo anterior en versiones previas de este
-README ("subir a una API de visión de pago si la tasa de error resulta
-demasiado alta") ya está implementada como una segunda opción, no como
-sustituto, disponible en las dos pantallas donde se OCR-ea una hoja v2
-("2. Digitalizar una hoja rellenada" del flujo secuencial,
-`public/admin/papel/v2/digitalizar.js`, y "Subir en bloque",
-`public/admin/papel/subirLote.js`, §4.10).
-
-**Diseño: página entera, no recortes por casilla.** La primera versión de
-este motor mandaba un recorte por casilla (como hace Tesseract) al Worker,
-pidiendo el texto crudo de cada una. Con datos reales del piloto salió mal
-con los modelos más baratos (`gpt-5-nano`): sin ver el resto de la pregunta,
-el modelo no tenía contexto para desambiguar letra manuscrita ambigua, y
-pedir el JSON de vuelta solo por prompt dejaba huecos (casillas leídas como
-"en blanco" sin serlo). El diseño actual manda la imagen de la página
-**ENTERA** ya enderezada (una sola imagen, no un recorte por casilla) junto
-con el id/formato de cada ítem impreso en esa página — el propio modelo lee
-el enunciado, las opciones, los elementos... directamente de la imagen, sin
-que haga falta decirle coordenadas ni repetir el contenido del banco en el
-prompt — y le pide la **respuesta definitiva** de cada ítem, resolviendo él
-mismo la precedencia Respuesta/Corrección (§4.9: si el bloque "Corrección"
-tiene algo escrito, esa es la respuesta; si no, se usa "Respuesta") en vez de
-hacerlo en el cliente. Una sola llamada HTTP por página (o por examen
-completo, ver agrupación más abajo) con una imagen grande, no docenas de
-imágenes pequeñas — más simple, más barato y, con los datos del piloto, más
-preciso que recortar.
-
-**Solo tiene sentido para v2.** v1 es sobre todo burbujas OMR sin ninguna
-letra impresa al lado (§4.7): pedirle al modelo "la letra definitiva" de una
-burbuja sería inventar. La subida en bloque, que despacha dinámicamente según
-la versión de cada hoja, usa Tesseract siempre para páginas v1 — el selector
-de motor de esa pantalla no tiene efecto sobre ellas, solo sobre v2.
+**Motor de OCR-IA — diseño: página entera, no recortes por casilla.** Se
+manda la imagen de la página **ENTERA** ya enderezada (una sola imagen, no
+un recorte por casilla) junto con el id/formato de cada ítem impreso en esa
+página (o qué campos de demografía, para la página de datos) — el propio
+modelo lee el enunciado, las opciones, los elementos... directamente de la
+imagen, sin que haga falta decirle coordenadas ni repetir el contenido del
+banco en el prompt — y le pide la **respuesta definitiva** de cada ítem,
+resolviendo él mismo la precedencia Respuesta/Corrección descrita arriba.
+Una sola llamada HTTP por página (o por examen completo, ver agrupación más
+abajo) con una imagen grande, no docenas de imágenes pequeñas: más simple,
+más barato y más preciso que recortar (un recorte obliga al modelo a decidir
+a ciegas sin ver el resto de la pregunta).
 
 **Selectores del panel:**
-- **Motor**: Tesseract (de siempre, sin coste) o IA.
-- **Modelo** (solo si IA): `gpt-4o-mini` / `gpt-5-mini` / `gpt-5-nano`, con
-  más que se puedan añadir después.
-- **Agrupación** (solo en el flujo secuencial de v2; la subida en bloque no
-  la ofrece): una llamada por página, o una sola con todas las páginas de la
-  hoja juntas al terminar de escanear. En "Subir en bloque" siempre es una
-  llamada por página — cada página se persiste sola en cuanto se lee, puede
-  que en visitas o dispositivos distintos (§4.10), así que no existe un
-  momento de "hoja completa" antes de guardar.
-
-Existen para poder comparar calidad y coste con datos reales del piloto antes
-de fijar un único ajuste — el mismo espíritu que el versionado v1/v2 de más
-arriba, un nivel más abajo.
+- **Modelo**: `gpt-5-mini` / `gpt-5-nano` (más barato, menos capaz).
+- **Agrupación** (solo en el flujo secuencial, "Digitalizar tests"; la
+  subida en bloque no la ofrece): una llamada por página, o una sola con
+  todas las páginas de la hoja juntas al terminar de escanear. En "Subir en
+  bloque" siempre es una llamada por página — cada página se persiste sola
+  en cuanto se lee, puede que en visitas o dispositivos distintos (§4.10),
+  así que no existe un momento de "hoja completa" antes de guardar.
 
 **`POST /api/admin/ocr-ia` (`worker/src/endpoints/admin/ocrIa.ts`)** hace una
 única llamada a la API de OpenAI (`chat/completions` con visión) por
 petición, y traduce la respuesta definitiva de cada ítem/campo de vuelta a la
-misma forma `{clave: texto}` que ya esperaba el resto del pipeline
-(`v2/digitalizar.js::decodificarRespuestas`, sin cambios) — así
-`decodificarRespuestas` no distingue de qué motor vino cada texto, y nunca
-hace falta rellenar la clave `:correccion:...` (el modelo ya resolvió esa
-precedencia él mismo, así que decodificarRespuestas siempre cae a la clave de
-"respuesta"). El esquema de salida se pide con **Structured Outputs**
+misma forma `{clave: texto}` que espera
+`public/admin/papel/digitalizar.js::decodificarRespuestas` — nunca hace falta
+rellenar la clave `:correccion:...` (el modelo ya resolvió esa precedencia él
+mismo). El esquema de salida se pide con **Structured Outputs**
 (`response_format: json_schema`, `strict: true`, una propiedad por
-ítem/campo, `additionalProperties: false`): la propia API de OpenAI garantiza
+ítem/campo, `additionalProperties: false`, y `enum: ["SI","NO"]` para las
+casillas de consentimiento/compromiso): la propia API de OpenAI garantiza
 que el JSON trae exactamente esas claves siempre, en vez de confiar en que el
 modelo siga la instrucción del prompt al pie de la letra — con `gpt-5-nano`
 (el más barato, el que peor sigue instrucciones de formato) pedirlo solo por
 prompt dejaba huecos en el JSON de vuelta con demasiada frecuencia.
 
-Solo cambia **cómo se resuelve cada respuesta**; nada más del pipeline se ve
-afectado:
-- La lectura del **QR** (remesa/`exam_id`/página, §4.9) sigue siendo
-  exactamente la misma en cualquier motor, en cualquiera de las dos
-  pantallas — determinista, con jsQR en el propio navegador, sin pasar por
-  ningún modelo. Aunque con un modelo de visión ya no haría falta en teoría
-  para identificar la hoja, mantenerlo tal cual evita tener DOS diseños
-  distintos de identificación (uno determinista, otro dependiente de IA)
-  conviviendo a la vez — mismo QR, mismo mecanismo, para cualquier hoja.
-- El OMR de consentimiento/compromiso (en v2, la única marca que no es de
-  letra) tampoco cambia: sigue siendo oscuridad umbralizada, no pasa por IA.
-- `comun.js::leerPagina` acepta un parámetro opcional `omitirTextos`: si es
-  `true`, no recorta ni pasa por Tesseract ninguna línea de texto (los QR y
-  las marcas OMR sí se siguen leyendo igual) — es responsabilidad de quien
-  orquesta el escaneo rellenar esos textos por la vía del motor IA. Sin él,
-  comportamiento idéntico a siempre (motor Tesseract, usado también por v1
-  siempre y por v2 cuando no se elige IA).
-- El backend guarda `sesiones.version_papel` igual que siempre (README
-  arriba): el motor de OCR usado NO viaja al servidor ni se distingue en el
-  dataset, porque no cambia el diseño de la hoja ni el formato de la
-  respuesta ya decodificada — es una decisión de qué pipeline de lectura usar
-  en el navegador del admin, transparente para
-  `POST /api/admin/digitalizacion`.
+La lectura del **QR** (remesa/`exam_id`/página, §4.9) sigue siendo
+determinista, con jsQR en el propio navegador, sin pasar por ningún modelo —
+mismo mecanismo para cualquier hoja, no depende de IA.
 
 **Configuración:** requiere una API key de OpenAI como secreto del Worker
-(`wrangler secret put OPENAI_API_KEY`, ver `worker/wrangler.toml`) — sin ella,
-el motor IA responde con un error claro pidiendo usar Tesseract mientras
-tanto, sin afectar al resto del panel. El modelo por defecto (si el panel no
-pide uno concreto) se fija en `OPENAI_MODEL` (`[vars]` de `wrangler.toml`, no
-secreto, para poder cambiarlo sin tocar código). El endpoint reintenta con
-backoff (respetando la cabecera `retry-after` si viene) ante 429 (límite de
-tokens/minuto de la cuenta de OpenAI) y 5xx antes de rendirse.
+(`wrangler secret put OPENAI_API_KEY`, ver `worker/wrangler.toml`) — es el
+**único** motor de lectura del pipeline (ya no hay alternativa local tipo
+Tesseract), así que sin ella no se puede digitalizar ninguna hoja. El modelo
+por defecto (si el panel no pide uno concreto) se fija en `OPENAI_MODEL`
+(`[vars]` de `wrangler.toml`, no secreto, para poder cambiarlo sin tocar
+código). El endpoint reintenta con backoff (respetando la cabecera
+`retry-after` si viene) ante 429 (límite de tokens/minuto de la cuenta de
+OpenAI) y 5xx antes de rendirse.
 
 ### 4.8 Edición de demografía y respuestas desde el panel
 
@@ -1293,13 +1151,12 @@ reemplaza el conjunto, no lo extiende. `origen` y `token_id` nunca cambian al
 editar: son procedencia de la sesión, no datos a corregir.
 
 **Digitalizar lleva directamente a editar (§4.7): "revisión instantánea".**
-Tras crear una sesión desde una hoja escaneada, el `digitalizar.js` de la
-versión de pipeline correspondiente (p. ej. `papel/v1/digitalizar.js`) abre
+Tras crear una sesión desde una hoja escaneada, `papel/digitalizar.js` abre
 `editarSesion.js` sobre esa misma sesión en vez de mantener un formulario de
 revisión propio — así la corrección de las 25 respuestas ocurre siempre en
-la misma pantalla, tanto si la sesión viene de digitalizar (de cualquier
-versión) como si se edita después desde Sesiones, sin dos formularios que
-mantener sincronizados.
+la misma pantalla, tanto si la sesión viene de digitalizar (flujo secuencial
+o subida en bloque) como si se edita después desde Sesiones, sin dos
+formularios que mantener sincronizados.
 
 - Pantalla de **consentimiento informado** antes de nada: finalidad, responsable,
   carácter anónimo, derecho a abandonar.
@@ -1316,42 +1173,39 @@ mantener sincronizados.
   Gmail del propio equipo del estudio (autenticación del panel), no de
   participantes.
 
-### 4.9 Código QR con el token de la remesa, la versión del pipeline, el examen y la página
+### 4.9 Código QR con el token de la remesa, el examen y la página
 
 **Motivación:** cuando un colaborador externo reparte hojas impresas a un
 colectivo (§4.7) y luego las devuelve digitalizadas, el admin tiene que saber
-a qué remesa (`token_id`) pertenece cada hoja para poder digitalizarla —y,
-existiendo ya más de una versión del pipeline de papel, con qué versión se
-imprimió, para poder despachar al decodificador correcto sin tener que
-recordarlo a mano. En vez de fiarse de que quede anotado o de tener que
-preguntar, la propia hoja lleva esa información en un código QR. Además
-(§4.10), cada hoja física impresa lleva un **identificador individual**
-(`exam_id`, distinto del `token_id` de la remesa: una remesa se reparte en
-muchas hojas) y cada página lleva su **número de página** — necesario para
-poder recomponer una hoja a partir de fotos sueltas subidas en cualquier
-orden, sin depender de escanearlas ni subirlas en el orden físico.
+a qué remesa (`token_id`) pertenece cada hoja para poder digitalizarla. En
+vez de fiarse de que quede anotado o de tener que preguntar, la propia hoja
+lleva esa información en un código QR. Además (§4.10), cada hoja física
+impresa lleva un **identificador individual** (`exam_id`, distinto del
+`token_id` de la remesa: una remesa se reparte en muchas hojas) y cada
+página lleva su **número de página** — necesario para poder recomponer una
+hoja a partir de fotos sueltas subidas en cualquier orden, sin depender de
+escanearlas ni subirlas en el orden físico.
 
 **Dos QR por hoja, uno grande (solo página 1) y uno pequeño (todas las
-páginas)** (`papel/comun.js`):
+páginas)** (`papel/qr.js`):
 
-- **QR grande**, en la página de demografía junto al resto de marcas
-  (fiduciales, §4.7): `{token_id, version, exam_id, pagina}` completo en JSON
-  (`codificarPayloadQr`/`decodificarPayloadQr`), con el `token_id` también en
-  texto plano al lado por si hace falta leerlo a ojo. Es el que ya existía
-  desde el principio; ahora además lleva `exam_id` y `pagina` (siempre `1`
-  para este QR, ya que solo aparece en la primera página).
+- **QR grande**, en la página de demografía: `{token_id, version, exam_id,
+  pagina}` completo en JSON (`codificarPayloadQr`/`decodificarPayloadQr`),
+  con el `token_id` también en texto plano al lado por si hace falta leerlo
+  a ojo. `version` es la del diseño de hoja (README §4.7) — informativo, ya
+  no decide "a qué decodificador despachar" porque solo hay uno.
 - **QR pequeño de página**, en **todas** las páginas de la hoja (incluida la
   1): solo `{exam_id, pagina}` (`codificarPayloadQrPagina`/
-  `decodificarPayloadQrPagina`), sin repetir remesa ni versión — deliberadamente
-  corto para que, a igual tamaño físico impreso (10×10mm,
-  `.hoja-qr-pagina` en `CSS_HOJA_BASE`), el módulo de cada casilla del QR sea
-  más grande y la lectura desde una foto de móvil sea más fiable. `exam_id`
-  en sí también es corto por el mismo motivo: 8 caracteres de un alfabeto sin
-  ambigüedad visual (sin `0`/`O`, `1`/`I`/`L`...,
-  `papel/comun.js::generarExamId`, alfabeto tipo Crockford Base32) en vez de
-  un UUID v4 completo de 36 caracteres — de sobra único para los cientos de
-  hojas de un piloto, y mucho más legible si hay que teclearlo a mano
-  (§4.10, resolución manual) o leerlo a ojo en la propia hoja.
+  `decodificarPayloadQrPagina`), sin repetir remesa ni versión —
+  deliberadamente corto para que, a igual tamaño físico impreso (10×10mm),
+  el módulo de cada casilla del QR sea más grande y la lectura desde una
+  foto de móvil sea más fiable. `exam_id` en sí también es corto por el
+  mismo motivo: 8 caracteres de un alfabeto sin ambigüedad visual (sin
+  `0`/`O`, `1`/`I`/`L`..., `papel/qr.js::generarExamId`, alfabeto tipo
+  Crockford Base32) en vez de un UUID v4 completo de 36 caracteres — de
+  sobra único para los cientos de hojas de un piloto, y mucho más legible si
+  hay que teclearlo a mano (§4.10, resolución manual) o leerlo a ojo en la
+  propia hoja.
 
 **Por qué dos QR y no uno solo más grande:** el grande sigue haciendo falta
 para el flujo secuencial de siempre (§4.7, que solo necesita leer el QR una
@@ -1360,80 +1214,52 @@ a ojo desde la propia hoja. El pequeño es el que de verdad hace posible la
 subida en bloque (§4.10): tiene que estar en TODAS las páginas (una foto
 suelta de la página 7 no lleva ningún otro contexto), así que cuanto más
 corto su payload, más grande puede imprimirse cada módulo dentro de los
-10mm disponibles sin invadir el hueco de los fiduciales — repetir el
-`token_id`/`version` completos en cada una de las 10+ páginas de una hoja
-solo para volver a poder leerlos si el QR grande falla no compensaba el
-coste en fiabilidad de lectura.
+10mm disponibles sin invadir el hueco de los fiduciales.
 
 **Por qué QR y no PDF417 u otro simbología 1D/2D:** el contenido a codificar
 es corto y no hay dispositivo lector dedicado — se decodifica con la misma
-cámara/foto que ya se usa para el OMR, en el propio navegador. Para ese caso
-QR es la opción más simple: hay librerías JS maduras y pequeñas tanto para
-generar (`qrcode-generator`) como para leer (`jsQR`) sin dependencias
-nativas, con mejor tolerancia a ruido/perspectiva que PDF417 a la resolución
-de una foto de móvil, y sin necesitar más precisión de las que ya exige leer
-las burbujas de OMR de al lado.
+cámara/foto que ya se usa para enderezar la página, en el propio navegador.
+Para ese caso QR es la opción más simple: hay librerías JS maduras y
+pequeñas tanto para generar (`qrcode-generator`) como para leer (`jsQR`) sin
+dependencias nativas, con mejor tolerancia a ruido/perspectiva que PDF417 a
+la resolución de una foto de móvil.
 
-**Dónde se coloca cada uno en la página** (`papel/comun.js::crearPagina`,
-`construirBloqueQrGrande`, `CSS_HOJA_BASE`): el QR grande es CONTENIDO normal
-(ocupa espacio en el paginado voraz, `construirPaginas`), SIEMPRE el primer
-bloque de demografía — `construirBloqueQrGrande()` vive en `comun.js`
-(compartida por `v1/hoja.js` y `v2/hoja.js`, antes duplicada en cada una) y
-se antepone incondicionalmente en `construirBloquesDemografia`, tanto al
-imprimir de verdad (con `qr.tokenId`) como al reconstruir el layout SOLO para
-medir/leer (`construirHoja(items)`, sin `qr` — `v{1,2}/digitalizar.js` y
-`subirLote.js`). Es crucial que esté SIEMPRE, aunque no haya nada que
-imprimir en la caja: la hoja física impresa lo lleva siempre (el token es
-obligatorio para imprimir), así que si el layout de lectura lo omitiera, todo
-el contenido de la página de datos quedaría desplazado hacia arriba respecto
-a la foto real por la altura entera de ese bloque — no solo no se podría leer
-el QR, sino que consentimiento/compromiso, año de nacimiento y los 6
-catálogos de esa página se leerían de la posición equivocada. El QR pequeño
-es, en cambio, `position: absolute` — igual que los 4 fiduciales de esquina —
-para no desplazar ningún bloque de contenido al añadirse a TODAS las
-páginas; se ancla al borde derecho, centrado verticalmente, **fuera** de los
-cuadrantes de búsqueda de fiduciales (8% del ancho/alto desde cada esquina,
-`detectarFiduciales`) a propósito — un blob oscuro adicional dentro de ese
-cuadrante rompería la detección automática de esquinas, que exige un
-fiducial "aislado" (README §4.7).
+**Posiciones FIJAS, ya no medidas (`papel/geometria.js`):** con la hoja
+generada por `pdf-lib` (README §4.7), la posición de los fiduciales y de los
+dos QR es aritmética conocida de antemano — no hace falta maquetar ni medir
+nada para saber dónde recortar al leer una foto. `geometria.js` es la ÚNICA
+fuente de verdad de esas posiciones, usada tanto por `hoja.js` (dibujarlas al
+generar el PDF) como por `comun.js` (recortarlas al leer una foto): un
+cambio en el layout no puede desincronizar generación y lectura porque ambas
+leen las mismas constantes. El QR grande se dibuja en una posición fija en
+la esquina superior izquierda del área de contenido de la página 1, debajo
+de la cabecera — ya no participa de ningún "flujo" de bloques que pueda
+desplazarlo.
 
-**Impresión** (`papel/v1/hoja.js`/`v2/hoja.js::construirHoja`, ambas ahora
-`async`): se genera un `exam_id` nuevo (`generarExamId()`) cada vez que se
-imprime una hoja y se pasa junto con `tokenId`/`version` a `construirHoja()`.
-Como el payload de cada QR necesita saber en qué página global cae (algo que
-solo se conoce DESPUÉS de paginar), la imagen de los QR no se genera de
-antemano: `construirPaginas()` reserva primero una caja vacía en cada página
-(el QR grande siempre, el pequeño siempre) y, ya con las páginas
-construidas, `comun.js::rellenarQrPaginas()` recorre el array resultante
-rellenando cada `<img>` con su QR correspondiente (`generarQrDataUrl` +
-`await imagen.decode()`, para no dejar la imagen a medio decodificar si algo
-mide/capturase la página inmediatamente después) — solo se llama si se pidió
-`qr.examId`, así que la caja del QR grande queda vacía (sin romper el
-layout) cuando se reconstruye solo para medir/leer.
+**Impresión** (`hoja.js::construirHoja`): se genera un `exam_id` nuevo
+(`generarExamId()`) cada vez que se genera una hoja y se pasa junto con
+`tokenId` a `construirHoja()`, que dibuja los QR reales (matriz de módulos
+→ PNG con `@pdf-lib/upng` → `pdfDoc.embedPng`) en las posiciones fijas de
+`geometria.js`.
 
-**Digitalización:** cualquier `data-linea` con clave `meta:qr` o
-`meta:qr:pagina` que aparezca en el layout de una página se decodifica igual
-que cualquier otra región (`comun.js::leerPagina`, compartida entre el flujo
-secuencial de §4.7 y la subida en bloque de §4.10). Si el `token_id`
+**Digitalización:** `comun.js::leerQrsDePagina` recorta y decodifica el QR
+de página en su posición fija en cualquier foto, y el QR grande si es la
+página 1 — ya no hace falta averiguar "qué versión es esta hoja" antes de
+poder leer el QR, porque su posición nunca cambia. Si el `token_id`
 detectado coincide con un token real, la remesa queda fijada automáticamente
 ("Remesa detectada automáticamente" en la pantalla de confirmación); si el
 QR no se pudo leer (foto borrosa, hoja fotocopiada en blanco y negro sin
 suficiente contraste, etc.) se cae al desplegable manual de remesa de
-siempre, así el flujo secuencial nunca se bloquea por un QR ilegible. La
-subida en bloque (§4.10) hace lo mismo para la página 1 de un `exam_id`
-nuevo (recortando `geometriaBase.lineaQrGrande`, medida sin conocer todavía
-la versión — ver más abajo), y depende además del QR pequeño para saber a
-qué examen pertenece cada foto suelta; ambas tienen su propia resolución
-manual de respaldo si el QR correspondiente no se puede leer.
+siempre, así el flujo secuencial nunca se bloquea por un QR ilegible.
 
 **Compatibilidad hacia atrás:** una hoja impresa antes de que existiera
-`exam_id`/`pagina` (o incluso de antes de que existiera `version`, la
-primerísima hoja) sigue leyéndose: `decodificarPayloadQr` devuelve
-`examId: null`/`pagina: null` si esos campos no vienen en el JSON, y un texto
-plano sin JSON se interpreta como `{tokenId: texto, version: 1}`. Esas hojas
-solo pueden digitalizarse por el flujo secuencial (§4.7), no por la subida en
-bloque (§4.10), que necesita el QR pequeño en cada página para poder
-recolocarlas.
+`exam_id`/`pagina`, o con un diseño de hoja anterior a este (README §4.7,
+"Historia"), sigue leyéndose para el `token_id`/`version`:
+`decodificarPayloadQr` devuelve `examId: null`/`pagina: null` si esos campos
+no vienen en el JSON, y un texto plano sin JSON se interpreta como
+`{tokenId: texto, version: 1}` — pero como la posición de los QR y el propio
+contenido de la hoja son distintos en un diseño anterior, esas hojas ya no
+se pueden digitalizar con el pipeline actual.
 
 ### 4.10 Subida en bloque de hojas en papel, en cualquier orden
 
@@ -1452,7 +1278,7 @@ qué orden, en cuántos archivos ni en cuántas visitas se suba.
 **Qué acepta:** imágenes sueltas (`image/*`, una foto = una página) o un PDF
 con una o varias páginas ya escaneadas (`application/pdf`, dividido en
 imágenes en el propio navegador con **pdf.js**, cargado bajo demanda desde
-CDN igual que Tesseract.js/qrcode-generator/jsQR — `comun.js::cargarPaginasPdf`).
+CDN igual que pdf-lib/qrcode-generator/jsQR — `comun.js::cargarPaginasPdf`).
 Si el PDF ya trae TODAS las páginas de una hoja, mejor: se procesan todas de
 una subida y el examen puede quedar completo al momento; si no, sus páginas
 se acumulan igual que las de cualquier otra foto suelta, identificadas por
@@ -1461,15 +1287,16 @@ se acumulan igual que las de cualquier otra foto suelta, identificadas por
 **Persistencia del progreso, en el servidor (no en el navegador):** a
 diferencia del flujo secuencial (que solo vive en memoria del navegador
 durante una única visita), cada página sube su resultado YA DECODIFICADO en
-cuanto se lee — nunca la foto en sí, mismo criterio de privacidad que el
-resto de la digitalización (§4.7: solo sale del navegador lo ya interpretado)
-— a dos tablas nuevas (`schema/schema.sql`):
+cuanto se lee (solo `{ textos: {...} }`, lo que devuelve OCR-IA para esa
+página — ya no hay oscuridad OMR que guardar) — nunca la foto en sí, mismo
+criterio de privacidad que el resto de la digitalización (§4.7: solo sale
+del navegador lo ya interpretado) — a dos tablas nuevas (`schema/schema.sql`):
 
 ```sql
 CREATE TABLE examenes_papel (
   exam_id     TEXT PRIMARY KEY,        -- id corto leído del QR de cada página
   token_id    TEXT NOT NULL REFERENCES tokens(id),
-  version     INTEGER NOT NULL,        -- versión del pipeline (v1, v2...)
+  version     INTEGER NOT NULL,        -- versión del diseño de hoja (README §4.7)
   creado_en   TEXT NOT NULL,           -- cuándo se vio la primera página de esta hoja
   sesion_id   TEXT REFERENCES sesiones(id) -- NULL mientras sigue en progreso
 );
@@ -1477,7 +1304,7 @@ CREATE TABLE examenes_papel (
 CREATE TABLE examenes_papel_paginas (
   exam_id           TEXT NOT NULL REFERENCES examenes_papel(exam_id),
   pagina            INTEGER NOT NULL,  -- 1-indexado, continuo entre páginas de datos e ítems
-  marcas_json       TEXT NOT NULL,     -- { oscuridad: {...}, textos: {...} }, lo que devuelve leerPagina()
+  marcas_json       TEXT NOT NULL,     -- { textos: {...} }, lo que devuelve OCR-IA para esa página
   miniatura_datauri TEXT,              -- JPEG de baja resolución, para revisar a ojo al finalizar
   subida_en         TEXT NOT NULL,
   PRIMARY KEY (exam_id, pagina)
@@ -1489,52 +1316,44 @@ páginas de la misma hoja otro día o desde otro dispositivo, y el panel puede
 listar en cualquier momento **qué exámenes están a medio subir** (`GET
 /api/admin/examenes-papel`) sin depender de que quede una pestaña abierta.
 El total de páginas esperado de cada examen NO se guarda en el servidor (que
-no sabe nada de maquetación de hoja): lo calcula el propio navegador
-reconstruyendo el layout de esa versión (`construirHoja(items)` sin `qr`,
-igual que el paso 2 del flujo secuencial) — determinista mientras no cambie
+no sabe nada de maquetación de hoja): lo calcula el propio navegador con
+`hoja.js::calcularManifiesto(ctx, items)` — determinista mientras no cambie
 el banco de ítems entre imprimir y digitalizar, la misma asunción que ya
 hacía el flujo secuencial.
 
-**Leer una página suelta, sin saber de antemano ni el orden ni la versión**
-(`subirLote.js::procesarUnidad`, reutilizando `comun.js::leerPagina` — la
-misma función que usa ahora también el flujo secuencial, §4.9): los
-fiduciales de esquina, la caja del QR pequeño y la del QR grande están en la
-MISMA posición absoluta en cualquier página de cualquier versión (§4.9 —
-el QR grande, aunque es contenido normal y no `position: absolute`, es
-siempre el primer bloque justo después de la misma cabecera, así que su
-posición tampoco depende de la versión), así que se pueden localizar
-(`comun.js::medirGeometriaBaseEnBlanco`) y decodificar sin necesitar el
-layout específico de una versión todavía:
+**Leer una página suelta, sin saber de antemano el orden**
+(`subirLote.js::procesarUnidad`, reutilizando `comun.js::leerQrsDePagina` —
+la misma función que usa el flujo secuencial, §4.9): los fiduciales de
+esquina y las cajas de los dos QR están en la MISMA posición absoluta en
+cualquier página (§4.9, `geometria.js`), así que se pueden localizar y
+decodificar sin necesitar el manifiesto de ítems todavía:
 
 1. Detectar los 4 fiduciales (`detectarFiduciales`) y enderezar la foto por
    homografía, igual que el flujo secuencial; si la detección automática
    falla, se pide ajustarlos a mano (mismo selector, `crearSelectorEsquinas`).
 2. Recortar y decodificar el QR pequeño → `{exam_id, pagina}`. Si no se
    puede leer, se pide a mano (ID de examen + número de página).
-3. Resolver a qué remesa/versión pertenece ese `exam_id`: si ya se vio antes
-   en esta misma visita, o si el servidor ya tiene alguna página suya
-   (`GET /api/admin/examenes-papel/:exam_id`), se reutiliza sin preguntar. Si
-   es la PRIMERA página que se ve de un `exam_id` nuevo (en cualquier sesión
-   de trabajo) Y esta foto es la página 1, se intenta primero leer el QR
-   GRANDE (recortando `geometriaBase.lineaQrGrande`) para detectar remesa y
-   versión solo, igual que el flujo secuencial; si no se puede leer, no
-   coincide con ningún token conocido, o la foto no es la página 1, se pide
-   una vez a mano (remesa + versión) — se recuerda para el resto de páginas
-   de esa misma hoja, no hace falta repetirlo.
-4. Con la versión ya conocida, reconstruir el layout de esa versión
-   (`construirHoja(items)`, cacheado) para saber dónde cae cada
-   marca/casilla en ESA página concreta, y leerla (`leerPagina`).
+3. Resolver a qué remesa pertenece ese `exam_id`: si ya se vio antes en esta
+   misma visita, o si el servidor ya tiene alguna página suya (`GET
+   /api/admin/examenes-papel/:exam_id`), se reutiliza sin preguntar. Si es la
+   PRIMERA página que se ve de un `exam_id` nuevo Y esta foto es la página 1,
+   se intenta primero leer el QR GRANDE; si no se puede leer, no coincide con
+   ningún token conocido, o la foto no es la página 1, se pide una vez a
+   mano (remesa) — se recuerda para el resto de páginas de esa misma hoja.
+4. Con la remesa ya conocida, resolver qué ítems/campos corresponden a esa
+   página (`hoja.js::calcularManifiesto`, cacheado) y leerla con OCR-IA
+   (`POST /api/admin/ocr-ia`, una llamada por página).
 5. Subir el resultado (`POST /api/admin/examenes-papel/paginas`).
 
 **Finalizar un examen completo** (`subirLote.js::finalizarExamen`): en
 cuanto un examen tiene todas sus páginas subidas, aparece en la lista listo
-para "Finalizar" — reutiliza tal cual `renderConfirmacionYCrear` (exportada
-por `v1/v2/digitalizar.js`, README §4.8, "revisión instantánea"), la MISMA
-pantalla que usa el flujo secuencial, solo que `oscuridadGlobal`/
-`textosGlobal`/las miniaturas para revisar a ojo vienen de las páginas ya
-persistidas (`GET /api/admin/examenes-papel/:exam_id`) en vez de venir de
-escanear en la propia visita — así no hay dos formularios de creación de
-sesión que mantener sincronizados. Al crear la sesión, `POST
+para "Finalizar" — reutiliza tal cual `renderConfirmacionYCrear`
+(`digitalizar.js`, README §4.8, "revisión instantánea"), la MISMA pantalla
+que usa el flujo secuencial, solo que `textosGlobal`/las miniaturas para
+revisar a ojo vienen de las páginas ya persistidas (`GET
+/api/admin/examenes-papel/:exam_id`) en vez de venir de escanear en la
+propia visita — así no hay dos formularios de creación de sesión que
+mantener sincronizados. Al crear la sesión, `POST
 /api/admin/digitalizacion` recibe también el `exam_id` (`examen_id` en el
 body) y:
 

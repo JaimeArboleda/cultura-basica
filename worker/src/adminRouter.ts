@@ -69,9 +69,10 @@ export async function manejarRutaAdmin(request: Request, env: Env, pathname: str
   if (method === "GET" && pathname === "/api/admin/items-impresion") return getItemsImpresion(env);
   if (method === "POST" && pathname === "/api/admin/digitalizacion") return postDigitalizacion(request, env);
 
-  // Motor de OCR-IA de v2 (README §4.7, "Motor gpt-mini"): recibe recortes de
-  // casillas ya hechos en el navegador y devuelve el texto reconocido por un
-  // modelo de OpenAI, alternativa a Tesseract.js.
+  // Motor de OCR-IA (README §4.7): único motor de lectura del pipeline de
+  // papel — recibe la imagen de página entera ya enderezada y devuelve la
+  // respuesta definitiva de cada ítem/campo, resuelta por un modelo de
+  // visión de OpenAI.
   if (method === "POST" && pathname === "/api/admin/ocr-ia") return postOcrIa(request, env);
 
   // Subida en bloque de hojas en papel (README §4.10): progreso por hoja

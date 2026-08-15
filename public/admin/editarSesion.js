@@ -3,11 +3,10 @@
 // para origen='papel': ambas comparten el mismo `GET/PUT /api/admin/sesiones/:id`
 // y el mismo formulario. Dos entradas distintas llevan aquí:
 //   - la pestaña Sesiones (admin.js), botón "Editar" en cualquier fila;
-//   - papel/v1/digitalizar.js (o cualquier otra versión del pipeline de
-//     papel), justo después de crear una sesión desde una hoja escaneada —
-//     así la revisión de las 25 respuestas ocurre en la misma pantalla que
-//     cualquier otra corrección, en vez de duplicar un formulario de
-//     revisión aparte.
+//   - papel/digitalizar.js, justo después de crear una sesión desde una hoja
+//     escaneada — así la revisión de las 25 respuestas ocurre en la misma
+//     pantalla que cualquier otra corrección, en vez de duplicar un
+//     formulario de revisión aparte.
 // No muestra nunca la respuesta correcta (igual que ItemPublico, no
 // ItemRevision, worker/src/tipos.ts): se edita lo que la persona respondió de
 // verdad, no lo que "debería" haber puesto.
@@ -31,7 +30,7 @@ export function campoSelectDemografia(clave, etiqueta, opciones, valorInicial) {
 }
 
 // [campo del objeto Demografia, clave en CATALOGOS (public/js/demografia.js),
-// etiqueta] — mismo mapeo que public/admin/papel/v1/hoja.js.
+// etiqueta] — mismo mapeo que public/admin/papel/hoja.js.
 const CAMPOS_DEMOGRAFIA = [
   ["sexo", "sexo", "Sexo"],
   ["ccaa_educacion_secundaria", "ccaa", "CCAA de educación secundaria"],
@@ -44,8 +43,7 @@ const CAMPOS_DEMOGRAFIA = [
 // seed: objeto con forma de Demografia (worker/src/tipos.ts) o vacío. Se
 // reutiliza tanto para editar una sesión ya guardada (seed = sesion) como
 // para la confirmación previa a crear una sesión digitalizada (seed =
-// decodificado por el pipeline de papel correspondiente, p. ej.
-// papel/v1/digitalizar.js).
+// decodificado por papel/digitalizar.js).
 export function bloqueCamposDemografia(seed = {}) {
   const camposCatalogo = CAMPOS_DEMOGRAFIA.map(([campo, claveCatalogo, etiqueta]) =>
     campoSelectDemografia(`demografia:${campo}`, etiqueta, CATALOGOS[claveCatalogo], seed[campo] ?? null)

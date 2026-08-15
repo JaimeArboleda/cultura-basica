@@ -5,6 +5,13 @@ import type { FilaItemDataset } from "./items";
 import type { AsignacionItem } from "./sorteo";
 import type { Demografia, Env } from "./tipos";
 
+// Condición SQL + bind para excluir las remesas de pruebas (tokens.es_prueba,
+// schema/schema.sql) de un agregado SIN filtro explícito de token_id — ver
+// obtenerEstadisticas/contarSesionesPorColumna/obtenerDatasetCompleto. El OR
+// con IS NULL es necesario porque `NULL NOT IN (subconsulta)` es NULL (no
+// verdadero) en SQL, lo que excluiría en silencio las sesiones sin token_id.
+const CONDICION_EXCLUIR_PRUEBAS = "(token_id IS NULL OR token_id NOT IN (SELECT id FROM tokens WHERE es_prueba = 1))";
+
 export interface FilaSesion {
   id: string;
   creada_en: string;
@@ -27,8 +34,9 @@ export interface FilaSesionAdmin {
   token_id: string | null;
   // 'web' | 'papel' (README §4.7): de dónde viene esta sesión.
   origen: string;
-  // Versión del pipeline de hoja/digitalización (public/admin/papel/v1, v2...);
-  // NULL si origen='web'.
+  // Versión del pipeline de hoja/digitalización (README §4.9, historial de
+  // rediseños: 1=OMR, 2=OCR por casillas+Tesseract/IA, 3=OCR-IA sobre PDF
+  // generado con pdf-lib); NULL si origen='web'.
   version_papel: number | null;
   anio_nacimiento: number | null;
   sexo: string | null;
@@ -425,9 +433,13 @@ export interface DatasetCompleto {
 }
 
 export async function obtenerDatasetCompleto(env: Env, tokenId?: string): Promise<DatasetCompleto> {
-  const condicionSesiones = tokenId ? "WHERE token_id = ?" : "";
+  // Sin filtro explícito, se excluyen las remesas de pruebas (tokens.es_prueba)
+  // del dataset del piloto — ver contarSesionesPorColumna.
+  const condicionSesiones = tokenId ? "WHERE token_id = ?" : `WHERE ${CONDICION_EXCLUIR_PRUEBAS}`;
   const bindsSesiones = tokenId ? [tokenId] : [];
-  const condicionRespuestas = tokenId ? "WHERE sesion_id IN (SELECT id FROM sesiones WHERE token_id = ?)" : "";
+  const condicionRespuestas = tokenId
+    ? "WHERE sesion_id IN (SELECT id FROM sesiones WHERE token_id = ?)"
+    : `WHERE sesion_id IN (SELECT id FROM sesiones WHERE ${CONDICION_EXCLUIR_PRUEBAS})`;
   const bindsRespuestas = tokenId ? [tokenId] : [];
 
   const [sesiones, respuestas, tokens] = await Promise.all([
@@ -467,6 +479,11 @@ async function contarSesionesPorColumna(
   if (tokenId) {
     condiciones.push("token_id = ?");
     binds.push(tokenId);
+  } else {
+    // Sin filtro explícito de remesa, las remesas de pruebas (tokens.es_prueba)
+    // no deben contaminar los agregados del piloto — siguen siendo visibles si
+    // alguien filtra el panel por ese token a propósito.
+    condiciones.push(CONDICION_EXCLUIR_PRUEBAS);
   }
   const { results } = await env.DB.prepare(
     `SELECT ${columna} AS valor, COUNT(*) AS n FROM sesiones WHERE ${condiciones.join(" AND ")} GROUP BY ${columna}`
@@ -487,7 +504,9 @@ export interface Estadisticas {
 }
 
 export async function obtenerEstadisticas(env: Env, tokenId?: string): Promise<Estadisticas> {
-  const where = tokenId ? "WHERE token_id = ?" : "";
+  // Sin filtro explícito, se excluyen las remesas de pruebas (tokens.es_prueba)
+  // de los agregados del piloto — ver contarSesionesPorColumna.
+  const where = tokenId ? "WHERE token_id = ?" : `WHERE ${CONDICION_EXCLUIR_PRUEBAS}`;
   const binds = tokenId ? [tokenId] : [];
   const totales = await env.DB.prepare(
     `SELECT COUNT(*) AS total, SUM(completo) AS completas FROM sesiones ${where}`
@@ -515,6 +534,7 @@ export interface FilaToken {
   creado_por: string;
   creado_en: string;
   expira_en: string;
+  es_prueba: number;
 }
 
 export interface FilaTokenConConteo extends FilaToken {
@@ -524,12 +544,12 @@ export interface FilaTokenConConteo extends FilaToken {
 
 export async function crearToken(
   env: Env,
-  args: { id: string; descripcion: string; creadoPor: string; creadoEn: string; expiraEn: string }
+  args: { id: string; descripcion: string; creadoPor: string; creadoEn: string; expiraEn: string; esPrueba?: boolean }
 ): Promise<void> {
   await env.DB.prepare(
-    "INSERT INTO tokens (id, descripcion, creado_por, creado_en, expira_en) VALUES (?,?,?,?,?)"
+    "INSERT INTO tokens (id, descripcion, creado_por, creado_en, expira_en, es_prueba) VALUES (?,?,?,?,?,?)"
   )
-    .bind(args.id, args.descripcion, args.creadoPor, args.creadoEn, args.expiraEn)
+    .bind(args.id, args.descripcion, args.creadoPor, args.creadoEn, args.expiraEn, args.esPrueba ? 1 : 0)
     .run();
 }
 
@@ -540,7 +560,7 @@ export async function obtenerToken(env: Env, id: string): Promise<FilaToken | nu
 
 export async function listarTokens(env: Env): Promise<FilaTokenConConteo[]> {
   const { results } = await env.DB.prepare(
-    `SELECT t.id, t.descripcion, t.creado_por, t.creado_en, t.expira_en,
+    `SELECT t.id, t.descripcion, t.creado_por, t.creado_en, t.expira_en, t.es_prueba,
             COUNT(s.id) AS n_sesiones,
             SUM(CASE WHEN s.completo = 1 THEN 1 ELSE 0 END) AS n_completas
      FROM tokens t

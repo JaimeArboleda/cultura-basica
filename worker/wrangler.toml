@@ -16,11 +16,10 @@ ALLOWED_ORIGIN = "https://cultura-basica.pages.dev"
 # secreto (va siempre en la petición de autorización, visible en el navegador).
 GOOGLE_CLIENT_ID = "240118355292-44gbi8798rq1ptlve0g94oi3i7232pt2.apps.googleusercontent.com"
 
-# Modelo por defecto del motor de OCR-IA de v2 (§4.7): se puede cambiar aquí
-# sin tocar código para comparar gpt-4o-mini vs gpt-5-mini con datos reales
-# del piloto (el panel también puede pedir un modelo concreto por request,
+# Modelo por defecto del motor de OCR-IA (§4.7): se puede cambiar aquí sin
+# tocar código (el panel también puede pedir un modelo concreto por request,
 # que gana sobre este valor). No es secreto.
-OPENAI_MODEL = "gpt-4o-mini"
+OPENAI_MODEL = "gpt-5-mini"
 
 [[d1_databases]]
 binding = "DB"
@@ -38,7 +37,7 @@ id = "81f103c6a7e344b0bce4b449bdafb5c2"
 #   wrangler secret put ADMIN_SESSION_SECRET   # cadena aleatoria larga cualquiera,
 #                                               # p. ej. `openssl rand -base64 32`
 #   wrangler secret put OPENAI_API_KEY         # API key de OpenAI para el motor de
-#                                               # OCR-IA de v2 (§4.7) — opcional: sin
-#                                               # ella, ese motor devuelve error y el
-#                                               # de Tesseract (siempre disponible)
-#                                               # sigue funcionando igual.
+#                                               # OCR-IA (§4.7) — REQUERIDA para poder
+#                                               # digitalizar hojas en papel: es el
+#                                               # único motor de lectura, sin
+#                                               # alternativa local.

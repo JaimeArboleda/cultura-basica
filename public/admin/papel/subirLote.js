@@ -1,110 +1,42 @@
 // Subida en bloque de hojas en papel (README §4.10): pestaña "Subir en
 // bloque" del panel de admin. A diferencia del flujo secuencial de siempre
-// (public/admin/papel/v{1,2}/digitalizar.js, README §4.7 — sube las páginas
-// de UNA hoja, en orden, en una sola visita), aquí se suben fotos o PDFs
-// sueltos de páginas de CUALQUIER hoja, en cualquier orden y en cuantas
-// visitas hagan falta: cada página se identifica sola por el QR pequeño que
-// lleva en todas las páginas (comun.js::codificarPayloadQrPagina — exam_id +
-// número de página) y el resultado ya decodificado se guarda en el Worker
+// (./digitalizar.js — sube las páginas de UNA hoja, en orden, en una sola
+// visita), aquí se suben fotos o PDFs sueltos de páginas de CUALQUIER hoja,
+// en cualquier orden y en cuantas visitas hagan falta: cada página se
+// identifica sola por el QR pequeño que lleva en todas las páginas
+// (qr.js::codificarPayloadQrPagina — exam_id + número de página) y el
+// resultado ya decodificado se guarda en el Worker
 // (worker/src/endpoints/admin/examenesPapel.ts) hasta que un examen tiene
 // todas sus páginas y se puede "Finalizar" — momento en el que se reutiliza
 // la MISMA pantalla de confirmación que el flujo secuencial
-// (renderConfirmacionYCrear, exportada por v1/v2 digitalizar.js) para no
-// mantener dos formularios de creación de sesión por separado.
+// (renderConfirmacionYCrear, ./digitalizar.js) para no mantener dos
+// formularios de creación de sesión por separado.
 //
-// Motivación (README §4.10): permite desacoplar "escanear/fotografiar todas
-// las hojas de una remesa" de "subirlas al panel", y hacer lo segundo página
-// a página, sin depender de mantener el orden físico de las fotos.
+// Con un único pipeline (v1/v2 retirados, ver git log) ya no hace falta
+// despachar dinámicamente "qué versión es esta hoja" — solo qué remesa
+// (token_id), para poder resolverla y crear la sesión.
 import { api, escaparHtml } from "../admin.js";
 import {
   cargarPaginasPdf,
   crearSelectorEsquinas,
-  decodificarPayloadQr,
-  decodificarPayloadQrPagina,
-  decodificarQr,
+  destinoFiducialesEscalado,
   detectarFiduciales,
   ESCALA_DIGITALIZACION,
-  leerPagina,
-  medirGeometriaBaseEnBlanco,
-  PAGE_H,
-  PAGE_W,
+  leerQrsDePagina,
   prepararImagenFuente,
-  recortarRegionNitida,
   warpearImagen,
 } from "./comun.js";
-import { construirHoja as construirHojaV1 } from "./v1/hoja.js";
-import { construirHoja as construirHojaV2 } from "./v2/hoja.js";
-import * as pipelineV1 from "./v1/digitalizar.js";
-import * as pipelineV2 from "./v2/digitalizar.js";
+import { PAGE_H, PAGE_W } from "./geometria.js";
+import { decodificarPayloadQr, decodificarPayloadQrPagina } from "./qr.js";
+import { construirEntradaPaginaIA, obtenerManifiesto, renderConfirmacionYCrear } from "./digitalizar.js";
+import { VERSION_PIPELINE } from "./hoja.js";
 
-// Registro versión -> módulo (README §4.9/§4.10): a diferencia de
-// admin.js::PIPELINES_PAPEL (que solo enruta la UI de imprimir/escanear de
-// una versión elegida a mano), aquí hace falta poder despachar dinámicamente
-// según la versión que traiga el QR de CADA página, sin saberla de antemano.
-const PIPELINES = {
-  1: { ...pipelineV1, construirHoja: construirHojaV1, etiqueta: "v1 — burbujas (OMR)" },
-  2: { ...pipelineV2, construirHoja: construirHojaV2, etiqueta: "v2 — letras (OCR)" },
-};
-
-// --- Cachés: banco de ítems y layout por versión, calculados una sola vez
-// por visita a la pestaña (son los mismos para todas las páginas/exámenes
-// que se procesen, README §1.4: el banco es fijo). El layout (marcas/líneas
-// de cada página) es justo lo que necesita leerPagina() para saber dónde
-// mirar en la foto ya enderezada — se reconstruye llamando a construirHoja()
-// SIN qr (no hace falta imprimir nada, solo medir), igual que el paso 2 del
-// flujo secuencial. ---
-let respuestaImpresionPromise = null;
-function obtenerRespuestaImpresion() {
-  if (!respuestaImpresionPromise) respuestaImpresionPromise = api.itemsImpresion();
-  return respuestaImpresionPromise;
-}
-function obtenerItems() {
-  return obtenerRespuestaImpresion().then((r) => r.items);
-}
-// Conteos de bloques por página ya precalculados (data/paginacion.json, ver
-// comun.js::construirPaginas) — para que el layout reconstruido aquí tenga
-// EXACTAMENTE el mismo número de páginas que el que se imprimió, sin volver
-// a decidirlo midiendo el DOM de este navegador (README, "Paginado fiable").
-function obtenerPaginacion(version) {
-  return obtenerRespuestaImpresion().then((r) => r.paginacion?.[version]);
-}
-
-let itemsPorIdPromise = null;
-function obtenerItemsPorId() {
-  if (!itemsPorIdPromise) itemsPorIdPromise = obtenerItems().then((items) => new Map(items.map((it) => [it.id, it])));
-  return itemsPorIdPromise;
-}
-
-let numeroPorIdPromise = null;
-function obtenerNumeroPorId() {
-  if (!numeroPorIdPromise) numeroPorIdPromise = obtenerItems().then((items) => new Map(items.map((it, i) => [it.id, i + 1])));
-  return numeroPorIdPromise;
-}
-
-const layoutCache = new Map(); // version -> Promise<paginas>
-function obtenerLayout(version) {
-  if (!layoutCache.has(version)) {
-    layoutCache.set(
-      version,
-      Promise.all([obtenerItems(), obtenerPaginacion(version)]).then(([items, paginacion]) =>
-        PIPELINES[version].construirHoja(items, undefined, paginacion)
-      )
-    );
-  }
-  return layoutCache.get(version);
-}
-
-// Fiduciales + caja del QR de página: iguales para cualquier hoja (README
-// §4.10), se miden una sola vez.
-let geometriaBaseCache = null;
-function obtenerGeometriaBase() {
-  if (!geometriaBaseCache) geometriaBaseCache = medirGeometriaBaseEnBlanco();
-  return geometriaBaseCache;
-}
-
-// token_id + versión de cada exam_id ya resuelto en esta visita (por QR, por
-// el servidor o a mano) — evita volver a preguntar por cada página de la
-// misma hoja física.
+// exam_id + versión de cada hoja ya resuelto en esta visita (por QR, por el
+// servidor o a mano) — evita volver a preguntar por cada página de la misma
+// hoja física. version se guarda solo por compatibilidad histórica con hojas
+// v1/v2 ya repartidas antes de este cambio (README §4.9): si una foto trae
+// una version antigua en el QR grande, se sigue asociando igual a la remesa,
+// pero el layout que se usa para leerla es siempre el actual.
 const examenesConocidos = new Map();
 
 function generarMiniatura(warpCanvas) {
@@ -118,10 +50,7 @@ function generarMiniatura(warpCanvas) {
 }
 
 // ============================================================
-// Resolución manual (respaldos cuando algo no se puede leer solo): cada una
-// pinta un formulario en la zona de intervención compartida y resuelve una
-// promesa cuando el admin confirma — el bucle de procesamiento de la cola
-// (procesarUnidad más abajo) se queda esperando ahí en medio.
+// Resolución manual (respaldos cuando algo no se puede leer solo)
 // ============================================================
 
 function pedirEsquinasManualmente(contenedor, canvasFuente) {
@@ -181,13 +110,12 @@ function pedirIdentificacionManual(contenedor) {
   });
 }
 
-function pedirTokenYVersion(contenedor, { examId, tokens, motivoFallback }) {
+function pedirTokenManualmente(contenedor, { examId, tokens, motivoFallback }) {
   return new Promise((resolve) => {
     contenedor.innerHTML = `
       <p class="nota-formato">
-        Examen <code>${escaparHtml(examId)}</code> nuevo para el servidor: dime a mano a qué remesa y a qué
-        versión de hoja pertenece — se recuerda para el resto de páginas de este mismo examen, no hace falta
-        repetirlo.
+        Examen <code>${escaparHtml(examId)}</code> nuevo para el servidor: dime a mano a qué remesa
+        pertenece — se recuerda para el resto de páginas de este mismo examen, no hace falta repetirlo.
       </p>
       ${motivoFallback ? `<p class="nota-formato">(Motivo: ${escaparHtml(motivoFallback)})</p>` : ""}
       <label class="campo">
@@ -197,37 +125,28 @@ function pedirTokenYVersion(contenedor, { examId, tokens, motivoFallback }) {
           ${tokens.map((t) => `<option value="${t.id}">${escaparHtml(t.descripcion)}</option>`).join("")}
         </select>
       </label>
-      <label class="campo">
-        <span>Versión de la hoja</span>
-        <select id="select-version-manual-lote" required>
-          ${Object.entries(PIPELINES)
-            .map(([v, p]) => `<option value="${v}">${escaparHtml(p.etiqueta)}</option>`)
-            .join("")}
-        </select>
-      </label>
       <button type="button" class="boton-principal boton-ancho-auto" id="boton-confirmar-token-lote">Continuar</button>
       <p id="estado-token-manual-lote" class="mensaje-error"></p>`;
     contenedor.querySelector("#boton-confirmar-token-lote").addEventListener("click", () => {
       const tokenId = contenedor.querySelector("#select-token-manual-lote").value;
-      const version = Number(contenedor.querySelector("#select-version-manual-lote").value);
       if (!tokenId) {
         contenedor.querySelector("#estado-token-manual-lote").textContent = "Falta elegir la remesa.";
         return;
       }
-      resolve({ tokenId, version });
+      resolve({ tokenId });
     });
   });
 }
 
 // ============================================================
 // Procesamiento de una página suelta (foto o página de un PDF ya dividido):
-// esquinas -> homografía -> QR de página -> resolver examen -> leer
-// contenido -> subir al servidor. Cada paso que no se puede resolver solo
-// cae en una de las funciones de arriba, que pausan aquí hasta que el admin
-// lo resuelve a mano.
+// esquinas -> homografía -> QR de página -> resolver examen -> leer con
+// OCR-IA -> subir al servidor. Cada paso que no se puede resolver solo cae en
+// una de las funciones de arriba, que pausan aquí hasta que el admin lo
+// resuelve a mano.
 // ============================================================
 
-async function procesarUnidad(unidad, { tokens, zonaIntervencion, log, motorOcr, modeloIA }) {
+async function procesarUnidad(unidad, { tokens, zonaIntervencion, log, modeloIA, manifiesto }) {
   log("Detectando esquinas…");
   const detectados = detectarFiduciales(unidad.canvas);
   let esquinas = detectados;
@@ -238,24 +157,17 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log, motorOcr,
     zonaIntervencion.hidden = true;
   }
 
-  const geometriaBase = obtenerGeometriaBase();
   const destW = Math.round(PAGE_W * ESCALA_DIGITALIZACION);
   const destH = Math.round(PAGE_H * ESCALA_DIGITALIZACION);
-  const dst = ["tl", "tr", "br", "bl"].map((esquina) => ({
-    x: geometriaBase.fiduciales[esquina].cx * ESCALA_DIGITALIZACION,
-    y: geometriaBase.fiduciales[esquina].cy * ESCALA_DIGITALIZACION,
-  }));
+  const dst = destinoFiducialesEscalado();
   const warp = warpearImagen(unidad.canvas, esquinas, destW, destH, dst);
 
   log("Leyendo QR de página…");
-  let identificacion = null;
-  try {
-    const recorteQr = recortarRegionNitida(unidad.canvas, esquinas, dst, geometriaBase.lineaQrPagina, ESCALA_DIGITALIZACION);
-    const leido = await decodificarQr(recorteQr);
-    if (leido) identificacion = decodificarPayloadQrPagina(leido);
-  } catch {
-    // sin jsQR disponible (sin red, CDN caído…): se cae a la resolución manual
-  }
+  const { qrGrandeTexto, qrPaginaTexto } = await leerQrsDePagina(unidad.canvas, esquinas, dst, {
+    esPrimeraPagina: true, // no se sabe todavía si es la 1: se intenta leer siempre, es barato y determinista
+    avisar: log,
+  });
+  let identificacion = qrPaginaTexto ? decodificarPayloadQrPagina(qrPaginaTexto) : null;
   if (!identificacion) {
     zonaIntervencion.hidden = false;
     log("QR de página no legible: identifica arriba ↑ a qué examen y página pertenece…");
@@ -268,133 +180,85 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log, motorOcr,
   if (!info) {
     try {
       const detalle = await api.examenPapelDetalle(examId);
-      info = { tokenId: detalle.token_id, version: detalle.version };
+      info = { tokenId: detalle.token_id };
       examenesConocidos.set(examId, info);
     } catch (e) {
       if (e.status && e.status !== 404) throw e;
     }
   }
   // Primera página de un exam_id que el servidor todavía no conoce (README
-  // §4.9): antes de pedirlo a mano, se intenta leer el QR GRANDE (remesa +
-  // versión completos, solo en la página 1) — geometriaBase.lineaQrGrande es
-  // la misma en cualquier versión (comun.js::medirGeometriaBaseEnBlanco), así
-  // que se puede recortar y decodificar sin saber todavía qué versión es esta
-  // hoja, igual que ya hace el flujo secuencial (v{1,2}/digitalizar.js) al
-  // escanear. Si la página no es la 1, o el QR grande no se lee, o lee un
-  // token_id/version que no cuadra con nada conocido, se cae a pedirlo a mano
-  // (mismo respaldo de siempre).
-  // motivoFallback: diagnóstico de por qué no se pudo fijar `info` solo, para
-  // mostrarlo en el formulario manual (pedirTokenYVersion más abajo) — sin
-  // esto, un QR grande ilegible/no coincidente y "no es la página 1" se veían
-  // exactamente igual desde fuera (siempre "elige arriba a mano"), lo que
-  // hacía imposible saber por qué no se detectó solo sin abrir devtools.
+  // §4.9): antes de pedirlo a mano, se aprovecha el QR grande si esta foto
+  // era la página 1 y se pudo leer (remesa completa, sin recortar de nuevo).
   let motivoFallback = null;
-  if (!info && pagina === 1) {
-    log("Leyendo QR de la remesa…");
-    try {
-      const recorteQrGrande = recortarRegionNitida(unidad.canvas, esquinas, dst, geometriaBase.lineaQrGrande, ESCALA_DIGITALIZACION);
-      const leidoGrande = await decodificarQr(recorteQrGrande);
-      if (leidoGrande) {
-        const datosGrande = decodificarPayloadQr(leidoGrande);
-        if (tokens.some((t) => t.id === datosGrande.tokenId) && PIPELINES[datosGrande.version]) {
-          info = { tokenId: datosGrande.tokenId, version: datosGrande.version };
-          examenesConocidos.set(examId, info);
-        } else {
-          motivoFallback = `El QR grande se leyó (token_id="${datosGrande.tokenId}", versión ${datosGrande.version}) pero no coincide con ningún token activo ni versión conocida.`;
-        }
-      } else {
-        motivoFallback = "El QR grande de la remesa no se pudo decodificar en esta foto (jsQR no encontró nada legible en esa zona).";
-      }
-    } catch (e) {
-      motivoFallback = `Error leyendo el QR grande: ${e.message}`;
+  if (!info && pagina === 1 && qrGrandeTexto) {
+    const datosGrande = decodificarPayloadQr(qrGrandeTexto);
+    if (tokens.some((t) => t.id === datosGrande.tokenId)) {
+      info = { tokenId: datosGrande.tokenId };
+      examenesConocidos.set(examId, info);
+    } else {
+      motivoFallback = `El QR grande se leyó (token_id="${datosGrande.tokenId}") pero no coincide con ningún token activo.`;
     }
   } else if (!info) {
-    motivoFallback = `Esta foto es la página ${pagina}, no la 1 — el QR grande de la remesa solo está impreso en la página 1.`;
+    motivoFallback =
+      pagina === 1
+        ? "El QR grande de la remesa no se pudo decodificar en esta foto."
+        : `Esta foto es la página ${pagina}, no la 1 — el QR grande de la remesa solo está impreso en la página 1.`;
   }
   if (!info) {
     zonaIntervencion.hidden = false;
-    log("Hoja nueva: elige arriba ↑ a qué remesa y versión pertenece…");
-    info = await pedirTokenYVersion(zonaIntervencion, { examId, tokens, motivoFallback });
+    log("Hoja nueva: elige arriba ↑ a qué remesa pertenece…");
+    info = await pedirTokenManualmente(zonaIntervencion, { examId, tokens, motivoFallback });
     examenesConocidos.set(examId, info);
     zonaIntervencion.hidden = true;
   }
 
-  const layout = await obtenerLayout(info.version);
-  const paginaLayout = layout[pagina - 1];
-  if (!paginaLayout) {
+  const paginaManifiesto = manifiesto[pagina - 1];
+  if (!paginaManifiesto) {
     throw new Error(
-      `La página ${pagina} no existe en la hoja de la versión ${info.version} (¿ha cambiado el banco de ítems desde que se imprimió esta hoja?)`
+      `La página ${pagina} no existe en la hoja actual (¿ha cambiado el banco de ítems desde que se imprimió esta hoja?)`
     );
   }
 
-  log(`Leyendo contenido (examen ${examId}, página ${pagina})…`);
-  // Motor IA (README §4.7): solo tiene sentido para v2 (sobre todo casillas
-  // de letra) — v1 es sobre todo burbujas OMR sin letra impresa al lado, así
-  // que aquí se ignora el motor elegido y se usa Tesseract siempre que la
-  // hoja sea v1 (PIPELINES[1] no tiene construirEntradaPaginaIA/
-  // construirManifiestoItems, solo PIPELINES[2] los expone). Siempre "una
-  // llamada por página" (a diferencia del flujo secuencial, que también
-  // ofrece "examen completo"): las páginas de una misma hoja pueden llegar
-  // en visitas o dispositivos distintos y cada una se persiste en cuanto se
-  // lee (README §4.10), así que no existe un momento único de "hoja
-  // completa" antes de guardar donde acumular varias páginas en una llamada.
-  const motorIADisponible = motorOcr === "ia" && info.version === 2;
-  const { oscuridad, textos } = await leerPagina(paginaLayout, warp, {
-    opcionesOcrParaClave: PIPELINES[info.version].opcionesOcrParaClave,
-    avisar: log,
-    canvasFuente: unidad.canvas,
-    esquinas,
-    dstFiduciales: dst,
-    omitirTextos: motorIADisponible,
-  });
-
-  if (motorIADisponible) {
-    log("Leyendo la página con IA…");
-    const [itemsPorId, numeroPorId] = await Promise.all([obtenerItemsPorId(), obtenerNumeroPorId()]);
-    const entradaIA = PIPELINES[2].construirEntradaPaginaIA(paginaLayout, warp, itemsPorId, numeroPorId, `${examId}-${pagina}`);
-    const { resultados } = await api.ocrIa({ modelo: modeloIA, paginas: [entradaIA] });
-    Object.assign(textos, resultados[entradaIA.id] ?? {});
-  }
+  log(`Leyendo contenido con IA (examen ${examId}, página ${pagina})…`);
+  const entradaIA = construirEntradaPaginaIA(paginaManifiesto, warp, `${examId}-${pagina}`);
+  const { resultados } = await api.ocrIa({ modelo: modeloIA, paginas: [entradaIA] });
+  const textos = resultados[entradaIA.id] ?? {};
 
   log("Guardando…");
   await api.examenPapelSubirPagina({
     exam_id: examId,
     token_id: info.tokenId,
-    version: info.version,
+    version: VERSION_PIPELINE, // worker/src/db.ts lo guarda tal cual (README §4.9)
     pagina,
-    marcas: { oscuridad, textos },
+    marcas: { textos },
     miniatura: generarMiniatura(warp),
   });
 
-  return { examId, pagina, version: info.version };
+  return { examId, pagina };
 }
 
 // ============================================================
 // Finalizar un examen completo: reutiliza tal cual la pantalla de
 // confirmación del flujo secuencial (README §4.8, "revisión instantánea"),
-// solo que oscuridadGlobal/textosGlobal/paginasWarpeadas vienen de las
-// páginas ya subidas y persistidas, no de escanear en la propia visita.
+// solo que textosGlobal/las miniaturas vienen de las páginas ya subidas y
+// persistidas, no de escanear en la propia visita.
 // ============================================================
 
 async function finalizarExamen(contenedorRaiz, examId, { tokens, items }) {
   const detalle = await api.examenPapelDetalle(examId);
-  const oscuridadGlobal = new Map();
   const textosGlobal = new Map();
   const paginasWarpeadas = [];
   for (const p of [...detalle.paginas].sort((a, b) => a.pagina - b.pagina)) {
     const marcas = JSON.parse(p.marcas_json);
-    for (const [clave, valor] of Object.entries(marcas.oscuridad ?? {})) oscuridadGlobal.set(clave, valor);
     for (const [clave, valor] of Object.entries(marcas.textos ?? {})) textosGlobal.set(clave, valor);
     if (p.miniatura_datauri) paginasWarpeadas.push(p.miniatura_datauri);
   }
-  const pipeline = PIPELINES[detalle.version];
   contenedorRaiz.innerHTML = "";
-  pipeline.renderConfirmacionYCrear(contenedorRaiz, {
+  renderConfirmacionYCrear(contenedorRaiz, {
     tokenIdDetectado: detalle.token_id,
     examIdDetectado: examId,
     tokens,
     items,
-    oscuridadGlobal,
     textosGlobal,
     paginasWarpeadas,
     alRecargar: () => renderSubirLote(contenedorRaiz),
@@ -405,39 +269,24 @@ async function finalizarExamen(contenedorRaiz, examId, { tokens, items }) {
 // Listado "exámenes en progreso"
 // ============================================================
 
-async function renderListaExamenes(zona, { contenedorRaiz, tokens, refrescar }) {
+async function renderListaExamenes(zona, { contenedorRaiz, tokens, items, totalPaginas, refrescar }) {
   const { examenes } = await api.examenesPapel();
   if (examenes.length === 0) {
     zona.innerHTML = "<p class='nota-formato'>Todavía no se ha subido ninguna página.</p>";
     return;
   }
-  const items = await obtenerItems();
-  const filas = await Promise.all(
-    examenes.map(async (ex) => {
-      const layout = await obtenerLayout(ex.version);
-      const total = layout.length;
-      const subidas = new Set(ex.paginas_subidas);
-      const completo = total > 0 && subidas.size === total;
-      const token = tokens.find((t) => t.id === ex.token_id);
-      return { ex, total, subidas, completo, token };
-    })
-  );
 
-  zona.innerHTML = filas
-    .map(({ ex, total, subidas, completo, token }) => {
-      const chips = Array.from({ length: total }, (_, i) => i + 1)
+  zona.innerHTML = examenes
+    .map((ex) => {
+      const subidas = new Set(ex.paginas_subidas);
+      const completo = totalPaginas > 0 && subidas.size === totalPaginas;
+      const token = tokens.find((t) => t.id === ex.token_id);
+      const chips = Array.from({ length: totalPaginas }, (_, i) => i + 1)
         .map((n) => `<span class="chip-pagina ${subidas.has(n) ? "chip-pagina-ok" : "chip-pagina-falta"}">${n}</span>`)
         .join("");
       const resumen = ex.sesion_id
-        ? `ya digitalizado (${ex.paginas_subidas.length}/${total} páginas)`
-        : `${ex.paginas_subidas.length}/${total} páginas`;
-      // Idempotencia por hoja física (README §4.10): un examen ya
-      // digitalizado se puede volver a "Finalizar" — sobrescribe la MISMA
-      // sesión con lo que haya persistido ahora mismo, así que corregir una
-      // página (p. ej. re-subir la 7 con una foto mejor) y volver a pulsar
-      // este botón basta para que la sesión refleje la corrección, sin tener
-      // que borrar nada primero (POST /api/admin/digitalizacion ya no
-      // rechaza con 409 un examen_id repetido).
+        ? `ya digitalizado (${ex.paginas_subidas.length}/${totalPaginas} páginas)`
+        : `${ex.paginas_subidas.length}/${totalPaginas} páginas`;
       const acciones = `
         ${
           ex.sesion_id
@@ -458,7 +307,7 @@ async function renderListaExamenes(zona, { contenedorRaiz, tokens, refrescar }) 
         </div>`;
       return `
         <details class="examen-lote" ${!ex.sesion_id && completo ? "open" : ""}>
-          <summary><code>${escaparHtml(ex.exam_id)}</code> — ${escaparHtml(token?.descripcion ?? ex.token_id)} — ${PIPELINES[ex.version]?.etiqueta ?? `v${ex.version}`} — ${resumen}</summary>
+          <summary><code>${escaparHtml(ex.exam_id)}</code> — ${escaparHtml(token?.descripcion ?? ex.token_id)} — ${resumen}</summary>
           <div class="examen-lote-chips">${chips}</div>
           ${acciones}
           <p class="estado-examen-lote mensaje-error" data-exam-estado="${escaparHtml(ex.exam_id)}"></p>
@@ -515,31 +364,12 @@ export async function renderSubirLote(contenedorRaiz) {
         "Finalizar".
       </p>
       <label class="campo">
-        <span>Motor de OCR para las respuestas</span>
-        <select id="select-motor-ocr-lote">
-          <option value="tesseract">Tesseract (local, sin coste)</option>
-          <option value="ia">IA — gpt-mini (vía Worker, API de pago, solo hojas v2)</option>
+        <span>Modelo de OCR-IA</span>
+        <select id="select-modelo-ia-lote">
+          <option value="gpt-5-mini" selected>gpt-5-mini</option>
+          <option value="gpt-5-nano">gpt-5-nano (más barato, menos capaz)</option>
         </select>
       </label>
-      <div id="opciones-motor-ia-lote" hidden>
-        <label class="campo">
-          <span>Modelo</span>
-          <select id="select-modelo-ia-lote">
-            <option value="gpt-4o-mini">gpt-4o-mini</option>
-            <option value="gpt-5-mini">gpt-5-mini</option>
-            <option value="gpt-5-nano">gpt-5-nano (más barato, menos capaz)</option>
-          </select>
-        </label>
-        <p class="nota-formato">
-          Manda la imagen de la página entera (no recortes) y le pide la respuesta definitiva de cada
-          pregunta, página a página conforme se van subiendo (README §4.7): aquí no hay opción de "examen
-          completo" porque cada página se guarda en cuanto se lee, y las páginas de una misma hoja pueden
-          llegar en visitas o dispositivos distintos. Solo se aplica a hojas v2 (letras): las páginas de una
-          hoja v1 (burbujas OMR) se leen con Tesseract igualmente, sea cual sea el motor elegido aquí — v1 no
-          imprime letras junto a las burbujas, así que "dame la respuesta definitiva" no tiene sentido para
-          ella. El código QR sigue leyéndose igual, sin IA, en cualquier caso.
-        </p>
-      </div>
       <input type="file" id="campo-archivos-lote" accept="image/*,application/pdf" multiple />
       <div id="zona-intervencion-lote" class="escaneo-paso" hidden></div>
       <ul id="lista-progreso-lote" class="lista-progreso"></ul>
@@ -552,18 +382,20 @@ export async function renderSubirLote(contenedorRaiz) {
   const zonaIntervencion = contenedorRaiz.querySelector("#zona-intervencion-lote");
   const listaProgreso = contenedorRaiz.querySelector("#lista-progreso-lote");
   const zonaExamenes = contenedorRaiz.querySelector("#zona-examenes-lote");
-  const selectMotorOcr = contenedorRaiz.querySelector("#select-motor-ocr-lote");
-  const opcionesMotorIA = contenedorRaiz.querySelector("#opciones-motor-ia-lote");
   const selectModeloIA = contenedorRaiz.querySelector("#select-modelo-ia-lote");
 
-  selectMotorOcr.addEventListener("change", () => {
-    opcionesMotorIA.hidden = selectMotorOcr.value !== "ia";
-  });
+  const { items, manifiesto } = await obtenerManifiesto();
 
   async function refrescarExamenes() {
     zonaExamenes.innerHTML = "<p>Cargando…</p>";
     try {
-      await renderListaExamenes(zonaExamenes, { contenedorRaiz, tokens, refrescar: refrescarExamenes });
+      await renderListaExamenes(zonaExamenes, {
+        contenedorRaiz,
+        tokens,
+        items,
+        totalPaginas: manifiesto.length,
+        refrescar: refrescarExamenes,
+      });
     } catch (e) {
       zonaExamenes.innerHTML = `<p class="mensaje-error">${escaparHtml(e.message)}</p>`;
     }
@@ -572,7 +404,7 @@ export async function renderSubirLote(contenedorRaiz) {
 
   contenedorRaiz.querySelector("#campo-archivos-lote").addEventListener("change", async (ev) => {
     const archivos = [...ev.target.files];
-    ev.target.value = ""; // permite volver a elegir los mismos archivos si hace falta reintentar
+    ev.target.value = "";
     if (archivos.length === 0) return;
 
     const unidades = [];
@@ -584,7 +416,7 @@ export async function renderSubirLote(contenedorRaiz) {
       try {
         if (esPdf) {
           const paginas = await cargarPaginasPdf(file);
-          item.remove(); // se sustituye por una fila propia por cada página del PDF
+          item.remove();
           paginas.forEach((canvas, i) => {
             const filaPagina = document.createElement("li");
             filaPagina.textContent = `${file.name} (página ${i + 1} de ${paginas.length}): en cola…`;
@@ -607,8 +439,8 @@ export async function renderSubirLote(contenedorRaiz) {
           tokens,
           zonaIntervencion,
           log: (msg) => (unidad.item.textContent = `${unidad.etiqueta}: ${msg}`),
-          motorOcr: selectMotorOcr.value,
           modeloIA: selectModeloIA.value,
+          manifiesto,
         });
         unidad.item.textContent = `${unidad.etiqueta}: ✓ examen ${resultado.examId}, página ${resultado.pagina}`;
         unidad.item.className = "progreso-ok";

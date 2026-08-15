@@ -95,18 +95,11 @@ describe("GET /api/admin/items-impresion", () => {
     }
   });
 
-  it("incluye la paginación precalculada de data/paginacion.json para v1 y v2", async () => {
+  it("no sirve ninguna paginación precalculada (el cliente la calcula solo, hoja.js::calcularManifiesto)", async () => {
     const auth = await tokenAdmin();
     const res = await fetchAdmin("/api/admin/items-impresion", {}, auth);
-    const { paginacion } = (await res.json()) as {
-      paginacion: Record<string, { demografia: number[]; items: number[] }>;
-    };
-    for (const version of ["1", "2"]) {
-      expect(Array.isArray(paginacion[version].demografia)).toBe(true);
-      expect(Array.isArray(paginacion[version].items)).toBe(true);
-      const totalItems = paginacion[version].items.reduce((a, b) => a + b, 0);
-      expect(totalItems).toBe(bancoItems.length);
-    }
+    const cuerpo = (await res.json()) as Record<string, unknown>;
+    expect(cuerpo).not.toHaveProperty("paginacion");
   });
 });
 
@@ -152,8 +145,8 @@ describe("POST /api/admin/digitalizacion", () => {
     expect(fila?.user_agent_clase).toBeNull();
     expect(fila?.puntuacion_total).toBeCloseTo(bancoItems.length, 5);
     // Sin version_papel en el body (hoja de antes de que existiera este
-    // campo, o pipeline que no lo manda): se asume 1.
-    expect(fila?.version_papel).toBe(1);
+    // campo, o pipeline que no lo manda): se asume la versión actual (3).
+    expect(fila?.version_papel).toBe(3);
 
     const conteoRespuestas = await env.DB.prepare("SELECT COUNT(*) AS n FROM respuestas WHERE sesion_id = ?")
       .bind(sesion_id)

@@ -16,11 +16,22 @@ CREATE TABLE admins (
 -- vinieron las respuestas. Sin límite de usos: válido para cualquier número
 -- de personas mientras no caduque.
 CREATE TABLE tokens (
-  id          TEXT PRIMARY KEY,    -- código compartido en la URL (?token=)
+  id          TEXT PRIMARY KEY,    -- código compartido en la URL (?token=) — siempre un UUID
   descripcion TEXT NOT NULL,       -- p. ej. "familia de Gerardo"
   creado_por  TEXT NOT NULL,       -- email del admin que lo creó
   creado_en   TEXT NOT NULL,       -- ISO 8601 UTC
-  expira_en   TEXT NOT NULL        -- ISO 8601 UTC; pasada esta fecha, POST /api/sesion lo rechaza
+  expira_en   TEXT NOT NULL,       -- ISO 8601 UTC; pasada esta fecha, POST /api/sesion lo rechaza.
+                                    -- "Sin caducidad" usa un centinela muy lejano (EXPIRA_EN_INFINITO,
+                                    -- worker/src/tipos.ts) en vez de NULL: D1/SQLite no permite relajar
+                                    -- un NOT NULL con ALTER TABLE (solo add/drop/rename columna).
+  -- Remesa de pruebas (0/1, por defecto 0): sigue siendo un token normal, con un
+  -- id igual de impredecible que cualquier otro (nunca un id fijo/adivinable
+  -- como "tests" — eso sería una puerta de acceso pública), pero sus sesiones
+  -- se excluyen de los agregados sin filtro de worker/src/db.ts::obtenerEstadisticas/
+  -- obtenerDatasetCompleto (siguen visibles filtrando el panel explícitamente
+  -- por ese token). Pensado para probar el pipeline de digitalización contra la
+  -- API real de OpenAI sin ensuciar las estadísticas del piloto.
+  es_prueba   INTEGER NOT NULL DEFAULT 0
 );
 
 -- Solicitudes de acceso de quien llega sin token válido (README §4.5): solo

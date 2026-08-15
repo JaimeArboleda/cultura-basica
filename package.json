@@ -6,12 +6,13 @@
     "build:items": "node data/build-items.mjs",
     "validate:items": "npm run build:items && node data/validate-items.mjs",
     "test:worker": "cd worker && npm test",
-    "test": "npm run validate:items && npm run test:worker",
-    "debug:ocr-demografia": "node ocr_tests/depurar_demografia.mjs"
+    "test": "npm run validate:items && npm run test:worker"
   },
   "devDependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
+    "@pdf-lib/upng": "^1.0.1",
     "pdf-lib": "^1.17.1",
     "playwright": "^1.62.1",
-    "tesseract.js": "^5.1.1"
+    "qrcode-generator": "^2.0.4"
   }
 }

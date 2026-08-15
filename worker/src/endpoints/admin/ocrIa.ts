@@ -1,44 +1,31 @@
-// Motor de OCR-IA de la v2 del pipeline en papel (README §4.7, "Motor
-// gpt-mini"): alternativa a Tesseract.js (que corre entero en el navegador,
-// public/admin/papel/comun.js::ocrLinea) para leer las casillas de
-// letra/dígito de una hoja escaneada, con más precisión sobre letra
-// manuscrita real a costa de depender de una API de pago. El panel deja
-// elegir entre los dos motores por hoja (public/admin/papel/v2/digitalizar.js)
-// para poder compararlos con datos reales antes de decidir cuál usar en el
-// piloto — ninguno sustituye al otro, conviven igual que v1/v2 (README §4.9).
+// Motor de OCR-IA del pipeline en papel (README §4.7): único motor de
+// lectura desde que se retiraron Tesseract.js y el OMR (v1/v2 del pipeline,
+// ver git log) — toda la hoja, incluidas las casillas de consentimiento y
+// compromiso de honestidad (antes las únicas marcas OMR que quedaban), se
+// resuelve mandando la imagen de página entera a un modelo de visión.
 //
-// Diseño (2ª versión, tras probar con recortes por casilla): se manda la
-// PÁGINA ENTERA ya enderezada como una sola imagen, no un recorte por
-// casilla — el modelo lee el layout impreso él solo (enunciados, letras de
-// opción, elementos, categorías ya están en la propia imagen), sin que haga
-// falta decirle coordenadas ni repetir el contenido del banco de ítems en el
-// prompt. Se le pide directamente la RESPUESTA DEFINITIVA de cada ítem
-// (resolviendo él mismo la precedencia Respuesta/Corrección, README §4.9),
-// no el texto crudo de cada casilla — así una sola llamada por página (o una
-// por examen completo, según agrupación) sustituye a las decenas de recortes
-// de la primera versión: más simple, más barato y, con esto, más preciso
-// (los recortes obligaban al modelo a decidir a ciegas sin ver el resto de
-// la pregunta). El resultado se traduce aquí mismo de vuelta a la misma forma
-// {clave: texto} que ya esperaba el resto del pipeline (decodificarRespuestas
-// en v2/digitalizar.js, sin cambios) para no acabar con dos formas distintas
-// de interpretar una respuesta según el motor.
-//
-// Solo tiene sentido para v2: v1 es sobre todo burbujas OMR sin letra
-// impresa al lado (README §4.7), así que "dame la letra definitiva" no
-// aplica — public/admin/papel/subirLote.js usa Tesseract para v1 siempre,
-// elija lo que elija el admin en el selector de motor.
+// Diseño: se manda la PÁGINA ENTERA ya enderezada como una sola imagen, no un
+// recorte por casilla — el modelo lee el layout impreso él solo (enunciados,
+// letras de opción, elementos, categorías ya están en la propia imagen), sin
+// que haga falta decirle coordenadas ni repetir el contenido del banco de
+// ítems en el prompt. Se le pide directamente la RESPUESTA DEFINITIVA de cada
+// ítem (resolviendo él mismo la precedencia Respuesta/Corrección, README
+// §4.9), no el texto crudo de cada casilla — así una sola llamada por página
+// (o una por examen completo, según agrupación) sustituye a decenas de
+// recortes: más simple, más barato y más preciso (un recorte obliga al
+// modelo a decidir a ciegas sin ver el resto de la pregunta). El resultado se
+// traduce aquí mismo de vuelta a la misma forma {clave: texto} que espera
+// public/admin/papel/digitalizar.js::decodificarRespuestas.
 //
 // Deliberadamente NO toca la lectura del QR (README §4.9): remesa, exam_id y
 // número de página siguen decodificándose de forma determinista con jsQR en
-// el propio navegador, motor de OCR elegido aparte — aunque con un modelo de
-// visión ya no haría falta en teoría, mantenerlo evita tener DOS diseños
-// distintos de identificación de hoja (uno determinista, otro dependiente de
-// IA) conviviendo a la vez. El OMR de consentimiento/compromiso tampoco pasa
-// por aquí (oscuridad umbralizada, sin cambios).
+// el propio navegador — aunque con un modelo de visión ya no haría falta en
+// teoría, mantenerlo evita depender de IA para algo que puede resolverse
+// determinista y gratis.
 import { error, json } from "../../http";
 import type { Env } from "../../tipos";
 
-const MODELO_POR_DEFECTO = "gpt-4o-mini";
+const MODELO_POR_DEFECTO = "gpt-5-mini";
 // Límites de la petición: generosos para cualquier hoja real del banco de
 // ítems actual (25 ítems, ~10 páginas), solo para no dejar pasar una
 // petición desproporcionada por error del cliente.
@@ -53,7 +40,7 @@ interface ItemEntrada {
   formato: FormatoItem;
   // Posición ABSOLUTA del ítem en el banco completo (1-25), la misma que se
   // imprime dentro del círculo junto al enunciado
-  // (public/admin/papel/v2/hoja.js::construirBloqueItem) — se usa en el
+  // (public/admin/papel/hoja.js::construirEnunciado) — se usa en el
   // prompt para que el modelo correlacione cada pregunta por el número que
   // ve impreso, no por su posición en la lista de esta página (que en
   // cualquier página que no sea la primera de ítems empezaría en 1 aunque el
@@ -75,16 +62,15 @@ interface PaginaEntrada {
   // "anio_nacimiento") — el bloque de demografía puede repartirse en más de
   // una página física (README §4.9, "Página de datos 1/2"), así que no se
   // puede asumir que todos los campos estén en cualquier página que se
-  // marque como "demografia". Lo calcula el cliente a partir de qué
-  // data-linea cayeron realmente en esa página (v2/digitalizar.js::
-  // construirCamposDemografiaPresentes).
+  // marque como "demografia". Lo calcula el cliente a partir del manifiesto
+  // de esa página concreta (hoja.js::calcularManifiesto).
   campos?: string[];
 }
 
-// Los 6 catálogos de opción única de demografía que en v2 son casilla de
-// letra (README §4.9) — sexo, ccaa_educacion_secundaria, nivel_estudios,
-// area_estudios, estudios_mayor_progenitor, libros_en_casa. El año de
-// nacimiento se pide aparte (dígitos, no catálogo).
+// Los 6 catálogos de opción única de demografía (README §4.9) — sexo,
+// ccaa_educacion_secundaria, nivel_estudios, area_estudios,
+// estudios_mayor_progenitor, libros_en_casa. El año de nacimiento se pide
+// aparte (dígitos, no catálogo).
 const CAMPOS_DEMOGRAFIA_CATALOGO = [
   "sexo",
   "ccaa_educacion_secundaria",
@@ -93,7 +79,15 @@ const CAMPOS_DEMOGRAFIA_CATALOGO = [
   "estudios_mayor_progenitor",
   "libros_en_casa",
 ] as const;
-const CAMPOS_DEMOGRAFIA_VALIDOS = new Set<string>([...CAMPOS_DEMOGRAFIA_CATALOGO, "anio_nacimiento"]);
+// Casillas cuadradas simples de sí/no (README §2) — antes las únicas marcas
+// OMR que quedaban en el pipeline (oscuridad umbralizada); ahora se leen
+// igual que el resto de la página, como parte de la misma imagen.
+const CAMPOS_DEMOGRAFIA_CHECKBOX = ["consentimiento", "compromiso_honestidad"] as const;
+const CAMPOS_DEMOGRAFIA_VALIDOS = new Set<string>([
+  ...CAMPOS_DEMOGRAFIA_CATALOGO,
+  ...CAMPOS_DEMOGRAFIA_CHECKBOX,
+  "anio_nacimiento",
+]);
 
 // Devuelven un motivo (string) si la entrada es inválida, o null si es
 // válida — a diferencia de un simple boolean, esto permite que el 400 diga
@@ -183,7 +177,8 @@ function construirContenidoPagina(pagina: PaginaEntrada): Array<Record<string, u
   let texto: string;
   if (pagina.tipo === "demografia") {
     const campos = pagina.campos!;
-    const catalogos = campos.filter((c) => c !== "anio_nacimiento");
+    const catalogos = campos.filter((c) => !CAMPOS_DEMOGRAFIA_CHECKBOX.includes(c as (typeof CAMPOS_DEMOGRAFIA_CHECKBOX)[number]) && c !== "anio_nacimiento");
+    const checkboxes = campos.filter((c) => CAMPOS_DEMOGRAFIA_CHECKBOX.includes(c as (typeof CAMPOS_DEMOGRAFIA_CHECKBOX)[number]));
     const partes: string[] = [`Página "${pagina.id}": es (una parte de) la página de datos de la hoja (demografía).`];
     if (catalogos.length > 0) {
       partes.push(
@@ -194,6 +189,12 @@ function construirContenidoPagina(pagina: PaginaEntrada): Array<Record<string, u
     }
     if (campos.includes("anio_nacimiento")) {
       partes.push('Y el año de nacimiento como los 4 dígitos escritos en sus 4 casillas (campo "anio_nacimiento").');
+    }
+    if (checkboxes.length > 0) {
+      partes.push(
+        `Estos campos son casillas cuadradas (sí/no), no casillas de letra: responde "SI" si la casilla está ` +
+          `rellenada/marcada con tinta, o "NO" si está en blanco: ${checkboxes.join(", ")}.`
+      );
     }
     texto = partes.join(" ");
   } else {
@@ -251,7 +252,8 @@ function construirEsquemaCompleto(paginas: PaginaEntrada[]) {
     if (pagina.tipo === "demografia") {
       for (const campo of pagina.campos!) {
         const clave = `${pagina.id}::${campo}`;
-        properties[clave] = { type: "string" };
+        const esCheckbox = (CAMPOS_DEMOGRAFIA_CHECKBOX as readonly string[]).includes(campo);
+        properties[clave] = esCheckbox ? { type: "string", enum: ["SI", "NO"] } : { type: "string" };
         required.push(clave);
       }
     } else {
@@ -298,12 +300,10 @@ async function llamarChatCompletions(env: Env, body: unknown): Promise<Response>
 }
 
 // ============================================================
-// Traduce la respuesta definitiva por ítem/campo de vuelta a la misma forma
-// {clave: texto} que ya esperaba el resto del pipeline (v2/digitalizar.js::
-// decodificarRespuestas, sin cambios): el motor Tesseract produce
-// "item:<id>:opcion" = "B", este motor produce exactamente lo mismo aunque
-// la lectura sea por página entera, no por casilla suelta. Nunca se rellena
-// la clave ":correccion:..." (el modelo ya resolvió esa precedencia él
+// Traduce la respuesta definitiva por ítem/campo a la forma {clave: texto}
+// que espera public/admin/papel/digitalizar.js::decodificarRespuestas —
+// "item:<id>:opcion" = "B", igual para cualquier formato. Nunca se rellena
+// una clave ":correccion:..." (el modelo ya resolvió esa precedencia él
 // mismo), así que decodificarRespuestas siempre cae a la clave de
 // "respuesta" — comportamiento equivalente a "Corrección en blanco".
 // ============================================================
@@ -374,7 +374,7 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
     return error(
       env,
       500,
-      "El motor de OCR-IA no está configurado en este Worker (falta el secreto OPENAI_API_KEY) — usa el motor Tesseract mientras tanto."
+      "El motor de OCR-IA no está configurado en este Worker (falta el secreto OPENAI_API_KEY) — es el único motor de lectura del pipeline de papel, no hay alternativa local."
     );
   }
 

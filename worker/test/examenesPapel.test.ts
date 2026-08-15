@@ -1,7 +1,7 @@
 // Subida en bloque de hojas en papel (README §4.10): worker/src/endpoints/admin/examenesPapel.ts.
 // Nunca se sube una foto de verdad aquí (eso vive en el navegador,
 // public/admin/papel/subirLote.js) — estos tests mandan directamente los
-// mismos fragmentos ya decodificados que mandaría leerPagina().
+// mismos fragmentos ya decodificados que mandaría OCR-IA para esa página.
 import { SELF, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { firmarSesionAdmin } from "../src/adminAuth";

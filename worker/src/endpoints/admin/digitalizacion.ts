@@ -1,10 +1,9 @@
 // Digitalización de tests rellenados en papel (README §4.7): el panel de admin
-// genera una hoja de respuestas de tipo OMR (casillas a rellenar) + unos pocos
-// recuadros de texto libre para los ítems 'abierto', y esta pieza recibe ya la
-// interpretación hecha en el navegador del admin (bubbles decodificadas +
-// OCR de Tesseract.js sobre los recuadros de texto, public/admin/papel/v1/digitalizar.js)
-// para convertirla en una sesión normal — misma corrección y puntuación que
-// una sesión respondida en la web, solo cambia de dónde vino la respuesta cruda.
+// genera una hoja de respuestas en PDF (public/admin/papel/hoja.js) y esta
+// pieza recibe ya la interpretación hecha en el navegador del admin (OCR-IA
+// sobre la imagen de página entera, public/admin/papel/digitalizar.js) para
+// convertirla en una sesión normal — misma corrección y puntuación que una
+// sesión respondida en la web, solo cambia de dónde vino la respuesta cruda.
 import {
   actualizarDemografiaSesion,
   actualizarEstadoSesion,
@@ -23,23 +22,25 @@ import { puntuarItem, puntuarSesion } from "../../puntuacion";
 import { ordenarTest } from "../../sorteo";
 import type { Env } from "../../tipos";
 import { validarDemografia } from "../../validacion";
-import paginacionRaw from "../../../../data/paginacion.json";
+
+// Versión por defecto del pipeline de hoja/digitalización (README §4.9) si el
+// cliente no manda una — duplica public/admin/papel/hoja.js::VERSION_PIPELINE
+// (despliegues separados, el Worker no puede importar código de public/).
+const VERSION_PIPELINE_POR_DEFECTO = 3;
 
 // GET /api/admin/items-impresion: el banco completo en el orden fijo de
 // presentación (README §1.4), sin respuestas correctas — para que
-// public/admin/papel/v1/hoja.js pueda generar la hoja imprimible. Reutiliza exactamente
-// paraCliente()/ordenarTest(), los mismos que usa POST /api/sesion, así que la
-// hoja impresa siempre coincide con lo que ve quien hace el test en la web.
-//
-// paginacion: conteos de bloques por página ya precalculados una vez
-// (data/paginacion.json, ver data/build-paginacion.mjs) — comun.js::construirPaginas
-// los usa para paginar sin medir alturas en el navegador de quien imprime o
-// digitaliza, evitando que un mismo banco de ítems se reparta en un número
-// de páginas distinto según el dispositivo (README, "Paginado fiable").
+// public/admin/papel/hoja.js pueda generar la hoja imprimible. Reutiliza
+// exactamente paraCliente()/ordenarTest(), los mismos que usa POST
+// /api/sesion, así que la hoja impresa siempre coincide con lo que ve quien
+// hace el test en la web. Ya no sirve ninguna paginación precalculada: el
+// propio cliente la calcula por aritmética de métricas de fuente
+// (hoja.js::calcularManifiesto), siempre con el mismo resultado sin importar
+// el dispositivo (README, "Paginado fiable" — ahora resuelto de raíz).
 export async function getItemsImpresion(env: Env): Promise<Response> {
   const asignaciones = ordenarTest(bancoItems);
   const items = asignaciones.map((a) => paraCliente(itemsPorId.get(a.item_id)!));
-  return json(env, { items, paginacion: paginacionRaw });
+  return json(env, { items });
 }
 
 export async function postDigitalizacion(request: Request, env: Env): Promise<Response> {
@@ -84,10 +85,10 @@ export async function postDigitalizacion(request: Request, env: Env): Promise<Re
   const mapaRespuestas = respuestasEntrada as Record<string, unknown>;
 
   // Versión del pipeline de hoja/digitalización que generó esta respuesta
-  // (public/admin/papel/v1, v2...; README §4.9): la envía el propio cliente,
-  // leída del QR de la hoja escaneada. 1 si no viene (hojas de antes de que
-  // existiera este campo, o del primer pipeline).
-  const versionPapel = typeof b.version_papel === "number" ? b.version_papel : 1;
+  // (README §4.9): la envía el propio cliente, leída del QR de la hoja
+  // escaneada. Si no viene (hojas de antes de que existiera este campo, o de
+  // un pipeline anterior), se asume la versión actual.
+  const versionPapel = typeof b.version_papel === "number" ? b.version_papel : VERSION_PIPELINE_POR_DEFECTO;
 
   // Id de la hoja física (README §4.10), leído del QR de página — presente
   // tanto si viene del flujo secuencial de siempre como de la subida en

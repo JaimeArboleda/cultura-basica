@@ -35,7 +35,7 @@ export async function postExamenPapelPagina(request: Request, env: Env): Promise
     return error(env, 400, "Faltan o son inválidos exam_id, token_id, version o pagina");
   }
   if (typeof b.marcas !== "object" || b.marcas === null) {
-    return error(env, 400, "Falta marcas (lo que devuelve leerPagina() en el navegador)");
+    return error(env, 400, "Falta marcas ({ textos }, lo que resuelve OCR-IA para esta página)");
   }
   const miniatura = typeof b.miniatura === "string" ? b.miniatura : null;
 

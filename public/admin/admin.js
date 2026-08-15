@@ -7,8 +7,7 @@
 // cookies. El token llega en el fragmento de la URL tras el login (ver init())
 // y se guarda en localStorage.
 //
-import { renderDigitalizar as renderDigitalizarV1 } from "./papel/v1/digitalizar.js";
-import { renderDigitalizar as renderDigitalizarV2 } from "./papel/v2/digitalizar.js";
+import { renderDigitalizar } from "./papel/digitalizar.js";
 import { renderSubirLote } from "./papel/subirLote.js";
 import { renderEditarSesion } from "./editarSesion.js";
 
@@ -65,8 +64,8 @@ export const api = {
   // Digitalización de tests en papel (README §4.7).
   itemsImpresion: () => peticion("/api/admin/items-impresion"),
   digitalizar: (body) => peticion("/api/admin/digitalizacion", { method: "POST", body: JSON.stringify(body) }),
-  // Motor de OCR-IA de v2 (README §4.7, "Motor gpt-mini"): alternativa a
-  // Tesseract.js, corre en el Worker (necesita la API key de OpenAI).
+  // Motor de OCR-IA (README §4.7): lee la página entera con un modelo de
+  // visión de OpenAI, corre en el Worker (necesita la API key de OpenAI).
   ocrIa: (body) => peticion("/api/admin/ocr-ia", { method: "POST", body: JSON.stringify(body) }),
   // Subida en bloque de hojas en papel (README §4.10).
   examenesPapel: () => peticion("/api/admin/examenes-papel"),
@@ -164,44 +163,6 @@ function pantallaLogin() {
     </section>`);
 }
 
-// --- Pestaña "Digitalizar tests": selector de versión del pipeline de papel
-// (README §4.9) --- conviven varias versiones (public/admin/papel/v1, v2...),
-// cada una un módulo autocontenido con su propio hoja.js/digitalizar.js, para
-// poder comparar en la práctica cuál funciona mejor antes de quedarse con una
-// sola. Este selector es solo el enrutado: decide a qué render delegar.
-const PIPELINES_PAPEL = [
-  { version: 1, etiqueta: "v1 — burbujas (OMR)", render: renderDigitalizarV1 },
-  { version: 2, etiqueta: "v2 — letras (OCR)", render: renderDigitalizarV2 },
-];
-
-async function renderDigitalizarConVersion(contenedor) {
-  contenedor.innerHTML = `
-    <nav class="panel-pestanas">
-      ${PIPELINES_PAPEL.map(
-        (p) =>
-          `<button type="button" class="pestana ${p.version === PIPELINES_PAPEL[0].version ? "activa" : ""}" data-version="${p.version}">${escaparHtml(p.etiqueta)}</button>`
-      ).join("")}
-    </nav>
-    <div id="zona-pipeline-papel"></div>`;
-
-  const zona = contenedor.querySelector("#zona-pipeline-papel");
-  const botones = contenedor.querySelectorAll("[data-version]");
-
-  async function activarVersion(version) {
-    botones.forEach((b) => b.classList.toggle("activa", Number(b.dataset.version) === version));
-    const pipeline = PIPELINES_PAPEL.find((p) => p.version === version);
-    zona.innerHTML = "<p>Cargando…</p>";
-    try {
-      await pipeline.render(zona);
-    } catch (e) {
-      zona.innerHTML = `<p class="mensaje-error">${escaparHtml(e.message)}</p>`;
-    }
-  }
-
-  botones.forEach((b) => b.addEventListener("click", () => activarVersion(Number(b.dataset.version))));
-  await activarVersion(PIPELINES_PAPEL[0].version);
-}
-
 // --- Estructura del panel: cabecera + pestañas ---
 
 const PESTANAS = [
@@ -209,7 +170,7 @@ const PESTANAS = [
   { id: "avanzado", etiqueta: "Estadísticas avanzadas", render: renderAvanzado },
   { id: "tokens", etiqueta: "Tokens", render: renderTokens },
   { id: "sesiones", etiqueta: "Sesiones", render: renderSesiones },
-  { id: "digitalizar", etiqueta: "Digitalizar tests", render: renderDigitalizarConVersion },
+  { id: "digitalizar", etiqueta: "Digitalizar tests", render: renderDigitalizar },
   { id: "subir-lote", etiqueta: "Subir en bloque", render: renderSubirLote },
   { id: "solicitudes", etiqueta: "Solicitudes de acceso", render: renderSolicitudes },
   { id: "admins", etiqueta: "Administradores", render: renderAdmins },
@@ -711,14 +672,20 @@ async function renderAvanzado(contenedor) {
 
 // --- Pestaña: Tokens ---
 
+// Duplica worker/src/tipos.ts::EXPIRA_EN_INFINITO — no se puede importar
+// TypeScript del Worker desde aquí (despliegues separados, mismo motivo que
+// CATALOGOS en public/js/demografia.js).
+const EXPIRA_EN_INFINITO = "9999-12-31T23:59:59.999Z";
+
 function filaToken(t) {
-  const caducado = new Date(t.expira_en).getTime() < Date.now();
+  const sinCaducidad = t.expira_en === EXPIRA_EN_INFINITO;
+  const caducado = !sinCaducidad && new Date(t.expira_en).getTime() < Date.now();
   const enlace = `${location.origin}/?token=${t.id}`;
   return `
     <tr>
-      <td>${escaparHtml(t.descripcion)}</td>
+      <td>${escaparHtml(t.descripcion)}${t.es_prueba ? ' <span class="etiqueta-prueba" title="Sus sesiones se excluyen de las estadísticas salvo que se filtre el panel por este token">Pruebas</span>' : ""}</td>
       <td>${escaparHtml(t.creado_por)}</td>
-      <td>${formatearFecha(t.expira_en)}${caducado ? ' <span class="etiqueta-caducado">caducado</span>' : ""}</td>
+      <td>${sinCaducidad ? "Sin caducidad" : formatearFecha(t.expira_en)}${caducado ? ' <span class="etiqueta-caducado">caducado</span>' : ""}</td>
       <td>${t.n_sesiones}</td>
       <td>${t.n_completas}</td>
       <td><button type="button" class="boton-tabla" data-copiar-token="${enlace}">Copiar enlace</button></td>
@@ -739,8 +706,16 @@ async function renderTokens(contenedor, recargar) {
         <input type="text" id="campo-descripcion" required maxlength="200" placeholder="p. ej. familia de Gerardo" />
       </label>
       <label class="campo">
-        <span>Validez en horas (2-240; por defecto 48)</span>
-        <input type="number" id="campo-horas" min="2" max="240" value="48" />
+        <span>Validez en horas (mínimo 2; por defecto 48)</span>
+        <input type="number" id="campo-horas" min="2" value="48" />
+      </label>
+      <label class="campo campo-checkbox">
+        <input type="checkbox" id="campo-sin-caducidad" />
+        <span>Sin caducidad (remesas permanentes)</span>
+      </label>
+      <label class="campo campo-checkbox">
+        <input type="checkbox" id="campo-es-prueba" />
+        <span>Es de pruebas (excluye sus sesiones de las estadísticas)</span>
       </label>
       <button type="submit" class="boton-principal">Crear token</button>
     </form>
@@ -753,13 +728,25 @@ async function renderTokens(contenedor, recargar) {
       </table>
     </div>`;
 
+  const campoHoras = contenedor.querySelector("#campo-horas");
+  const campoSinCaducidad = contenedor.querySelector("#campo-sin-caducidad");
+  campoSinCaducidad.addEventListener("change", () => {
+    campoHoras.disabled = campoSinCaducidad.checked;
+  });
+
+  const campoEsPrueba = contenedor.querySelector("#campo-es-prueba");
+
   contenedor.querySelector("#form-crear-token").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const descripcion = contenedor.querySelector("#campo-descripcion").value.trim();
-    const horas = Number(contenedor.querySelector("#campo-horas").value);
+    const sinCaducidad = campoSinCaducidad.checked;
     if (!descripcion) return;
     try {
-      await api.crearToken({ descripcion, horas_validez: horas });
+      await api.crearToken({
+        descripcion,
+        es_prueba: campoEsPrueba.checked,
+        ...(sinCaducidad ? { sin_caducidad: true } : { horas_validez: Number(campoHoras.value) }),
+      });
       recargar();
     } catch (e) {
       alert(e.message);
