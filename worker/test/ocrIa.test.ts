@@ -36,7 +36,14 @@ async function postOcrIa(body: unknown, auth: string) {
   return fetchAdmin("/api/admin/ocr-ia", { method: "POST", body: JSON.stringify(body) }, auth);
 }
 
-const CASILLA_VALIDA = { clave: "item:E:opcion", tipo: "letra", imagen: "data:image/jpeg;base64,AAA=" };
+const IMAGEN_VALIDA = "data:image/jpeg;base64,AAA=";
+const PAGINA_DEMOGRAFIA_VALIDA = { id: "p1", imagen: IMAGEN_VALIDA, tipo: "demografia" };
+const PAGINA_ITEMS_VALIDA = {
+  id: "p2",
+  imagen: IMAGEN_VALIDA,
+  tipo: "items",
+  items: [{ id: "item05", formato: "opcion_multiple" }],
+};
 
 beforeEach(async () => {
   await sembrarAdmin();
@@ -66,30 +73,45 @@ describe("POST /api/admin/ocr-ia", () => {
     expect(res.status).toBe(400);
   });
 
-  it("400 con una casilla sin tipo válido", async () => {
+  it("400 con una página sin imagen (data URL)", async () => {
+    const auth = await tokenAdmin();
+    const res = await postOcrIa({ paginas: [{ id: "p1", imagen: "no-es-una-url", tipo: "demografia" }] }, auth);
+    expect(res.status).toBe(400);
+  });
+
+  it("400 con tipo inválido", async () => {
+    const auth = await tokenAdmin();
+    const res = await postOcrIa({ paginas: [{ id: "p1", imagen: IMAGEN_VALIDA, tipo: "invalido" }] }, auth);
+    expect(res.status).toBe(400);
+  });
+
+  it("400 con página de tipo items sin ningún ítem", async () => {
+    const auth = await tokenAdmin();
+    const res = await postOcrIa({ paginas: [{ id: "p1", imagen: IMAGEN_VALIDA, tipo: "items", items: [] }] }, auth);
+    expect(res.status).toBe(400);
+  });
+
+  it("400 con un ítem de formato inválido", async () => {
     const auth = await tokenAdmin();
     const res = await postOcrIa(
-      { paginas: [{ id: "p1", casillas: [{ clave: "x", tipo: "invalido", imagen: "data:image/jpeg;base64,AAA=" }] }] },
+      { paginas: [{ id: "p1", imagen: IMAGEN_VALIDA, tipo: "items", items: [{ id: "x", formato: "invalido" }] }] },
       auth
     );
     expect(res.status).toBe(400);
   });
 
-  it("400 con una casilla sin data URL de imagen", async () => {
+  it("400 con un ítem 'ordenar' sin n", async () => {
     const auth = await tokenAdmin();
-    const res = await postOcrIa({ paginas: [{ id: "p1", casillas: [{ clave: "x", tipo: "letra", imagen: "no-es-una-url" }] }] }, auth);
-    expect(res.status).toBe(400);
-  });
-
-  it("400 si ninguna página trae casillas", async () => {
-    const auth = await tokenAdmin();
-    const res = await postOcrIa({ paginas: [{ id: "p1", casillas: [] }] }, auth);
+    const res = await postOcrIa(
+      { paginas: [{ id: "p1", imagen: IMAGEN_VALIDA, tipo: "items", items: [{ id: "x", formato: "ordenar" }] }] },
+      auth
+    );
     expect(res.status).toBe(400);
   });
 
   it("500 con mensaje claro si el Worker no tiene OPENAI_API_KEY configurada (aunque el body sea válido)", async () => {
     const auth = await tokenAdmin();
-    const res = await postOcrIa({ paginas: [{ id: "p1", casillas: [CASILLA_VALIDA] }] }, auth);
+    const res = await postOcrIa({ paginas: [PAGINA_DEMOGRAFIA_VALIDA, PAGINA_ITEMS_VALIDA] }, auth);
     expect(res.status).toBe(500);
     const cuerpo = (await res.json()) as { error: string };
     expect(cuerpo.error).toMatch(/OPENAI_API_KEY/);

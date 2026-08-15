@@ -1035,24 +1035,20 @@ export async function rellenarQrPaginas(paginas, { tokenId, examId, version }) {
 // mano), pero los tres llamadores actuales (v1/v2 digitalizar.js,
 // subirLote.js) los pasan siempre.
 //
-// ocrLote (opcional, solo lo usa v2 con el motor IA — README §4.7, "Motor
-// gpt-mini"): si se pasa, sustituye a ocrLinea/Tesseract para TODAS las
-// líneas de texto de la página (nunca para los QR, que siguen leyéndose
-// igual arriba, deterministas). En vez de llamar a ocrLinea línea a línea,
-// se recortan primero TODAS las líneas de texto de la página y se llaman de
-// una sola vez con ocrLote(lineasTexto), donde lineasTexto es
-// [{clave, recorte, opciones}] (opciones = lo que devuelva
-// opcionesOcrParaClave(clave), igual que se le pasaría a ocrLinea) — así
-// quien orquesta el escaneo decide con una única llamada de red por página
-// (o acumula recortes de varias páginas para una única llamada por examen
-// completo, ver v2/digitalizar.js) en vez de una petición por casilla. Debe
-// devolver {clave: texto}; una clave ausente en el resultado se trata como
-// "no reconocido" (cadena vacía), igual que ocrLinea con un recorte en
-// blanco.
+// omitirTextos (opcional, lo usa v2 con el motor IA — README §4.7, "Motor
+// gpt-mini"): si es true, NO se recorta ni se pasa por ocrLinea/Tesseract
+// ninguna línea de texto (los QR y las marcas OMR sí se siguen leyendo
+// igual, deterministas) — `textos` vuelve vacío, y es responsabilidad del
+// llamador rellenarlo por otra vía. Existe porque el motor IA no lee
+// recortes de casilla: manda la página ENTERA ya enderezada a
+// POST /api/admin/ocr-ia y le pide la respuesta definitiva de cada ítem
+// (ver v2/digitalizar.js::construirEntradaPaginaIA) — omitirTextos evita
+// gastar tiempo recortando/OCR-eando líneas cuyo resultado se va a
+// descartar igualmente.
 export async function leerPagina(
   pagina,
   warpCanvas,
-  { opcionesOcrParaClave, avisar, canvasFuente, esquinas, dstFiduciales, ocrLote } = {}
+  { opcionesOcrParaClave, avisar, canvasFuente, esquinas, dstFiduciales, omitirTextos } = {}
 ) {
   const escala = ESCALA_DIGITALIZACION;
   const imgData = warpCanvas.getContext("2d").getImageData(0, 0, warpCanvas.width, warpCanvas.height);
@@ -1065,7 +1061,6 @@ export async function leerPagina(
   const textos = {};
   let qrGrande = null;
   let qrPagina = null;
-  const lineasTexto = [];
   for (const l of pagina.lineas) {
     if (l.clave === "meta:qr" || l.clave === "meta:qr:pagina") {
       avisar?.("Leyendo QR…");
@@ -1085,76 +1080,14 @@ export async function leerPagina(
       }
       continue;
     }
-    const recorte = recortarLinea(warpCanvas, l, escala);
-    if (ocrLote) {
-      lineasTexto.push({ clave: l.clave, recorte, opciones: opcionesOcrParaClave?.(l.clave) });
-      continue;
-    }
+    if (omitirTextos) continue;
     avisar?.(`Leyendo texto (${l.clave})…`);
+    const recorte = recortarLinea(warpCanvas, l, escala);
     const texto = await ocrLinea(recorte, { ...opcionesOcrParaClave?.(l.clave), avisar });
     textos[l.clave] = texto;
   }
 
-  if (ocrLote && lineasTexto.length > 0) {
-    const resultado = await ocrLote(lineasTexto);
-    for (const { clave } of lineasTexto) textos[clave] = resultado[clave] ?? "";
-  }
-
   return { oscuridad, textos, qrGrande, qrPagina };
-}
-
-// ============================================================
-// Motor de OCR-IA (README §4.7, "Motor gpt-mini"): construcción del callback
-// `ocrLote` que consume leerPagina() de arriba, compartida por CUALQUIER
-// orquestador de escaneo que quiera ofrecer el motor IA además de Tesseract
-// (hoy v2/digitalizar.js — flujo secuencial — y subirLote.js — subida en
-// bloque, README §4.10). Deliberadamente aquí y no duplicada en cada uno:
-// ambos flujos arman el mismo manifiesto de casillas y llaman al mismo
-// endpoint, solo cambia CUÁNDO se dispara la llamada (ver `agrupacion` más
-// abajo) y de qué versión de hoja vienen las claves — que ya resuelve
-// opcionesOcrParaClave de cada pipeline (v1/v2), no esta función.
-//
-// Nunca importa admin.js (comun.js se mantiene sin dependencias de red/framework,
-// ver cabecera del fichero): quien llama pasa `llamarOcrIa` (normalmente
-// admin.js::api.ocrIa) por inyección, en vez de que esto haga fetch() él solo.
-// ============================================================
-
-// Traduce lo que ya calculaba opcionesOcrParaClave (para la whitelist de
-// Tesseract) al "tipo" que espera POST /api/admin/ocr-ia.
-export function tipoCasillaOcrIA(opciones) {
-  if (opciones?.soloDigitos) return "digito";
-  if (opciones?.soloLetras) return "letra";
-  return "texto";
-}
-
-// Fábrica del callback ocrLote: construye el manifiesto de casillas de UNA
-// página (recortes ya codificados como data URL JPEG) y, según `agrupacion`:
-// - "pagina" (o sin especificar): llama a llamarOcrIa una vez por página, en
-//   cuanto esa página se lee — la única opción que tiene sentido cuando cada
-//   página se persiste de forma independiente en cuanto se lee (subirLote.js:
-//   páginas de un mismo examen pueden subirse en visitas o dispositivos
-//   distintos, no hay un momento único de "hoja completa" antes de guardar).
-// - "examen": NO llama a la API todavía — acumula el manifiesto en
-//   `pendientes` (un array que el llamador comparte entre todas las páginas
-//   de una misma hoja) y devuelve un resultado vacío; es responsabilidad de
-//   quien orquesta hacer la llamada real con todo lo acumulado cuando
-//   corresponda y volcar el resultado a sus propios textos (ver
-//   v2/digitalizar.js::iniciarEscaneo, que sí conoce el momento en que la
-//   hoja entera ya se ha escaneado).
-export function crearOcrLote({ paginaId, modelo, agrupacion, pendientes, llamarOcrIa }) {
-  return async (lineasTexto) => {
-    const casillas = lineasTexto.map(({ clave, recorte, opciones }) => ({
-      clave,
-      tipo: tipoCasillaOcrIA(opciones),
-      imagen: recorte.toDataURL("image/jpeg", 0.85),
-    }));
-    if (agrupacion === "examen" && pendientes) {
-      pendientes.push({ id: paginaId, casillas });
-      return {};
-    }
-    const { resultados } = await llamarOcrIa({ modelo, paginas: [{ id: paginaId, casillas }] });
-    return resultados[paginaId] ?? {};
-  };
 }
 
 // Devuelve { fiduciales, lineaQrPagina, lineaQrGrande }: la posición canónica

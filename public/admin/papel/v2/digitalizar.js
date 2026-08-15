@@ -13,7 +13,6 @@ import { bloqueCamposDemografia, leerDemografiaDelFormulario, renderEditarSesion
 import { CATALOGOS } from "../../../js/demografia.js";
 import {
   abrirVentanaImpresion,
-  crearOcrLote,
   detectarFiduciales,
   ESCALA_DIGITALIZACION,
   generarExamId,
@@ -309,17 +308,51 @@ export function opcionesOcrParaClave(clave) {
   return { soloLetras: true };
 }
 
-// El motor de OCR-IA (README §4.7, "Motor gpt-mini") en sí — tipoCasillaOcrIA
-// y crearOcrLote — vive en ../comun.js, compartido con ../subirLote.js (README
-// §4.10): aquí solo se orquesta CUÁNDO se llama (ver `pendientesIA` más abajo)
-// y se le inyecta api.ocrIa como `llamarOcrIa`. La lectura del QR (README
-// §4.9) no pasa por aquí en ningún caso — sigue siendo la misma de siempre,
-// determinista, en comun.js::leerPagina.
+// ============================================================
+// Motor de OCR-IA (README §4.7, "Motor gpt-mini"): manda la página ENTERA ya
+// enderezada (no un recorte por casilla) a POST /api/admin/ocr-ia junto con
+// el id/formato de cada ítem impreso en esa página, y le pide la respuesta
+// DEFINITIVA de cada uno (el propio modelo resuelve la precedencia
+// Respuesta/Corrección, README §4.9, en vez de hacerlo aquí). El Worker
+// devuelve el resultado ya traducido a la misma forma {clave: texto} que
+// usa Tesseract, así decodificarRespuestas() de más arriba no distingue de
+// qué motor vino cada texto. La lectura del QR y del OMR de
+// consentimiento/compromiso no pasa por aquí en ningún caso — sigue siendo
+// la misma de siempre, determinista, en comun.js::leerPagina.
+// ============================================================
+
+// Manifiesto de los ítems de una página, en el mismo orden en que aparecen
+// impresos (pagina.itemIds ya viene en ese orden, ver comun.js::paginarBloques):
+// solo lo imprescindible para que el Worker construya el esquema de salida
+// (id + formato + nº de posiciones/elementos para ordenar/clasificar) — el
+// enunciado, las opciones, los elementos... el modelo los lee de la propia
+// imagen, no hace falta repetirlos aquí.
+// Exportada: ../subirLote.js (README §4.10) la reutiliza tal cual para las
+// páginas de una hoja v2 — el motor IA no aplica a v1 (sobre todo burbujas
+// OMR sin letra impresa al lado, README §4.7), así que solo hace falta aquí.
+export function construirManifiestoItems(pagina, itemsPorId) {
+  return pagina.itemIds.map((id) => {
+    const item = itemsPorId.get(id);
+    const n = item.formato === "ordenar" || item.formato === "clasificar" ? item.elementos.length : undefined;
+    return { id: item.id, formato: item.formato, ...(n !== undefined ? { n } : {}) };
+  });
+}
+
+export function construirEntradaPaginaIA(pagina, warp, itemsPorId, paginaId) {
+  const esDemografia = pagina.itemIds.length === 0;
+  return {
+    id: paginaId,
+    imagen: warp.toDataURL("image/jpeg", 0.85),
+    tipo: esDemografia ? "demografia" : "items",
+    ...(esDemografia ? {} : { items: construirManifiestoItems(pagina, itemsPorId) }),
+  };
+}
 
 function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas, motorOcr, modeloIA, agrupacionIA }) {
   const oscuridadGlobal = new Map();
   const textosGlobal = new Map();
   const paginasWarpeadas = [];
+  const itemsPorId = new Map(items.map((it) => [it.id, it]));
   // Token detectado por QR en alguna de las páginas escaneadas (README §4.9);
   // empieza con el que se haya seleccionado a mano ANTES de escanear (si
   // había uno), pero un QR leído con éxito lo sustituye — es más fiable que
@@ -329,15 +362,15 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas, motorOcr
   // nota equivalente en ../v1/digitalizar.js.
   let examIdDetectado = null;
   let indice = 0;
-  // Solo se usa con motorOcr === "ia" y agrupacionIA === "examen": manifiesto
-  // de casillas de las páginas ya escaneadas, pendiente de UNA sola llamada
-  // conjunta a la API al terminar (ver crearOcrLote y más abajo).
+  // Solo se usa con motorOcr === "ia" y agrupacionIA === "examen": páginas ya
+  // escaneadas (imagen entera + manifiesto), pendientes de UNA sola llamada
+  // conjunta a la API al terminar (ver más abajo).
   const pendientesIA = [];
 
   async function renderPasoActual() {
     if (indice >= paginas.length) {
       if (motorOcr === "ia" && agrupacionIA === "examen" && pendientesIA.length > 0) {
-        zona.innerHTML = `<p>Leyendo todas las casillas con IA (examen completo)…</p>`;
+        zona.innerHTML = `<p>Leyendo todas las páginas con IA (examen completo)…</p>`;
         try {
           const { resultados } = await api.ocrIa({ modelo: modeloIA, paginas: pendientesIA });
           for (const pag of pendientesIA) {
@@ -431,23 +464,13 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas, motorOcr
         const warp = warpearImagen(fuente, esquinasFuente, destW, destH, dst);
         paginasWarpeadas.push(warp);
 
-        if (motorOcr === "ia") estado.textContent = "Enviando casillas al motor de IA…";
         const { oscuridad, textos, qrGrande, qrPagina } = await leerPagina(pagina, warp, {
           opcionesOcrParaClave,
           avisar: (msg) => (estado.textContent = msg),
           canvasFuente: fuente,
           esquinas: esquinasFuente,
           dstFiduciales: dst,
-          ocrLote:
-            motorOcr === "ia"
-              ? crearOcrLote({
-                  paginaId: `pagina-${indice}`,
-                  modelo: modeloIA,
-                  agrupacion: agrupacionIA,
-                  pendientes: pendientesIA,
-                  llamarOcrIa: api.ocrIa,
-                })
-              : undefined,
+          omitirTextos: motorOcr === "ia",
         });
         // Solo consentimiento/compromiso siguen siendo marcas OMR en v2 (ver
         // cabecera de ./hoja.js) — pagina.marcas está vacío en páginas de
@@ -459,6 +482,17 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas, motorOcr
           if (qrGrande.examId) examIdDetectado = qrGrande.examId;
         }
         if (qrPagina?.examId) examIdDetectado = qrPagina.examId;
+
+        if (motorOcr === "ia") {
+          const entradaIA = construirEntradaPaginaIA(pagina, warp, itemsPorId, `pagina-${indice}`);
+          if (agrupacionIA === "examen") {
+            pendientesIA.push(entradaIA);
+          } else {
+            estado.textContent = "Leyendo la página con IA…";
+            const { resultados } = await api.ocrIa({ modelo: modeloIA, paginas: [entradaIA] });
+            for (const [clave, texto] of Object.entries(resultados[entradaIA.id] ?? {})) textosGlobal.set(clave, texto);
+          }
+        }
 
         indice++;
         await renderPasoActual();
@@ -514,10 +548,10 @@ export async function renderDigitalizar(contenedor) {
         </select>
       </label>
       <label class="campo">
-        <span>Motor de OCR para las casillas de texto</span>
+        <span>Motor de OCR para las respuestas</span>
         <select id="select-motor-ocr">
-          <option value="tesseract">Tesseract (local, sin coste)</option>
-          <option value="ia">IA — gpt-mini (vía Worker, API de pago, más precisión)</option>
+          <option value="tesseract">Tesseract (local, sin coste, recorte por casilla)</option>
+          <option value="ia">IA — gpt-mini (vía Worker, API de pago, lee la página entera)</option>
         </select>
       </label>
       <div id="opciones-motor-ia" hidden>
@@ -538,8 +572,10 @@ export async function renderDigitalizar(contenedor) {
         </label>
         <p class="nota-formato">
           Para poder comparar calidad/coste con datos reales antes de decidir un único ajuste (README §4.7):
-          el motor Tesseract sigue siendo el de siempre y no cambia, esto solo afecta a las casillas de texto
-          cuando eliges IA. La lectura del código QR de la hoja no pasa por ningún modelo en ningún caso.
+          el motor Tesseract sigue siendo el de siempre y no cambia (recorta y lee cada casilla por
+          separado). El motor IA manda la imagen de la página ENTERA (sin recortar casillas) y le pide la
+          respuesta definitiva de cada pregunta, resolviendo él mismo si hay que usar el bloque "Respuesta" o
+          el de "Corrección". La lectura del código QR de la hoja no pasa por ningún modelo en ningún caso.
         </p>
       </div>
       <button type="button" class="boton-principal boton-ancho-auto" id="boton-empezar-escaneo">Empezar digitalización</button>

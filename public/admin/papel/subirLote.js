@@ -18,7 +18,6 @@
 import { api, escaparHtml } from "../admin.js";
 import {
   cargarPaginasPdf,
-  crearOcrLote,
   crearSelectorEsquinas,
   decodificarPayloadQr,
   decodificarPayloadQrPagina,
@@ -58,6 +57,12 @@ let itemsPromise = null;
 function obtenerItems() {
   if (!itemsPromise) itemsPromise = api.itemsImpresion().then((r) => r.items);
   return itemsPromise;
+}
+
+let itemsPorIdPromise = null;
+function obtenerItemsPorId() {
+  if (!itemsPorIdPromise) itemsPorIdPromise = obtenerItems().then((items) => new Map(items.map((it) => [it.id, it])));
+  return itemsPorIdPromise;
 }
 
 const layoutCache = new Map(); // version -> Promise<paginas>
@@ -302,24 +307,33 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log, motorOcr,
   }
 
   log(`Leyendo contenido (examen ${examId}, página ${pagina})…`);
-  // Motor IA (README §4.7): siempre "una llamada por página" aquí, a
-  // diferencia del flujo secuencial (v2/digitalizar.js), que también ofrece
-  // "examen completo" — en la subida en bloque las páginas de una misma hoja
-  // pueden llegar en visitas o dispositivos distintos y cada una se persiste
-  // en cuanto se lee (README §4.10), así que no existe un momento único de
-  // "hoja completa" antes de guardar donde acumular varias páginas en una
-  // sola llamada.
+  // Motor IA (README §4.7): solo tiene sentido para v2 (sobre todo casillas
+  // de letra) — v1 es sobre todo burbujas OMR sin letra impresa al lado, así
+  // que aquí se ignora el motor elegido y se usa Tesseract siempre que la
+  // hoja sea v1 (PIPELINES[1] no tiene construirEntradaPaginaIA/
+  // construirManifiestoItems, solo PIPELINES[2] los expone). Siempre "una
+  // llamada por página" (a diferencia del flujo secuencial, que también
+  // ofrece "examen completo"): las páginas de una misma hoja pueden llegar
+  // en visitas o dispositivos distintos y cada una se persiste en cuanto se
+  // lee (README §4.10), así que no existe un momento único de "hoja
+  // completa" antes de guardar donde acumular varias páginas en una llamada.
+  const motorIADisponible = motorOcr === "ia" && info.version === 2;
   const { oscuridad, textos } = await leerPagina(paginaLayout, warp, {
     opcionesOcrParaClave: PIPELINES[info.version].opcionesOcrParaClave,
     avisar: log,
     canvasFuente: unidad.canvas,
     esquinas,
     dstFiduciales: dst,
-    ocrLote:
-      motorOcr === "ia"
-        ? crearOcrLote({ paginaId: `${examId}-${pagina}`, modelo: modeloIA, llamarOcrIa: api.ocrIa })
-        : undefined,
+    omitirTextos: motorIADisponible,
   });
+
+  if (motorIADisponible) {
+    log("Leyendo la página con IA…");
+    const itemsPorId = await obtenerItemsPorId();
+    const entradaIA = PIPELINES[2].construirEntradaPaginaIA(paginaLayout, warp, itemsPorId, `${examId}-${pagina}`);
+    const { resultados } = await api.ocrIa({ modelo: modeloIA, paginas: [entradaIA] });
+    Object.assign(textos, resultados[entradaIA.id] ?? {});
+  }
 
   log("Guardando…");
   await api.examenPapelSubirPagina({
@@ -465,10 +479,10 @@ export async function renderSubirLote(contenedorRaiz) {
         "Finalizar".
       </p>
       <label class="campo">
-        <span>Motor de OCR para las casillas de texto</span>
+        <span>Motor de OCR para las respuestas</span>
         <select id="select-motor-ocr-lote">
           <option value="tesseract">Tesseract (local, sin coste)</option>
-          <option value="ia">IA — gpt-mini (vía Worker, API de pago, más precisión)</option>
+          <option value="ia">IA — gpt-mini (vía Worker, API de pago, solo hojas v2)</option>
         </select>
       </label>
       <div id="opciones-motor-ia-lote" hidden>
@@ -481,10 +495,13 @@ export async function renderSubirLote(contenedorRaiz) {
           </select>
         </label>
         <p class="nota-formato">
-          Se aplica página a página conforme se van subiendo (README §4.7): aquí no hay opción de "examen
+          Manda la imagen de la página entera (no recortes) y le pide la respuesta definitiva de cada
+          pregunta, página a página conforme se van subiendo (README §4.7): aquí no hay opción de "examen
           completo" porque cada página se guarda en cuanto se lee, y las páginas de una misma hoja pueden
-          llegar en visitas o dispositivos distintos. El código QR sigue leyéndose igual, sin IA, en
-          cualquier caso.
+          llegar en visitas o dispositivos distintos. Solo se aplica a hojas v2 (letras): las páginas de una
+          hoja v1 (burbujas OMR) se leen con Tesseract igualmente, sea cual sea el motor elegido aquí — v1 no
+          imprime letras junto a las burbujas, así que "dame la respuesta definitiva" no tiene sentido para
+          ella. El código QR sigue leyéndose igual, sin IA, en cualquier caso.
         </p>
       </div>
       <input type="file" id="campo-archivos-lote" accept="image/*,application/pdf" multiple />
