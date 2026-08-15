@@ -351,23 +351,53 @@ describe("POST /api/admin/digitalizacion", () => {
     expect(fila?.examen_id).toBe("TESTEXAM1");
   });
 
-  it("rechaza (409) digitalizar dos veces la misma hoja física (mismo examen_id)", async () => {
+  it("digitalizar dos veces la misma hoja física (mismo examen_id) sobrescribe la sesión en vez de rechazar (idempotencia, README §4.10)", async () => {
     const auth = await tokenAdmin();
     const token = await crearTokenViaAdmin(auth);
+    const respuestasCorrectas = todasLasRespuestasCorrectas();
+    const itemAbierto = bancoItems.find((i) => i.formato === "abierto")!;
     const body = {
       token_id: token.id,
       examen_id: "TESTEXAM-DUP",
       consentimiento: true,
       compromiso_honestidad: true,
       demografia: demografiaValida(),
-      respuestas: todasLasRespuestasCorrectas(),
+      respuestas: respuestasCorrectas,
     };
 
     const primera = await fetchAdmin("/api/admin/digitalizacion", { method: "POST", body: JSON.stringify(body) }, auth);
     expect(primera.status).toBe(201);
+    const { sesion_id: idPrimera } = (await primera.json()) as { sesion_id: string };
 
-    const segunda = await fetchAdmin("/api/admin/digitalizacion", { method: "POST", body: JSON.stringify(body) }, auth);
-    expect(segunda.status).toBe(409);
+    // Re-digitalizar la misma hoja (p. ej. tras corregir la lectura de una
+    // página): distinta demografía y una respuesta menos (deja UN ítem en
+    // blanco) — debe sobrescribir la MISMA sesión, no crear una nueva ni
+    // rechazar con 409.
+    const { [itemAbierto.id]: _omitido, ...respuestasSinAbierto } = respuestasCorrectas;
+    const segundoBody = {
+      ...body,
+      demografia: { ...demografiaValida(), anio_nacimiento: 1970 },
+      respuestas: respuestasSinAbierto,
+    };
+    const segunda = await fetchAdmin(
+      "/api/admin/digitalizacion",
+      { method: "POST", body: JSON.stringify(segundoBody) },
+      auth
+    );
+    expect(segunda.status).toBe(200);
+    const { sesion_id: idSegunda } = (await segunda.json()) as { sesion_id: string };
+    expect(idSegunda).toBe(idPrimera);
+
+    const fila = await env.DB.prepare("SELECT anio_nacimiento, completo FROM sesiones WHERE id = ?")
+      .bind(idPrimera)
+      .first<{ anio_nacimiento: number; completo: number }>();
+    expect(fila?.anio_nacimiento).toBe(1970);
+    expect(fila?.completo).toBe(0); // ya no están las 25 respuestas
+
+    const respuestaAbierto = await env.DB.prepare("SELECT 1 AS x FROM respuestas WHERE sesion_id = ? AND item_id = ?")
+      .bind(idPrimera, itemAbierto.id)
+      .first();
+    expect(respuestaAbierto).toBeNull(); // se borró al no venir en la segunda digitalización
   });
 
   it("descarta (sin reventar) una respuesta con forma inválida para su formato", async () => {

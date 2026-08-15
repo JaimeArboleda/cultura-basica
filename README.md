@@ -1485,15 +1485,22 @@ sesión que mantener sincronizados. Al crear la sesión, `POST
 body) y:
 
 - Lo guarda en la nueva columna `sesiones.examen_id` (trazabilidad: de qué
-  hoja física exacta viene cada sesión, no solo de qué remesa).
-- **Rechaza (409)** si ya existe una sesión con ese `exam_id` — evita
-  digitalizar dos veces la misma hoja física, tanto si se intenta por el
-  flujo secuencial y por la subida en bloque como si "Finalizar" se pulsa
-  dos veces por error (`idx_sesiones_examen`, índice `UNIQUE` que SQLite no
-  aplica entre varios `NULL`, así que no afecta a sesiones sin `exam_id`).
-- Marca `examenes_papel.sesion_id` con la sesión recién creada, para que ese
-  examen deje de aparecer como "en progreso" y no se pueda volver a
-  finalizar.
+  hoja física exacta viene cada sesión, no solo de qué remesa;
+  `idx_sesiones_examen`, índice `UNIQUE` que SQLite no aplica entre varios
+  `NULL`, así que no afecta a sesiones sin `exam_id`).
+- **Es idempotente por `exam_id`**: si ya existe una sesión con ese
+  `exam_id`, la SOBRESCRIBE (misma `sesion_id`, reemplazo completo de
+  demografía/respuestas, igual que `PUT /api/admin/sesiones/:id`, §4.8) en
+  vez de rechazar con 409 — volver a digitalizar la misma hoja física (tanto
+  por el flujo secuencial como por la subida en bloque, o pulsar "Finalizar"
+  dos veces) actualiza la sesión existente. Pensado sobre todo para la
+  subida en bloque: corregir una página ya subida (p. ej. re-subir la 7 con
+  una foto mejor) y volver a pulsar "Finalizar" basta para que la sesión
+  recoja el cambio, sin borrar nada primero — el botón sigue disponible tras
+  finalizar, relabeled a "Volver a finalizar".
+- Marca `examenes_papel.sesion_id` con la sesión (recién creada o ya
+  existente), para que el examen se marque como digitalizado en la lista de
+  "en progreso" de "Subir en bloque".
 
 **Qué NO resuelve todavía:** subir páginas de exámenes que compartan el
 mismo banco de ítems pero se hayan impreso con un `data/items.json` distinto

@@ -408,18 +408,33 @@ async function renderListaExamenes(zona, { contenedorRaiz, tokens, refrescar }) 
         .map((n) => `<span class="chip-pagina ${subidas.has(n) ? "chip-pagina-ok" : "chip-pagina-falta"}">${n}</span>`)
         .join("");
       const resumen = ex.sesion_id
-        ? "ya digitalizado"
+        ? `ya digitalizado (${ex.paginas_subidas.length}/${total} páginas)`
         : `${ex.paginas_subidas.length}/${total} páginas`;
-      const acciones = ex.sesion_id
-        ? `<p class="nota-formato">Digitalizado en la sesión <code>${escaparHtml(ex.sesion_id)}</code>.</p>`
-        : `<div class="botones-celda">
-            <button type="button" class="boton-principal boton-ancho-auto" data-accion="finalizar" data-exam="${escaparHtml(ex.exam_id)}" ${completo ? "" : "disabled"}>
-              Finalizar y crear sesión
-            </button>
-            <button type="button" class="boton-secundario boton-ancho-auto" data-accion="abandonar" data-exam="${escaparHtml(ex.exam_id)}">
-              Abandonar examen (borra sus páginas)
-            </button>
-          </div>`;
+      // Idempotencia por hoja física (README §4.10): un examen ya
+      // digitalizado se puede volver a "Finalizar" — sobrescribe la MISMA
+      // sesión con lo que haya persistido ahora mismo, así que corregir una
+      // página (p. ej. re-subir la 7 con una foto mejor) y volver a pulsar
+      // este botón basta para que la sesión refleje la corrección, sin tener
+      // que borrar nada primero (POST /api/admin/digitalizacion ya no
+      // rechaza con 409 un examen_id repetido).
+      const acciones = `
+        ${
+          ex.sesion_id
+            ? `<p class="nota-formato">Ya digitalizado en la sesión <code>${escaparHtml(ex.sesion_id)}</code> — si corriges una página aquí abajo, vuelve a pulsar "Finalizar" para que la sesión recoja el cambio.</p>`
+            : ""
+        }
+        <div class="botones-celda">
+          <button type="button" class="boton-principal boton-ancho-auto" data-accion="finalizar" data-exam="${escaparHtml(ex.exam_id)}" ${completo ? "" : "disabled"}>
+            ${ex.sesion_id ? "Volver a finalizar (sobrescribe la sesión)" : "Finalizar y crear sesión"}
+          </button>
+          ${
+            ex.sesion_id
+              ? ""
+              : `<button type="button" class="boton-secundario boton-ancho-auto" data-accion="abandonar" data-exam="${escaparHtml(ex.exam_id)}">
+                  Abandonar examen (borra sus páginas)
+                </button>`
+          }
+        </div>`;
       return `
         <details class="examen-lote" ${!ex.sesion_id && completo ? "open" : ""}>
           <summary><code>${escaparHtml(ex.exam_id)}</code> — ${escaparHtml(token?.descripcion ?? ex.token_id)} — ${PIPELINES[ex.version]?.etiqueta ?? `v${ex.version}`} — ${resumen}</summary>

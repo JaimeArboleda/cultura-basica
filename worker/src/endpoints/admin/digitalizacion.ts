@@ -6,6 +6,9 @@
 // para convertirla en una sesión normal — misma corrección y puntuación que
 // una sesión respondida en la web, solo cambia de dónde vino la respuesta cruda.
 import {
+  actualizarDemografiaSesion,
+  actualizarEstadoSesion,
+  borrarRespuestaItem,
   buscarSesionPorExamenId,
   crearSesion,
   marcarCompleto,
@@ -84,20 +87,73 @@ export async function postDigitalizacion(request: Request, env: Env): Promise<Re
   // bloque. Null en hojas de antes de que existiera este campo (o si ningún
   // QR de la hoja se pudo leer).
   const examenId = typeof b.examen_id === "string" && b.examen_id ? b.examen_id : null;
-  if (examenId) {
-    const yaExiste = await buscarSesionPorExamenId(env, examenId);
-    if (yaExiste) {
-      return error(env, 409, `Esta hoja física ya se había digitalizado antes (sesión ${yaExiste.id})`);
+  const asignaciones = ordenarTest(bancoItems);
+  const ahora = new Date().toISOString();
+
+  // Idempotencia por hoja física (README §4.10): volver a digitalizar el
+  // mismo exam_id (re-subir una página corregida en la subida en bloque y
+  // volver a "Finalizar", o repetir el flujo secuencial sobre la misma hoja)
+  // SOBRESCRIBE la sesión ya creada en vez de rechazar con 409 — reemplazo
+  // completo de demografía/respuestas, igual que PUT /api/admin/sesiones/:id
+  // (README §4.8): el cliente manda siempre el estado actual y completo de
+  // la hoja (recompuesto a partir de TODAS sus páginas ya persistidas), así
+  // que "ausente en el body" sigue significando "en blanco", no "no tocar".
+  // asignaciones se recalcula igual (ordenarTest es determinista desde
+  // data/orden-test.json, README §1.4/§8: no una nueva asignación aleatoria)
+  // así que coincide con la que ya tiene la sesión existente en sesion_items.
+  const sesionExistente = examenId ? await buscarSesionPorExamenId(env, examenId) : null;
+
+  if (sesionExistente) {
+    const id = sesionExistente.id;
+    await actualizarDemografiaSesion(env, id, demografia, ahora);
+
+    const escrituras: Promise<void>[] = [];
+    for (const a of asignaciones) {
+      const item = itemsPorId.get(a.item_id)!;
+      const respuesta = a.item_id in mapaRespuestas ? mapaRespuestas[a.item_id] : undefined;
+      const resultado = respuesta !== undefined ? corregirRespuesta(item, respuesta) : null;
+      if (!resultado) {
+        escrituras.push(borrarRespuestaItem(env, id, a.item_id));
+        continue;
+      }
+      escrituras.push(
+        upsertRespuesta(env, {
+          sesionId: id,
+          itemId: a.item_id,
+          respuestaCruda: JSON.stringify(respuesta),
+          opcionElegida: item.formato === "opcion_multiple" ? (respuesta as number) : null,
+          acierto: resultado.acierto,
+          puntuacion: puntuarItem(item, respuesta),
+          estadoCorreccion: resultado.estado_correccion,
+          tMs: null,
+          ordenPresentacion: a.orden_presentacion,
+          perdioFoco: false,
+          enviadaEn: ahora,
+        })
+      );
     }
+    await Promise.all(escrituras);
+
+    const completo = Object.keys(mapaRespuestas).length >= asignaciones.length;
+    const puntuacionTotal = completo
+      ? puntuarSesion(
+          asignaciones.map((a) => ({
+            item_id: a.item_id,
+            respuesta_cruda: a.item_id in mapaRespuestas ? JSON.stringify(mapaRespuestas[a.item_id]) : null,
+          })),
+          (itemId) => itemsPorId.get(itemId)
+        )
+      : null;
+    await actualizarEstadoSesion(env, id, completo ? 1 : 0, puntuacionTotal, ahora);
+
+    return json(env, { sesion_id: id }, 200);
   }
 
   const id = crypto.randomUUID();
-  const asignaciones = ordenarTest(bancoItems);
-  const creadaEn = new Date().toISOString();
 
   await crearSesion(env, {
     id,
-    creadaEn,
+    creadaEn: ahora,
     demografia,
     userAgentClase: null,
     asignaciones,
@@ -108,11 +164,10 @@ export async function postDigitalizacion(request: Request, env: Env): Promise<Re
   });
 
   // Si esta hoja venía de la subida en bloque (README §4.10), se marca ese
-  // examen como finalizado — deja de aparecer como "en progreso" y no se
-  // puede volver a finalizar. No falla la creación de la sesión si el
-  // exam_id no correspondía a ningún examen registrado en esa tabla (p. ej.
-  // una hoja digitalizada por el flujo secuencial de siempre, que nunca pasó
-  // por examenes_papel).
+  // examen como finalizado — deja de aparecer como "en progreso". No falla
+  // la creación de la sesión si el exam_id no correspondía a ningún examen
+  // registrado en esa tabla (p. ej. una hoja digitalizada por el flujo
+  // secuencial de siempre, que nunca pasó por examenes_papel).
   if (examenId) await marcarExamenPapelFinalizado(env, examenId, id);
 
   // Igual que un abandono parcial en la web: un ítem que la persona dejó en
@@ -141,7 +196,7 @@ export async function postDigitalizacion(request: Request, env: Env): Promise<Re
         tMs: null, // no hay telemetría de tiempo en una hoja de papel (README §3)
         ordenPresentacion: a.orden_presentacion,
         perdioFoco: false,
-        enviadaEn: creadaEn,
+        enviadaEn: ahora,
       })
     );
   }
