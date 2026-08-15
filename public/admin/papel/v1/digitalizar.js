@@ -509,8 +509,8 @@ export async function renderDigitalizar(contenedor) {
     estado.textContent = "Generando hoja…";
     try {
       const examId = generarExamId();
-      const { items } = await api.itemsImpresion();
-      const paginas = await construirHoja(items, { tokenId, examId, version: VERSION_PIPELINE });
+      const { items, paginacion } = await api.itemsImpresion();
+      const paginas = await construirHoja(items, { tokenId, examId, version: VERSION_PIPELINE }, paginacion?.[VERSION_PIPELINE]);
       abrirVentanaImpresion(paginas, CSS_HOJA);
       estado.textContent = `Hoja generada: ${paginas.length} páginas. ID de examen: ${examId}`;
     } catch (e) {
@@ -528,8 +528,8 @@ export async function renderDigitalizar(contenedor) {
     const zona = contenedor.querySelector("#zona-escaneo");
     zona.innerHTML = "<p>Cargando el banco de ítems…</p>";
     try {
-      const { items } = await api.itemsImpresion();
-      const paginas = await construirHoja(items);
+      const { items, paginacion } = await api.itemsImpresion();
+      const paginas = await construirHoja(items, undefined, paginacion?.[VERSION_PIPELINE]);
       iniciarEscaneo(zona, { tokenIdInicial: selectToken.value || null, tokens, items, paginas });
     } catch (e) {
       zona.innerHTML = `<p class="mensaje-error">${escaparHtml(e.message)}</p>`;

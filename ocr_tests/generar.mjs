@@ -552,6 +552,12 @@ async function main() {
   const faltantes = bancoSinOrdenar.map((it) => it.id).filter((id) => !vistos.has(id));
   const porId = new Map(bancoSinOrdenar.map((it) => [it.id, it]));
   const items = [...orden, ...faltantes].map((id) => porId.get(id));
+  // Conteos de bloques por página ya precalculados (data/paginacion.json,
+  // ver data/build-paginacion.mjs) — se pasan a construirHoja para que estas
+  // hojas de prueba salgan con la MISMA paginación que la app real sirve por
+  // GET /api/admin/items-impresion, en vez de remedirla aquí (README,
+  // "Paginado fiable").
+  const paginacion = JSON.parse(await readFile(path.join(RAIZ_REPO, "data/paginacion.json"), "utf8"));
   const poolAbierto = [
     ...new Set(
       items
@@ -632,7 +638,10 @@ async function main() {
       // (la de la app real), que es aleatoria de verdad a propósito.
       const examId = generarExamIdDeterminista(rng);
       const qr = { tokenId, examId, version };
-      const numPaginas = await page.evaluate(([v, its, q]) => window.__construirPaginas(v, its, q), [version, items, qr]);
+      const numPaginas = await page.evaluate(
+        ([v, its, q, p]) => window.__construirPaginas(v, its, q, p),
+        [version, items, qr, paginacion[String(version)]]
+      );
       await page.evaluate(([v, its, p]) => {
         window.__version = v;
         window.__items = its;

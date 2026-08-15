@@ -23,16 +23,23 @@ import { puntuarItem, puntuarSesion } from "../../puntuacion";
 import { ordenarTest } from "../../sorteo";
 import type { Env } from "../../tipos";
 import { validarDemografia } from "../../validacion";
+import paginacionRaw from "../../../../data/paginacion.json";
 
 // GET /api/admin/items-impresion: el banco completo en el orden fijo de
 // presentación (README §1.4), sin respuestas correctas — para que
 // public/admin/papel/v1/hoja.js pueda generar la hoja imprimible. Reutiliza exactamente
 // paraCliente()/ordenarTest(), los mismos que usa POST /api/sesion, así que la
 // hoja impresa siempre coincide con lo que ve quien hace el test en la web.
+//
+// paginacion: conteos de bloques por página ya precalculados una vez
+// (data/paginacion.json, ver data/build-paginacion.mjs) — comun.js::construirPaginas
+// los usa para paginar sin medir alturas en el navegador de quien imprime o
+// digitaliza, evitando que un mismo banco de ítems se reparta en un número
+// de páginas distinto según el dispositivo (README, "Paginado fiable").
 export async function getItemsImpresion(env: Env): Promise<Response> {
   const asignaciones = ordenarTest(bancoItems);
   const items = asignaciones.map((a) => paraCliente(itemsPorId.get(a.item_id)!));
-  return json(env, { items });
+  return json(env, { items, paginacion: paginacionRaw });
 }
 
 export async function postDigitalizacion(request: Request, env: Env): Promise<Response> {

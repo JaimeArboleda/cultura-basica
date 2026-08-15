@@ -191,3 +191,10 @@ Todo el plan de respuestas es determinista (semillas fijas por persona y
 versión, ver `rngDesde`/`hashCadena`): volver a ejecutar `generar.mjs` sin
 tocar `data/items.json` ni `PERSONAS` reproduce exactamente las mismas
 hojas.
+
+El número de páginas de cada hoja sale de `data/paginacion.json` (README del
+proyecto, "Paginación precalculada y persistida"), no de medir el DOM en este
+Chromium — así estas hojas de prueba tienen siempre la misma paginación que
+sirve `GET /api/admin/items-impresion` a la app real. Si cambia el banco de
+ítems o el layout, ejecuta primero `node data/build-paginacion.mjs` y luego
+`node ocr_tests/generar.mjs`.

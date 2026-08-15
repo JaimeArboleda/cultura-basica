@@ -53,10 +53,20 @@ const PIPELINES = {
 // mirar en la foto ya enderezada — se reconstruye llamando a construirHoja()
 // SIN qr (no hace falta imprimir nada, solo medir), igual que el paso 2 del
 // flujo secuencial. ---
-let itemsPromise = null;
+let respuestaImpresionPromise = null;
+function obtenerRespuestaImpresion() {
+  if (!respuestaImpresionPromise) respuestaImpresionPromise = api.itemsImpresion();
+  return respuestaImpresionPromise;
+}
 function obtenerItems() {
-  if (!itemsPromise) itemsPromise = api.itemsImpresion().then((r) => r.items);
-  return itemsPromise;
+  return obtenerRespuestaImpresion().then((r) => r.items);
+}
+// Conteos de bloques por página ya precalculados (data/paginacion.json, ver
+// comun.js::construirPaginas) — para que el layout reconstruido aquí tenga
+// EXACTAMENTE el mismo número de páginas que el que se imprimió, sin volver
+// a decidirlo midiendo el DOM de este navegador (README, "Paginado fiable").
+function obtenerPaginacion(version) {
+  return obtenerRespuestaImpresion().then((r) => r.paginacion?.[version]);
 }
 
 let itemsPorIdPromise = null;
@@ -74,7 +84,12 @@ function obtenerNumeroPorId() {
 const layoutCache = new Map(); // version -> Promise<paginas>
 function obtenerLayout(version) {
   if (!layoutCache.has(version)) {
-    layoutCache.set(version, obtenerItems().then((items) => PIPELINES[version].construirHoja(items)));
+    layoutCache.set(
+      version,
+      Promise.all([obtenerItems(), obtenerPaginacion(version)]).then(([items, paginacion]) =>
+        PIPELINES[version].construirHoja(items, undefined, paginacion)
+      )
+    );
   }
   return layoutCache.get(version);
 }

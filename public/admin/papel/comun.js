@@ -499,14 +499,36 @@ export function medirMarcas(paginaEl) {
   return { marcas, lineas, fiduciales };
 }
 
-// Empaquetado voraz por altura: mide cada nodo ya construido (ancho fijo =
-// ancho de página, alto libre) y va llenando páginas sin partir nunca un
-// bloque por la mitad — vale igual para bloques de ítem (con data-item-id)
-// que para bloques de demografía (sin él). Si un único bloque no cupiera en
-// una página vacía, se le deja su propia página y se desborda en vez de
-// intentar partirlo. formatearTitulo(numeroPagina, totalPaginas) decide el
-// texto de la cabecera de cada página resultante.
-function paginarBloques(medida, nodos, formatearTitulo) {
+// Agrupa según conteos YA CALCULADOS una vez (data/paginacion.json, ver
+// data/build-paginacion.mjs y el comentario junto a construirPaginas): ni
+// mide ni decide nada aquí, solo reparte los nodos en tandas del tamaño
+// indicado — así la paginación deja de depender de medir alturas reales en
+// ESTE navegador/dispositivo, que es justo lo que hacía que una misma hoja
+// tuviera un número de páginas distinto al imprimirla y al leerla en otro
+// dispositivo (README, "Paginado fiable").
+function agruparPorConteos(nodos, conteos) {
+  const grupos = [];
+  let cursor = 0;
+  for (const n of conteos) {
+    grupos.push(nodos.slice(cursor, cursor + n));
+    cursor += n;
+  }
+  // Defensivo: si el banco de ítems cambia de tamaño después de precalcular
+  // data/paginacion.json y aún no se ha regenerado, los nodos sobrantes no
+  // desaparecen en silencio — se añaden como página(s) extra en vez de
+  // perderse.
+  if (cursor < nodos.length) grupos.push(nodos.slice(cursor));
+  return grupos;
+}
+
+// Empaquetado voraz por altura (fallback cuando no hay conteos precalculados,
+// y lo que usa data/build-paginacion.mjs para calcularlos la primera vez):
+// mide cada nodo ya construido (ancho fijo = ancho de página, alto libre) y
+// va llenando páginas sin partir nunca un bloque por la mitad — vale igual
+// para bloques de ítem (con data-item-id) que para bloques de demografía
+// (sin él). Si un único bloque no cupiera en una página vacía, se le deja su
+// propia página y se desborda en vez de intentar partirlo.
+function agruparPorAltura(medida, nodos) {
   const altoDisponible = alturaDisponiblePorPagina(medida);
   const medidos = nodos.map((nodo) => {
     medida.appendChild(nodo);
@@ -528,15 +550,23 @@ function paginarBloques(medida, nodos, formatearTitulo) {
     altoActual += m.alto;
   }
   if (actual.length > 0) grupos.push(actual);
+  return grupos.map((g) => g.map(({ nodo }) => nodo));
+}
+
+// conteos: array opcional de nº de bloques por página, ya decidido de
+// antemano (ver agruparPorConteos más arriba). formatearTitulo(numeroPagina,
+// totalPaginas) decide el texto de la cabecera de cada página resultante.
+function paginarBloques(medida, nodos, formatearTitulo, conteos) {
+  const grupos = conteos && conteos.length > 0 ? agruparPorConteos(nodos, conteos) : agruparPorAltura(medida, nodos);
 
   return grupos.map((grupo, i) => {
     const pagina = crearPagina(formatearTitulo(i + 1, grupos.length));
-    for (const { nodo } of grupo) pagina.appendChild(nodo);
+    for (const nodo of grupo) pagina.appendChild(nodo);
     medida.appendChild(pagina);
     const medidaPagina = medirMarcas(pagina);
     pagina.remove();
-    const itemIds = grupo.map(({ nodo }) => nodo.dataset.itemId).filter(Boolean);
-    return { elemento: pagina, itemIds, ...medidaPagina };
+    const itemIds = grupo.map((nodo) => nodo.dataset.itemId).filter(Boolean);
+    return { elemento: pagina, itemIds, bloques: grupo.length, ...medidaPagina };
   });
 }
 
@@ -557,7 +587,17 @@ function paginarBloques(medida, nodos, formatearTitulo) {
 // — ni el padding de 18mm, ni la tipografía de 11px, ni los márgenes reales
 // — completamente desconectados de cómo se ve la página impresa. Se retira
 // al terminar para no dejar reglas de la hoja flotando en el resto del panel.
-export async function construirPaginas(bloquesDemografia, bloquesItems, css) {
+// paginacion: {demografia: number[], items: number[]} opcional — conteos de
+// bloques por página ya precalculados una vez (data/paginacion.json, ver
+// data/build-paginacion.mjs) y persistidos, en vez de decidirse cada vez
+// midiendo el DOM en el navegador/dispositivo que ejecute esta función. Sin
+// esto, imprimir la hoja en un dispositivo y reconstruirla para leerla en
+// otro (u otro momento) podía dar un número de páginas distinto por
+// pequeñísimas diferencias de métricas de fuente entre motores de
+// renderizado — precisamente el bug que esto soluciona (README, "Paginado
+// fiable"). Si no se pasa, se cae al empaquetado voraz por altura de
+// siempre (necesario la primera vez, para poder CALCULAR ese manifiesto).
+export async function construirPaginas(bloquesDemografia, bloquesItems, css, paginacion) {
   const estiloTemporal = document.createElement("style");
   estiloTemporal.textContent = css;
   document.head.appendChild(estiloTemporal);
@@ -568,10 +608,18 @@ export async function construirPaginas(bloquesDemografia, bloquesItems, css) {
   await cargarFuenteHoja();
   const medida = crearContenedorMedida();
   try {
-    const paginasDemografia = paginarBloques(medida, bloquesDemografia, (n, total) =>
-      total > 1 ? `Página de datos ${n}/${total}` : "Página de datos"
+    const paginasDemografia = paginarBloques(
+      medida,
+      bloquesDemografia,
+      (n, total) => (total > 1 ? `Página de datos ${n}/${total}` : "Página de datos"),
+      paginacion?.demografia
     );
-    const paginasItems = paginarBloques(medida, bloquesItems, (n, total) => `Página ${n} de ${total}`);
+    const paginasItems = paginarBloques(
+      medida,
+      bloquesItems,
+      (n, total) => `Página ${n} de ${total}`,
+      paginacion?.items
+    );
     return [...paginasDemografia, ...paginasItems];
   } finally {
     medida.remove();

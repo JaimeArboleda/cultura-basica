@@ -255,11 +255,13 @@ function construirBloquesDemografia(qr) {
 // comun.js::construirPaginas), solo cambia cómo se pinta cada bloque.
 // qr: { tokenId, examId, version } opcional — ver v1/hoja.js::construirHoja
 // para el porqué de exam_id/página y de que esto sea async (README §4.10).
-export async function construirHoja(items, qr) {
+// paginacion: ver comun.js::construirPaginas.
+export async function construirHoja(items, qr, paginacion) {
   const paginas = await construirPaginas(
     construirBloquesDemografia(qr),
     items.map((item, i) => construirBloqueItem(item, i + 1)),
-    CSS_HOJA
+    CSS_HOJA,
+    paginacion
   );
   if (qr?.examId) await rellenarQrPaginas(paginas, qr);
   return paginas;

@@ -246,11 +246,15 @@
     // se encarga de generar tanto el QR grande de la página 1 como el QR
     // pequeño de cada página (comun.js::rellenarQrPaginas), así que aquí no
     // hace falta nada de qrcode-generator directamente; async porque
-    // construirHoja lo es ahora.
-    window.__construirPaginas = async function (version, items, qr) {
+    // construirHoja lo es ahora. paginacion (opcional): conteos de bloques
+    // por página ya precalculados (data/paginacion.json) — se pasan aquí para
+    // que las hojas de prueba tengan EXACTAMENTE la misma paginación que la
+    // app real, en vez de remedirla en este Chromium (README, "Paginado
+    // fiable").
+    window.__construirPaginas = async function (version, items, qr, paginacion) {
       document.querySelector("#estilo-hoja").textContent = version === 1 ? CSS_V1 : CSS_V2;
       const construirHoja = version === 1 ? construirHojaV1 : construirHojaV2;
-      paginasActuales = await construirHoja(items, qr);
+      paginasActuales = await construirHoja(items, qr, paginacion);
       return paginasActuales.length;
     };
 

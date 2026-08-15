@@ -979,6 +979,35 @@ añade una dependencia de red a algo tan central como el paginado. El
 REALMENTE descargado (`document.fonts.load`/`document.fonts.ready`, no basta
 con inyectar el `<style>`) antes de medir o de imprimir.
 
+**Paginación precalculada y persistida (`data/paginacion.json`,
+`data/build-paginacion.mjs`), la solución definitiva — la fuente incrustada
+de arriba no bastaba:** incluso con el MISMO fichero de fuente, dos motores
+de renderizado de texto (DirectWrite en Windows, CoreText en macOS,
+FreeType/HarfBuzz en Linux/Chromium headless — cada navegador, y a veces cada
+versión del mismo navegador) pueden aplicar hinting/redondeo de subpíxel
+ligeramente distinto y medir una altura de línea distinta en fracciones de
+píxel — de sobra para desplazar dónde cae un salto de página cuando se
+acumula sobre 25 ítems. Con el número de página incrustado en el QR pequeño
+de cada hoja (README §4.9/§4.10), eso seguía dando "la página N no existe en
+la hoja de la versión V" entre imprimir en un dispositivo y leer en otro,
+aunque ambos usaran exactamente la misma fuente. La solución de fondo es no
+depender NUNCA de medir en el dispositivo que ejecuta la app: `data/
+build-paginacion.mjs` (Playwright, mismo patrón que `ocr_tests/generar.mjs`)
+calcula UNA vez, con el layout real, cuántos bloques caben en cada página
+(usando el empaquetado voraz por altura de siempre) y lo escribe en
+`data/paginacion.json` (`{"1": {demografia: [...], items: [...]}, "2":
+{...}}`, un array de conteos por página); ese fichero se commitea al repo.
+`GET /api/admin/items-impresion` lo sirve junto a `items`
+(`digitalizacion.ts::getItemsImpresion`), y `comun.js::paginarBloques` lo usa
+para repartir los bloques por conteo (`agruparPorConteos`) en vez de medir
+alturas (`agruparPorAltura`, que sigue existiendo solo como fallback y como
+lo que usa el propio `build-paginacion.mjs` para calcular el manifiesto la
+primera vez) — tanto imprimir como reconstruir el layout para leer usan
+siempre el mismo `paginacion.json`, así que el número de páginas ya no puede
+divergir entre dispositivos. Hay que volver a ejecutar
+`node data/build-paginacion.mjs` (y commitear el resultado) si cambia el
+banco de ítems, el orden de presentación o el layout de la hoja.
+
 **v1 — decisión de diseño: la hoja es casi toda "rellena una burbuja", no
 letra manuscrita.** Opción múltiple y selección múltiple ya son
 burbujas/casillas de forma natural; `ordenar` y `clasificar` se resuelven

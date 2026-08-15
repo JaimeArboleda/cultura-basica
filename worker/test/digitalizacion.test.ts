@@ -94,6 +94,20 @@ describe("GET /api/admin/items-impresion", () => {
       expect(item).not.toHaveProperty("clasificacion_correcta");
     }
   });
+
+  it("incluye la paginación precalculada de data/paginacion.json para v1 y v2", async () => {
+    const auth = await tokenAdmin();
+    const res = await fetchAdmin("/api/admin/items-impresion", {}, auth);
+    const { paginacion } = (await res.json()) as {
+      paginacion: Record<string, { demografia: number[]; items: number[] }>;
+    };
+    for (const version of ["1", "2"]) {
+      expect(Array.isArray(paginacion[version].demografia)).toBe(true);
+      expect(Array.isArray(paginacion[version].items)).toBe(true);
+      const totalItems = paginacion[version].items.reduce((a, b) => a + b, 0);
+      expect(totalItems).toBe(bancoItems.length);
+    }
+  });
 });
 
 describe("POST /api/admin/digitalizacion", () => {

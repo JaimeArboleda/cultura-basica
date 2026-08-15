@@ -324,11 +324,14 @@ function construirBloquesDemografia(qr) {
 // sin qr (../digitalizar.js al reconstruir el layout para digitalizar, no
 // para imprimir) no se genera ningún QR y la función es efectivamente
 // inmediata.
-export async function construirHoja(items, qr) {
+//
+// paginacion: ver comun.js::construirPaginas.
+export async function construirHoja(items, qr, paginacion) {
   const paginas = await construirPaginas(
     construirBloquesDemografia(qr),
     items.map((item, i) => construirBloqueItem(item, i + 1)),
-    CSS_HOJA
+    CSS_HOJA,
+    paginacion
   );
   if (qr?.examId) await rellenarQrPaginas(paginas, qr);
   return paginas;
