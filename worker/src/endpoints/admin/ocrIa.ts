@@ -314,7 +314,7 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
     return error(
       env,
       400,
-      'Falta paginas: array de {id, imagen:data-url, tipo:"demografia"|"items", items?:[{id,formato,n?}]}'
+      'Falta paginas: array de {id, imagen:data-url, tipo:"demografia"|"items", campos?:[...] (si tipo=demografia), items?:[{id,formato,numero,n?}] (si tipo=items)}'
     );
   }
   const paginas = b.paginas as PaginaEntrada[];
