@@ -92,6 +92,40 @@ function construirMensajeUsuario(paginas: PaginaEntrada[]) {
   return partes;
 }
 
+// Reintentos ante 429 (límite de tokens/minuto de la cuenta de OpenAI —
+// README §4.7: la subida en bloque procesa páginas una a una, pero en ráfaga,
+// y con una cuenta de tier bajo se llega al TPM sin llegar a mandar
+// demasiadas páginas) y ante 5xx (error transitorio del lado de OpenAI).
+// OpenAI manda la cabecera `retry-after` (segundos) en los 429; se respeta si
+// viene, si no se usa un backoff exponencial fijo — igual de simple que el
+// resto de reintentos de este proyecto (ver la guía de git push del propio
+// entorno), sin librería externa.
+const MAX_REINTENTOS = 3;
+const BACKOFF_BASE_MS = 2000;
+
+async function esperar(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function llamarChatCompletions(env: Env, body: unknown): Promise<Response> {
+  for (let intento = 0; ; intento++) {
+    const respuesta = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const esReintentable = respuesta.status === 429 || respuesta.status >= 500;
+    if (!esReintentable || intento >= MAX_REINTENTOS) return respuesta;
+
+    const retryAfter = Number(respuesta.headers.get("retry-after"));
+    const esperaMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : BACKOFF_BASE_MS * 2 ** intento;
+    await esperar(esperaMs);
+  }
+}
+
 export async function postOcrIa(request: Request, env: Env): Promise<Response> {
   // Validar la forma del body ANTES de comprobar OPENAI_API_KEY: así un
   // cliente con un body mal formado se entera del error real (400) en vez de
@@ -137,33 +171,26 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
 
   let respuestaOpenAI: Response;
   try {
-    respuestaOpenAI = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: modelo,
-        response_format: { type: "json_object" },
-        // Sin `temperature`: los modelos de la familia gpt-5 (a diferencia de
-        // gpt-4o-mini) rechazan con 400 cualquier valor que no sea el 1 por
-        // defecto ("Unsupported value: 'temperature' does not support 0.0
-        // with this model"), así que fijarla a 0 para "más determinismo" en
-        // el OCR rompía el modelo más nuevo — mejor un único código que
-        // funcione con cualquier modelo (README: "por no tener dos diseños")
-        // que perseguir un determinismo que tampoco es crítico aquí (el
-        // admin revisa el 100% de las respuestas igualmente, README §4.7).
-        messages: [
-          {
-            role: "system",
-            content:
-              "Eres un sistema de OCR especializado en leer letra manuscrita de imprenta en mayúsculas sobre " +
-              "casillas cuadradas de un examen escaneado en papel. Devuelves siempre JSON plano, nunca prosa.",
-          },
-          { role: "user", content: construirMensajeUsuario(paginas) },
-        ],
-      }),
+    respuestaOpenAI = await llamarChatCompletions(env, {
+      model: modelo,
+      response_format: { type: "json_object" },
+      // Sin `temperature`: los modelos de la familia gpt-5 (a diferencia de
+      // gpt-4o-mini) rechazan con 400 cualquier valor que no sea el 1 por
+      // defecto ("Unsupported value: 'temperature' does not support 0.0
+      // with this model"), así que fijarla a 0 para "más determinismo" en
+      // el OCR rompía el modelo más nuevo — mejor un único código que
+      // funcione con cualquier modelo (README: "por no tener dos diseños")
+      // que perseguir un determinismo que tampoco es crítico aquí (el
+      // admin revisa el 100% de las respuestas igualmente, README §4.7).
+      messages: [
+        {
+          role: "system",
+          content:
+            "Eres un sistema de OCR especializado en leer letra manuscrita de imprenta en mayúsculas sobre " +
+            "casillas cuadradas de un examen escaneado en papel. Devuelves siempre JSON plano, nunca prosa.",
+        },
+        { role: "user", content: construirMensajeUsuario(paginas) },
+      ],
     });
   } catch (e) {
     return error(env, 502, `No se pudo contactar con la API de OpenAI: ${(e as Error).message}`);
