@@ -308,6 +308,17 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
     })),
   });
 
+  // Los modelos gpt-5 son "de razonamiento": por defecto dedican tokens
+  // internos a "pensar" antes de responder, lo que añade varios segundos por
+  // llamada aunque la tarea (leer una hoja y devolver JSON) no necesite ese
+  // razonamiento. `reasoning_effort: "minimal"` lo reduce al mínimo — mucho
+  // más rápido, sin afectar a la calidad de lectura. Es un parámetro que solo
+  // aceptan los modelos de razonamiento (gpt-5*, no gpt-4o-mini, que ni
+  // siquiera lo soporta), así que solo se manda si el modelo empieza por
+  // "gpt-5" — mismo motivo que la ausencia de `temperature` más abajo: un
+  // parámetro que un modelo no soporta responde 400, no se ignora en silencio.
+  const esModeloDeRazonamiento = /^gpt-5/.test(modelo);
+
   let respuestaOpenAI: Response;
   try {
     respuestaOpenAI = await llamarChatCompletions(env, {
@@ -316,6 +327,7 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
         type: "json_schema",
         json_schema: { name: "respuestas_definitivas", strict: true, schema: construirEsquemaCompleto(paginas) },
       },
+      ...(esModeloDeRazonamiento ? { reasoning_effort: "minimal" } : {}),
       // Sin `temperature`: los modelos de la familia gpt-5 (a diferencia de
       // gpt-4o-mini) rechazan con 400 cualquier valor que no sea el 1 por
       // defecto ("Unsupported value: 'temperature' does not support 0.0
