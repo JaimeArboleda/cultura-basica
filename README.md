@@ -1123,6 +1123,19 @@ código). El endpoint reintenta con backoff (respetando la cabecera
 `retry-after` si viene) ante 429 (límite de tokens/minuto de la cuenta de
 OpenAI) y 5xx antes de rendirse.
 
+**Tests de digitalización contra la API real (`ocr_tests/`):**
+`ocr_tests/generar.mjs` genera, con el propio `hoja.js`, varias hojas ya
+"rellenadas" con tinta sintética (varios perfiles de letra/errores
+deliberados: campos censales, precedencia Respuesta/Corrección, valores
+fuera de formato en una casilla, respuestas abiertas incompletas) y
+`ocr_tests/probar_ocr_ia.mjs` las manda contra un Worker real
+(`POST /api/admin/ocr-ia` y `POST /api/admin/digitalizacion`) bajo la
+remesa de pruebas reservada (`tokens.es_prueba`, §4.5), comparando el
+resultado contra la respuesta esperada de cada instancia. Ninguno de los
+dos forma parte de `npm test` (necesitan red y, el segundo, una API key de
+OpenAI real que gasta cuota) — ver `ocr_tests/README.md` para el uso
+detallado y las variables de entorno.
+
 ### 4.8 Edición de demografía y respuestas desde el panel
 
 **Motivación:** corregir un dato mal tecleado o un error de digitalización

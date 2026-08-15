@@ -288,7 +288,29 @@ function construirLeyendaCompacta(ctx, entradas, etiquetas, anchoPt, config) {
 // de referencia) encima de cada una — usada tanto para una única casilla
 // (opción única) como para una fila entera (selección múltiple, año de
 // nacimiento) o una rejilla de posiciones/instancias (ordenar/clasificar).
-function construirFilaCasillas(ctx, n, { etiquetasCabecera } = {}) {
+// Dibuja `texto` centrado dentro de una casilla, con la fuente/color de tinta
+// sintética (ctx.fontInk/ctx.colorInk, ver crearContextoFuentes) — solo lo
+// usan los generadores de fixtures de prueba (ocr_tests/), nunca la hoja real
+// que se imprime para rellenar a mano. Cae a fontRegular si no hay fontInk
+// (sigue siendo útil sin una fuente de "letra manuscrita" concreta).
+function dibujarInk(lienzo, ctx, texto, xCasillaPt, yCasillaPt, tamanoPt = 9) {
+  if (!texto) return;
+  const font = ctx.fontInk ?? ctx.fontRegular;
+  const color = ctx.colorInk ?? ctx.colorNegro;
+  const ancho = font.widthOfTextAtSize(texto, tamanoPt);
+  const x = xCasillaPt + (CASILLA_W_PT - ancho) / 2;
+  const y = yCasillaPt + CASILLA_H_PT / 2 - tamanoPt * 0.36;
+  lienzo.texto(x, y, texto, { font, tamanoPt, color });
+}
+
+// Fila de `n` casillas idénticas, con una cabecera opcional (letra o número
+// de referencia) encima de cada una — usada tanto para una única casilla
+// (opción única) como para una fila entera (selección múltiple, año de
+// nacimiento) o una rejilla de posiciones/instancias (ordenar/clasificar).
+// valores (opcional, longitud n, ocr_tests/ únicamente): texto de tinta
+// sintética a dibujar en la casilla i-ésima, o null/undefined para dejarla
+// en blanco.
+function construirFilaCasillas(ctx, n, { etiquetasCabecera, valores } = {}) {
   const altoCabecera = etiquetasCabecera ? altoLineaPt(6) : 0;
   return {
     altoPt: altoCabecera + CASILLA_H_PT,
@@ -306,6 +328,7 @@ function construirFilaCasillas(ctx, n, { etiquetasCabecera } = {}) {
           borderColor: ctx.colorNegro,
           borderWidth: CASILLA_BORDE_PT,
         });
+        dibujarInk(lienzo, ctx, valores?.[i], x, yTopPt + altoCabecera);
       }
     },
   };
@@ -325,7 +348,8 @@ function construirBloqueCasillas(ctx, etiqueta, n, anchoPt, config, opts) {
 // Ítem 'abierto': estilo "casillas" (una letra por casilla, más fácil de
 // forzar mayúsculas de imprenta) o "linea" (una raya para escribir en
 // natural, más compacta) — config.estiloAbierto, ver checkpoint de layout.
-function construirRespuestaAbierta(ctx, etiqueta, anchoPt, config) {
+// valorInk (opcional, ocr_tests/ únicamente): texto de tinta sintética.
+function construirRespuestaAbierta(ctx, etiqueta, anchoPt, config, valorInk) {
   if (config.estiloAbierto === "linea") {
     const alto = mmAPt(6);
     const titulo = construirParrafo(ctx, etiqueta, config.tamanoInstruccionPt, anchoPt, {
@@ -339,11 +363,20 @@ function construirRespuestaAbierta(ctx, etiqueta, anchoPt, config) {
           thickness: CASILLA_BORDE_PT,
           color: ctx.colorNegro,
         });
+        if (valorInk) {
+          const font = ctx.fontInk ?? ctx.fontRegular;
+          lienzo.texto(xPt + mmAPt(1), yTopPt + alto - mmAPt(2.3), valorInk, {
+            font,
+            tamanoPt: 9,
+            color: ctx.colorInk ?? ctx.colorNegro,
+          });
+        }
       },
     };
     return apilar([titulo, linea], mmAPt(1.5));
   }
-  return construirBloqueCasillas(ctx, etiqueta, config.casillasAbierto, anchoPt, config);
+  const valores = valorInk ? [...valorInk].slice(0, config.casillasAbierto) : undefined;
+  return construirBloqueCasillas(ctx, etiqueta, config.casillasAbierto, anchoPt, config, { valores });
 }
 
 // ============================================================
@@ -352,7 +385,9 @@ function construirRespuestaAbierta(ctx, etiqueta, anchoPt, config) {
 // como parte de la misma imagen de la página de demografía (README §4.7).
 // ============================================================
 
-function construirCasillaConEtiqueta(ctx, etiqueta, anchoPt, config) {
+// marcado (opcional, ocr_tests/ únicamente): si es true, rellena la casilla
+// (tinta sintética) simulando que la persona la marcó.
+function construirCasillaConEtiqueta(ctx, etiqueta, anchoPt, config, marcado) {
   const LADO_PT = mmAPt(3.6);
   const tamanoPt = config.tamanoTextoPt;
   const anchoTexto = anchoPt - LADO_PT - mmAPt(2.5);
@@ -363,6 +398,12 @@ function construirCasillaConEtiqueta(ctx, etiqueta, anchoPt, config) {
     altoPt,
     dibujar(lienzo, xPt, yTopPt) {
       lienzo.rect(xPt, yTopPt, LADO_PT, LADO_PT, { borderColor: ctx.colorNegro, borderWidth: mmAPt(0.4) });
+      if (marcado) {
+        const margen = mmAPt(0.7);
+        lienzo.rect(xPt + margen, yTopPt + margen, LADO_PT - 2 * margen, LADO_PT - 2 * margen, {
+          color: ctx.colorInk ?? ctx.colorNegro,
+        });
+      }
       lineas.forEach((linea, i) =>
         lienzo.texto(xPt + LADO_PT + mmAPt(2.5), yTopPt + i * altoLinea, linea, { tamanoPt })
       );
@@ -378,22 +419,33 @@ function contarNecesitaN(formato) {
   return formato === "ordenar" || formato === "clasificar";
 }
 
-function construirBloqueItem(ctx, item, numero, anchoPt, config) {
+// sintetico (opcional, ocr_tests/ únicamente): { respuesta, correccion } con
+// la tinta a dibujar en cada bloque de casillas — la forma de cada campo
+// depende del formato (string para abierto/opcion_multiple/seleccion_multiple,
+// array de longitud n para ordenar/clasificar). Nunca lo pasa el panel de
+// admin real (la hoja para imprimir/rellenar a mano siempre va sin esto).
+function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
   const partes = [construirEnunciado(ctx, numero, item.enunciado, anchoPt, config)];
   if (item.texto) partes.push(construirPasaje(ctx, item.texto, anchoPt, config));
+  const resp = sintetico?.respuesta;
+  const corr = sintetico?.correccion;
 
   switch (item.formato) {
     case "abierto": {
-      partes.push(construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config));
-      partes.push(construirRespuestaAbierta(ctx, "Corrección (solo si te equivocaste arriba)", anchoPt, config));
+      partes.push(construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config, resp));
+      partes.push(construirRespuestaAbierta(ctx, "Corrección (solo si te equivocaste arriba)", anchoPt, config, corr));
       break;
     }
     case "opcion_multiple": {
       const letras = item.opciones.map((_, i) => LETRAS[i]);
       partes.push(construirInstruccion(ctx, "Marca UNA sola respuesta: escribe su letra en la casilla.", anchoPt, config));
       partes.push(construirListaEtiquetada(ctx, item.opciones, letras, anchoPt, config));
-      partes.push(construirBloqueCasillas(ctx, "Respuesta", 1, anchoPt, config));
-      partes.push(construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste arriba)", 1, anchoPt, config));
+      partes.push(construirBloqueCasillas(ctx, "Respuesta", 1, anchoPt, config, { valores: resp ? [resp] : undefined }));
+      partes.push(
+        construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste arriba)", 1, anchoPt, config, {
+          valores: corr ? [corr] : undefined,
+        })
+      );
       break;
     }
     case "seleccion_multiple": {
@@ -403,8 +455,12 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config) {
         construirInstruccion(ctx, "Marca TODAS las que correspondan: escribe sus letras, una por casilla.", anchoPt, config)
       );
       partes.push(construirListaEtiquetada(ctx, item.opciones, letras, anchoPt, config));
-      partes.push(construirBloqueCasillas(ctx, "Respuesta", n, anchoPt, config));
-      partes.push(construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste arriba)", n, anchoPt, config));
+      partes.push(construirBloqueCasillas(ctx, "Respuesta", n, anchoPt, config, { valores: resp ? [...resp] : undefined }));
+      partes.push(
+        construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste arriba)", n, anchoPt, config, {
+          valores: corr ? [...corr] : undefined,
+        })
+      );
       break;
     }
     case "ordenar": {
@@ -420,10 +476,13 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config) {
         )
       );
       partes.push(construirListaEtiquetada(ctx, item.elementos, letrasElementos, anchoPt, config));
-      partes.push(construirBloqueCasillas(ctx, "Respuesta", n, anchoPt, config, { etiquetasCabecera: posiciones }));
+      partes.push(
+        construirBloqueCasillas(ctx, "Respuesta", n, anchoPt, config, { etiquetasCabecera: posiciones, valores: resp })
+      );
       partes.push(
         construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste arriba)", n, anchoPt, config, {
           etiquetasCabecera: posiciones,
+          valores: corr,
         })
       );
       break;
@@ -437,10 +496,13 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config) {
       );
       partes.push(construirLeyendaCompacta(ctx, item.categorias, letrasCategorias, anchoPt, config));
       partes.push(construirListaEtiquetada(ctx, item.elementos, numerosElementos, anchoPt, config));
-      partes.push(construirBloqueCasillas(ctx, "Respuesta", n, anchoPt, config, { etiquetasCabecera: numerosElementos }));
+      partes.push(
+        construirBloqueCasillas(ctx, "Respuesta", n, anchoPt, config, { etiquetasCabecera: numerosElementos, valores: resp })
+      );
       partes.push(
         construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste arriba)", n, anchoPt, config, {
           etiquetasCabecera: numerosElementos,
+          valores: corr,
         })
       );
       break;
@@ -472,7 +534,9 @@ const CAMPOS_DEMOGRAFIA = [
   ["libros_en_casa", "libros_en_casa", "Libros en casa a los 15 años (aprox.)"],
 ];
 
-function construirBloquesDemografia(ctx, anchoPt, config) {
+// sintetico (opcional, ocr_tests/ únicamente): { consentimiento, compromiso_honestidad
+// (booleanos), anio_nacimiento (string 4 dígitos), <campo catálogo>: letra }.
+function construirBloquesDemografia(ctx, anchoPt, config, sintetico) {
   const bloques = [];
 
   const consentimiento = apilar([
@@ -483,13 +547,15 @@ function construirBloquesDemografia(ctx, anchoPt, config) {
           ctx,
           "He leído la información del estudio y consiento participar de forma anónima.",
           anchoPt,
-          config
+          config,
+          sintetico?.consentimiento
         ),
         construirCasillaConEtiqueta(
           ctx,
           "Me comprometo a responder con honestidad, sin buscar las respuestas.",
           anchoPt,
-          config
+          config,
+          sintetico?.compromiso_honestidad
         ),
       ],
       mmAPt(1)
@@ -500,17 +566,18 @@ function construirBloquesDemografia(ctx, anchoPt, config) {
   const anio = apilar([
     construirTitulo(ctx, "Año de nacimiento", anchoPt, config),
     construirInstruccion(ctx, "4 dígitos, en números de imprenta.", anchoPt, config),
-    construirFilaCasillas(ctx, 4),
+    construirFilaCasillas(ctx, 4, { valores: sintetico?.anio_nacimiento ? [...sintetico.anio_nacimiento] : undefined }),
   ]);
   bloques.push({ ...anio, camposDemografia: ["anio_nacimiento"] });
 
   for (const [campo, claveCatalogo, etiqueta] of CAMPOS_DEMOGRAFIA) {
     const valores = CATALOGOS[claveCatalogo];
     const letras = valores.map((_, i) => LETRAS[i]);
+    const valorInk = sintetico?.[campo];
     const bloque = apilar([
       construirTitulo(ctx, etiqueta, anchoPt, config),
       construirListaEtiquetada(ctx, valores, letras, anchoPt, config),
-      construirBloqueCasillas(ctx, "Respuesta", 1, anchoPt, config),
+      construirBloqueCasillas(ctx, "Respuesta", 1, anchoPt, config, { valores: valorInk ? [valorInk] : undefined }),
     ]);
     bloques.push({ ...bloque, camposDemografia: [campo] });
   }
@@ -549,9 +616,19 @@ function agruparEnPaginas(bloques, alturaPrimeraPt, alturaRestoPt) {
 // construirHoja (para saber dónde cae cada bloque) como el pipeline de
 // lectura (digitalizar.js/subirLote.js) para saber qué pedirle a OCR-IA en
 // cada página, sin tener que generar ningún PDF.
-export function calcularManifiesto(ctx, items, config = CONFIG_POR_DEFECTO) {
-  const bloquesDemografia = construirBloquesDemografia(ctx, ANCHO_CONTENIDO_PT, config);
-  const bloquesItems = items.map((item, i) => construirBloqueItem(ctx, item, i + 1, ANCHO_CONTENIDO_PT, config));
+//
+// respuestasSinteticas (opcional, ocr_tests/ únicamente): { items: {<id>:
+// {respuesta, correccion}}, demografia: {...} } — tinta a dibujar en cada
+// casilla. Nunca cambia el alto de ningún bloque (los builders de más arriba
+// dibujan la tinta DENTRO de casillas ya dimensionadas), así que el
+// manifiesto/paginado sale exactamente igual con o sin ella — la lectura
+// real (sin esto) y la generación de fixtures de prueba (con esto) nunca
+// pueden desincronizarse en cuántas páginas tiene la hoja.
+export function calcularManifiesto(ctx, items, config = CONFIG_POR_DEFECTO, respuestasSinteticas) {
+  const bloquesDemografia = construirBloquesDemografia(ctx, ANCHO_CONTENIDO_PT, config, respuestasSinteticas?.demografia);
+  const bloquesItems = items.map((item, i) =>
+    construirBloqueItem(ctx, item, i + 1, ANCHO_CONTENIDO_PT, config, respuestasSinteticas?.items?.[item.id])
+  );
 
   const gruposDemografia = agruparEnPaginas(bloquesDemografia, ALTURA_DISPONIBLE_PT - ALTURA_QR_GRANDE_PT, ALTURA_DISPONIBLE_PT);
   const gruposItems = agruparEnPaginas(bloquesItems, ALTURA_DISPONIBLE_PT, ALTURA_DISPONIBLE_PT);
@@ -613,8 +690,8 @@ function dibujarCabeceraYFiduciales(ctx, page, lienzo, tituloDerecha) {
 // digitalizar.js/subirLote.js si alguna vez necesitan bytes reales en vez de
 // solo el manifiesto, hoy no es el caso — ver calcularManifiesto más arriba
 // para el camino sin PDF).
-export async function construirHoja(ctx, items, qr, config = CONFIG_POR_DEFECTO) {
-  const manifiesto = calcularManifiesto(ctx, items, config);
+export async function construirHoja(ctx, items, qr, config = CONFIG_POR_DEFECTO, respuestasSinteticas) {
+  const manifiesto = calcularManifiesto(ctx, items, config, respuestasSinteticas);
   const { PDFLib, pdfDoc } = ctx;
 
   for (let i = 0; i < manifiesto.length; i++) {

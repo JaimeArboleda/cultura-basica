@@ -1,0 +1,101 @@
+{
+  "persona": "01-letra-clara",
+  "descripcion": "Letra clara, casi sin correcciones — todos los campos censales deben leerse bien",
+  "token_id_qr": "TEST-01-letra-clara",
+  "exam_id_qr": "T8L6RFZN",
+  "paginas": 7,
+  "demografia": {
+    "anio_nacimiento": 1984,
+    "sexo": "Hombre",
+    "ccaa_educacion_secundaria": "Comunidad de Madrid",
+    "nivel_estudios": "Grado o licenciatura",
+    "area_estudios": "Ciencias",
+    "estudios_mayor_progenitor": "Grado o licenciatura",
+    "libros_en_casa": "26-100"
+  },
+  "respuestas_esperadas": {
+    "10": "4/1",
+    "11": "DIEGO VELÁZQUEZ",
+    "12": 4,
+    "13": 5,
+    "14": [
+      0,
+      2,
+      4,
+      6
+    ],
+    "15": [
+      "La Ilíada",
+      "El Coliseo de Roma",
+      "El Corán",
+      "El Cantar del Mío Cid",
+      "El David de Miguel Ángel",
+      "Don Quijote de la Mancha",
+      "La Novena Sinfonía de Beethoven",
+      "Crimen y Castigo de Dostoievsky",
+      "El Guernica de Picasso",
+      "Cien años de soledad"
+    ],
+    "16": 2,
+    "17": 2,
+    "18": [
+      1,
+      4,
+      8
+    ],
+    "19": "PLUSVALÍA",
+    "20": 1,
+    "21": 5,
+    "22": {
+      "Debussy": "Impresionismo",
+      "Palestrina": "Renacimiento",
+      "Beethoven": "Clasicismo",
+      "Chopin": "Romanticismo",
+      "Handel": "Barroco",
+      "Tomás Luis de Victoria": "Renacimiento",
+      "Ravel": "Impresionismo",
+      "Bach": "Barroco",
+      "Liszt": "Romanticismo",
+      "Mozart": "Clasicismo"
+    },
+    "23": 2,
+    "24": [
+      1,
+      2,
+      3
+    ],
+    "25": 4,
+    "01": "DUERF DNUMGIS",
+    "05": 4,
+    "03": [
+      "Ramsés II",
+      "Alejandro Magno",
+      "Julio César",
+      "Mahoma",
+      "Santo Tomás de Aquino",
+      "Leonardo Da Vinci",
+      "Isaac Newton",
+      "Napoleón",
+      "Karl Marx",
+      "Mao Zedong"
+    ],
+    "09": [
+      1
+    ],
+    "02": "ISABEL DE CASTILLA Y FERNANDO DE ARAGÓN",
+    "07": "AMINOÁCIDOS",
+    "04": {
+      "El entierro del Conde Orgaz": "El Greco",
+      "Ana Karenina": "Lev Tolstói",
+      "La Divina Comedia": "Dante Alighieri",
+      "La maja desnuda": "Francisco de Goya",
+      "Macbeth": "William Shakespeare",
+      "La Piedad": "Miguel Ángel",
+      "Las señoritas de Avignon": "Pablo Picasso",
+      "La Regenta": "Leopoldo Alas \"Clarín\"",
+      "Analectas": "Confucio"
+    },
+    "06": "FOTOSÍNTESIS",
+    "08": "INFLACIÓN"
+  }
+}
