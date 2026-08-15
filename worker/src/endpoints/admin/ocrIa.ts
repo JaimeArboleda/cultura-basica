@@ -146,7 +146,14 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
       body: JSON.stringify({
         model: modelo,
         response_format: { type: "json_object" },
-        temperature: 0,
+        // Sin `temperature`: los modelos de la familia gpt-5 (a diferencia de
+        // gpt-4o-mini) rechazan con 400 cualquier valor que no sea el 1 por
+        // defecto ("Unsupported value: 'temperature' does not support 0.0
+        // with this model"), así que fijarla a 0 para "más determinismo" en
+        // el OCR rompía el modelo más nuevo — mejor un único código que
+        // funcione con cualquier modelo (README: "por no tener dos diseños")
+        // que perseguir un determinismo que tampoco es crítico aquí (el
+        // admin revisa el 100% de las respuestas igualmente, README §4.7).
         messages: [
           {
             role: "system",
