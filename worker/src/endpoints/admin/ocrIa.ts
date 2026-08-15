@@ -75,21 +75,48 @@ function construirMensajeUsuario(paginas: PaginaEntrada[]) {
       type: "text",
       text:
         "Voy a mandarte recortes de casillas de una hoja de examen en papel escaneada, agrupados por página. " +
-        "Cada recorte va precedido de una etiqueta con el formato \"<id_pagina>::<clave>\" y una descripción de qué " +
-        "se esperaba escrito ahí. Lee SOLO lo que hay escrito a mano dentro de cada recorte (ignora el propio marco " +
-        "impreso de la casilla). Responde ÚNICAMENTE con un objeto JSON plano, sin explicación ni markdown, cuyas " +
-        "claves sean exactamente esas etiquetas \"<id_pagina>::<clave>\" (una por cada recorte que te mando, todas " +
-        "presentes) y cuyo valor sea el texto reconocido en MAYÚSCULAS (cadena vacía \"\" si la casilla está en " +
-        "blanco o no se distingue nada).",
+        "Cada recorte va precedido de su clave identificadora y una descripción de qué se esperaba escrito ahí. " +
+        "Lee SOLO lo que hay escrito a mano dentro de cada recorte (ignora el propio marco impreso de la casilla). " +
+        "Para cada clave, escribe en MAYÚSCULAS el texto reconocido, o cadena vacía si la casilla está en blanco " +
+        "o no se distingue nada.",
     },
   ];
   for (const pagina of paginas) {
     for (const casilla of pagina.casillas) {
-      partes.push({ type: "text", text: `${pagina.id}::${casilla.clave} — ${describirTipo(casilla.tipo)}:` });
+      partes.push({ type: "text", text: `Página ${pagina.id}, clave "${casilla.clave}" — ${describirTipo(casilla.tipo)}:` });
       partes.push({ type: "image_url", image_url: { url: casilla.imagen } });
     }
   }
   return partes;
+}
+
+// Esquema JSON estricto (Structured Outputs de OpenAI) con una propiedad
+// string por casilla, forzando a la API a devolver EXACTAMENTE ese conjunto
+// de claves — a diferencia de pedirlo solo por prompt (`response_format:
+// json_object`, como se hacía antes), esto lo hace cumplir la propia API, no
+// el modelo por buena voluntad. Con `gpt-5-nano` (el más barato y el que
+// menos fielmente sigue instrucciones de formato) el prompt-only dejaba la
+// mayoría de las claves ausentes del JSON de respuesta (se leían como "no
+// reconocido" aunque la casilla se hubiera leído bien) en vez de solo fallar
+// alguna lectura puntual — este esquema elimina esa clase de fallo entera.
+//
+// Las claves son únicas dentro de un examen completo (cada ítem/casilla del
+// banco aparece en una sola página, README §4.9), así que basta con `clave`
+// sin prefijo de página — más simple para el modelo que un identificador
+// compuesto, y menos superficie para que lo deforme.
+function construirEsquemaJson(paginas: PaginaEntrada[]) {
+  const properties: Record<string, unknown> = {};
+  const required: string[] = [];
+  for (const pagina of paginas) {
+    for (const casilla of pagina.casillas) {
+      properties[casilla.clave] = {
+        type: "string",
+        description: `Texto reconocido en la casilla "${casilla.clave}" (${describirTipo(casilla.tipo)}).`,
+      };
+      required.push(casilla.clave);
+    }
+  }
+  return { type: "object", properties, required, additionalProperties: false };
 }
 
 // Reintentos ante 429 (límite de tokens/minuto de la cuenta de OpenAI —
@@ -169,11 +196,19 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
 
   const modelo = typeof b.modelo === "string" && b.modelo ? b.modelo : (env.OPENAI_MODEL ?? MODELO_POR_DEFECTO);
 
+  console.log("[ocr-ia] petición", {
+    modelo,
+    paginas: paginas.map((p) => ({ id: p.id, claves: p.casillas.map((c) => `${c.clave} (${c.tipo})`) })),
+  });
+
   let respuestaOpenAI: Response;
   try {
     respuestaOpenAI = await llamarChatCompletions(env, {
       model: modelo,
-      response_format: { type: "json_object" },
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "casillas_leidas", strict: true, schema: construirEsquemaJson(paginas) },
+      },
       // Sin `temperature`: los modelos de la familia gpt-5 (a diferencia de
       // gpt-4o-mini) rechazan con 400 cualquier valor que no sea el 1 por
       // defecto ("Unsupported value: 'temperature' does not support 0.0
@@ -208,6 +243,7 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
   if (!contenido) {
     return error(env, 502, "La API de OpenAI no devolvió contenido reconocible");
   }
+  console.log("[ocr-ia] respuesta cruda del modelo", contenido);
 
   let plano: Record<string, unknown>;
   try {
@@ -216,17 +252,19 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
     return error(env, 502, "La respuesta del modelo no era JSON válido");
   }
 
-  // Reparte el JSON plano "<id_pagina>::<clave>" -> texto en {resultados:
-  // {[id_pagina]: {[clave]: texto}}}: una clave ausente o de tipo raro en la
-  // respuesta del modelo se trata como "no reconocido" (cadena vacía), no
-  // como error — el admin revisa el 100% de las respuestas igualmente
+  // Reparte el JSON plano clave -> texto en {resultados: {[id_pagina]:
+  // {[clave]: texto}}}: con el esquema estricto de arriba, el propio modelo
+  // ya no debería poder omitir ninguna clave — pero por si acaso (esquema no
+  // soportado por algún modelo futuro, respuesta truncada...) una clave
+  // ausente o de tipo raro se trata como "no reconocido" (cadena vacía), no
+  // como error: el admin revisa el 100% de las respuestas igualmente
   // (README §4.7, "revisión instantánea"), así que degradar con blancos es
   // preferible a que un fallo puntual del modelo tumbe la página entera.
   const resultados: Record<string, Record<string, string>> = {};
   for (const pagina of paginas) {
     const textos: Record<string, string> = {};
     for (const casilla of pagina.casillas) {
-      const valor = plano[`${pagina.id}::${casilla.clave}`];
+      const valor = plano[casilla.clave];
       textos[casilla.clave] = typeof valor === "string" ? valor.trim().toUpperCase() : "";
     }
     resultados[pagina.id] = textos;
