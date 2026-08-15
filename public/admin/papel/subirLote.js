@@ -65,6 +65,12 @@ function obtenerItemsPorId() {
   return itemsPorIdPromise;
 }
 
+let numeroPorIdPromise = null;
+function obtenerNumeroPorId() {
+  if (!numeroPorIdPromise) numeroPorIdPromise = obtenerItems().then((items) => new Map(items.map((it, i) => [it.id, i + 1])));
+  return numeroPorIdPromise;
+}
+
 const layoutCache = new Map(); // version -> Promise<paginas>
 function obtenerLayout(version) {
   if (!layoutCache.has(version)) {
@@ -329,8 +335,8 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log, motorOcr,
 
   if (motorIADisponible) {
     log("Leyendo la página con IA…");
-    const itemsPorId = await obtenerItemsPorId();
-    const entradaIA = PIPELINES[2].construirEntradaPaginaIA(paginaLayout, warp, itemsPorId, `${examId}-${pagina}`);
+    const [itemsPorId, numeroPorId] = await Promise.all([obtenerItemsPorId(), obtenerNumeroPorId()]);
+    const entradaIA = PIPELINES[2].construirEntradaPaginaIA(paginaLayout, warp, itemsPorId, numeroPorId, `${examId}-${pagina}`);
     const { resultados } = await api.ocrIa({ modelo: modeloIA, paginas: [entradaIA] });
     Object.assign(textos, resultados[entradaIA.id] ?? {});
   }

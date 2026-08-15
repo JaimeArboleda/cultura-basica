@@ -51,6 +51,14 @@ const FORMATOS_VALIDOS = new Set<FormatoItem>(["abierto", "opcion_multiple", "se
 interface ItemEntrada {
   id: string;
   formato: FormatoItem;
+  // Posición ABSOLUTA del ítem en el banco completo (1-25), la misma que se
+  // imprime dentro del círculo junto al enunciado
+  // (public/admin/papel/v2/hoja.js::construirBloqueItem) — se usa en el
+  // prompt para que el modelo correlacione cada pregunta por el número que
+  // ve impreso, no por su posición en la lista de esta página (que en
+  // cualquier página que no sea la primera de ítems empezaría en 1 aunque el
+  // círculo impreso ya vaya por, p. ej., el 14).
+  numero: number;
   // Nº de posiciones (ordenar) o de elementos (clasificar) — obligatorio para
   // esos dos formatos, la forma de la respuesta depende de él; irrelevante
   // (y ausente) para el resto.
@@ -62,6 +70,15 @@ interface PaginaEntrada {
   imagen: string; // data URL de la página ENTERA ya enderezada (no un recorte)
   tipo: "demografia" | "items";
   items?: ItemEntrada[]; // requerido si tipo === "items", en el mismo orden en que aparecen impresos
+  // Requerido si tipo === "demografia": qué campos están REALMENTE impresos
+  // en esta página concreta (subconjunto de CAMPOS_DEMOGRAFIA_CATALOGO más
+  // "anio_nacimiento") — el bloque de demografía puede repartirse en más de
+  // una página física (README §4.9, "Página de datos 1/2"), así que no se
+  // puede asumir que todos los campos estén en cualquier página que se
+  // marque como "demografia". Lo calcula el cliente a partir de qué
+  // data-linea cayeron realmente en esa página (v2/digitalizar.js::
+  // construirCamposDemografiaPresentes).
+  campos?: string[];
 }
 
 // Los 6 catálogos de opción única de demografía que en v2 son casilla de
@@ -76,12 +93,14 @@ const CAMPOS_DEMOGRAFIA_CATALOGO = [
   "estudios_mayor_progenitor",
   "libros_en_casa",
 ] as const;
+const CAMPOS_DEMOGRAFIA_VALIDOS = new Set<string>([...CAMPOS_DEMOGRAFIA_CATALOGO, "anio_nacimiento"]);
 
 function validarItem(it: unknown): it is ItemEntrada {
   if (typeof it !== "object" || it === null) return false;
   const o = it as Record<string, unknown>;
   if (typeof o.id !== "string" || !o.id) return false;
   if (typeof o.formato !== "string" || !FORMATOS_VALIDOS.has(o.formato as FormatoItem)) return false;
+  if (typeof o.numero !== "number" || !Number.isInteger(o.numero) || o.numero < 1) return false;
   if (o.formato === "ordenar" || o.formato === "clasificar") {
     return typeof o.n === "number" && Number.isInteger(o.n) && o.n > 0;
   }
@@ -93,7 +112,9 @@ function validarPagina(p: unknown): p is PaginaEntrada {
   const o = p as Record<string, unknown>;
   if (typeof o.id !== "string" || !o.id) return false;
   if (typeof o.imagen !== "string" || !o.imagen.startsWith("data:image/")) return false;
-  if (o.tipo === "demografia") return true;
+  if (o.tipo === "demografia") {
+    return Array.isArray(o.campos) && o.campos.length > 0 && o.campos.every((c) => CAMPOS_DEMOGRAFIA_VALIDOS.has(c as string));
+  }
   if (o.tipo === "items") return Array.isArray(o.items) && o.items.length > 0 && o.items.every(validarItem);
   return false;
 }
@@ -131,16 +152,36 @@ function describirFormatoItem(item: ItemEntrada): string {
 }
 
 function construirContenidoPagina(pagina: PaginaEntrada): Array<Record<string, unknown>> {
-  const texto =
-    pagina.tipo === "demografia"
-      ? `Página "${pagina.id}": es la página de datos de la hoja (demografía). Necesito la letra escrita en la ` +
-        `casilla de cada uno de estos campos (una letra por campo): ${CAMPOS_DEMOGRAFIA_CATALOGO.join(", ")}. Y el ` +
-        'año de nacimiento como los 4 dígitos escritos en sus 4 casillas (campo "anio_nacimiento").'
-      : `Página "${pagina.id}": contiene, en este orden de arriba a abajo, los siguientes ítems del test:\n` +
-        pagina
-          .items!.map((it, i) => `${i + 1}. id="${it.id}" — ${describirFormatoItem(it)}`)
-          .join("\n") +
-        "\nDame la respuesta definitiva de cada uno.";
+  let texto: string;
+  if (pagina.tipo === "demografia") {
+    const campos = pagina.campos!;
+    const catalogos = campos.filter((c) => c !== "anio_nacimiento");
+    const partes: string[] = [`Página "${pagina.id}": es (una parte de) la página de datos de la hoja (demografía).`];
+    if (catalogos.length > 0) {
+      partes.push(
+        `Necesito la letra escrita en la casilla de cada uno de estos campos, TAL COMO APARECEN EN ESTA IMAGEN ` +
+          `(si alguno de estos nombres no aparece impreso aquí, es que está en otra página — en ese caso no ` +
+          `deberías verlo en absoluto en esta imagen): ${catalogos.join(", ")}.`
+      );
+    }
+    if (campos.includes("anio_nacimiento")) {
+      partes.push('Y el año de nacimiento como los 4 dígitos escritos en sus 4 casillas (campo "anio_nacimiento").');
+    }
+    texto = partes.join(" ");
+  } else {
+    // Cada ítem se identifica por el NÚMERO IMPRESO dentro del círculo junto
+    // a su enunciado (no por su posición en esta lista, que en una página
+    // que no sea la primera de ítems ya no empezaría en 1) — evita que el
+    // modelo desalinee la respuesta de una pregunta con el id de otra.
+    texto =
+      `Página "${pagina.id}": contiene los siguientes ítems del test, cada uno identificado por el NÚMERO ` +
+      "IMPRESO DENTRO DEL CÍRCULO junto a su enunciado en la propia imagen (ignora el orden de esta lista, " +
+      "usa el número del círculo para saber a qué pregunta te refieres):\n" +
+      pagina
+        .items!.map((it) => `- círculo nº${it.numero}: id="${it.id}" — ${describirFormatoItem(it)}`)
+        .join("\n") +
+      "\nDame la respuesta definitiva de cada uno (identificado por su id, en la respuesta).";
+  }
   return [
     { type: "text", text: texto },
     { type: "image_url", image_url: { url: pagina.imagen } },
@@ -180,14 +221,11 @@ function construirEsquemaCompleto(paginas: PaginaEntrada[]) {
   const required: string[] = [];
   for (const pagina of paginas) {
     if (pagina.tipo === "demografia") {
-      for (const campo of CAMPOS_DEMOGRAFIA_CATALOGO) {
+      for (const campo of pagina.campos!) {
         const clave = `${pagina.id}::${campo}`;
         properties[clave] = { type: "string" };
         required.push(clave);
       }
-      const claveAnio = `${pagina.id}::anio_nacimiento`;
-      properties[claveAnio] = { type: "string" };
-      required.push(claveAnio);
     } else {
       for (const item of pagina.items!) {
         const clave = `${pagina.id}::${item.id}`;
@@ -304,7 +342,8 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
     paginas: paginas.map((p) => ({
       id: p.id,
       tipo: p.tipo,
-      items: p.items?.map((it) => `${it.id} (${it.formato}${it.n ? `, n=${it.n}` : ""})`),
+      campos: p.campos,
+      items: p.items?.map((it) => `círculo nº${it.numero}: ${it.id} (${it.formato}${it.n ? `, n=${it.n}` : ""})`),
     })),
   });
 
@@ -369,11 +408,14 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
   for (const pagina of paginas) {
     const textos: Record<string, string> = {};
     if (pagina.tipo === "demografia") {
-      for (const campo of CAMPOS_DEMOGRAFIA_CATALOGO) {
-        textos[`demografia:${campo}`] = letraOVacio(plano[`${pagina.id}::${campo}`]);
+      for (const campo of pagina.campos!) {
+        if (campo === "anio_nacimiento") {
+          const anio = letraOVacio(plano[`${pagina.id}::anio_nacimiento`]).replace(/\D/g, "");
+          for (let i = 0; i < 4; i++) textos[`demografia:anio_nacimiento:${i}`] = anio[i] ?? "";
+        } else {
+          textos[`demografia:${campo}`] = letraOVacio(plano[`${pagina.id}::${campo}`]);
+        }
       }
-      const anio = letraOVacio(plano[`${pagina.id}::anio_nacimiento`]).replace(/\D/g, "");
-      for (let i = 0; i < 4; i++) textos[`demografia:anio_nacimiento:${i}`] = anio[i] ?? "";
     } else {
       for (const item of pagina.items!) {
         volcarRespuestaItem(textos, item, plano[`${pagina.id}::${item.id}`]);

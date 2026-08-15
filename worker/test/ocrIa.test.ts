@@ -37,12 +37,12 @@ async function postOcrIa(body: unknown, auth: string) {
 }
 
 const IMAGEN_VALIDA = "data:image/jpeg;base64,AAA=";
-const PAGINA_DEMOGRAFIA_VALIDA = { id: "p1", imagen: IMAGEN_VALIDA, tipo: "demografia" };
+const PAGINA_DEMOGRAFIA_VALIDA = { id: "p1", imagen: IMAGEN_VALIDA, tipo: "demografia", campos: ["sexo", "anio_nacimiento"] };
 const PAGINA_ITEMS_VALIDA = {
   id: "p2",
   imagen: IMAGEN_VALIDA,
   tipo: "items",
-  items: [{ id: "item05", formato: "opcion_multiple" }],
+  items: [{ id: "item05", formato: "opcion_multiple", numero: 5 }],
 };
 
 beforeEach(async () => {
@@ -94,7 +94,11 @@ describe("POST /api/admin/ocr-ia", () => {
   it("400 con un ítem de formato inválido", async () => {
     const auth = await tokenAdmin();
     const res = await postOcrIa(
-      { paginas: [{ id: "p1", imagen: IMAGEN_VALIDA, tipo: "items", items: [{ id: "x", formato: "invalido" }] }] },
+      {
+        paginas: [
+          { id: "p1", imagen: IMAGEN_VALIDA, tipo: "items", items: [{ id: "x", formato: "invalido", numero: 1 }] },
+        ],
+      },
       auth
     );
     expect(res.status).toBe(400);
@@ -103,7 +107,33 @@ describe("POST /api/admin/ocr-ia", () => {
   it("400 con un ítem 'ordenar' sin n", async () => {
     const auth = await tokenAdmin();
     const res = await postOcrIa(
-      { paginas: [{ id: "p1", imagen: IMAGEN_VALIDA, tipo: "items", items: [{ id: "x", formato: "ordenar" }] }] },
+      {
+        paginas: [{ id: "p1", imagen: IMAGEN_VALIDA, tipo: "items", items: [{ id: "x", formato: "ordenar", numero: 1 }] }],
+      },
+      auth
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("400 con un ítem sin numero (posición impresa en el círculo)", async () => {
+    const auth = await tokenAdmin();
+    const res = await postOcrIa(
+      { paginas: [{ id: "p1", imagen: IMAGEN_VALIDA, tipo: "items", items: [{ id: "x", formato: "opcion_multiple" }] }] },
+      auth
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("400 con página demografia sin campos", async () => {
+    const auth = await tokenAdmin();
+    const res = await postOcrIa({ paginas: [{ id: "p1", imagen: IMAGEN_VALIDA, tipo: "demografia", campos: [] }] }, auth);
+    expect(res.status).toBe(400);
+  });
+
+  it("400 con página demografia con un campo desconocido", async () => {
+    const auth = await tokenAdmin();
+    const res = await postOcrIa(
+      { paginas: [{ id: "p1", imagen: IMAGEN_VALIDA, tipo: "demografia", campos: ["no_existe"] }] },
       auth
     );
     expect(res.status).toBe(400);

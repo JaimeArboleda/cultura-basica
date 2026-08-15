@@ -327,24 +327,54 @@ export function opcionesOcrParaClave(clave) {
 // (id + formato + nº de posiciones/elementos para ordenar/clasificar) — el
 // enunciado, las opciones, los elementos... el modelo los lee de la propia
 // imagen, no hace falta repetirlos aquí.
+//
+// numero: la posición ABSOLUTA del ítem en el banco completo (1-25), la
+// misma que se imprime dentro del círculo junto al enunciado
+// (v2/hoja.js::construirBloqueItem(item, numero)) — se manda para que el
+// Worker pueda decirle al modelo "el ítem del círculo N es el id=X" en vez
+// de una lista renumerada 1,2,3... solo para esa página: si el modelo
+// intentaba correlacionar el círculo impreso (que en una página que no sea
+// la primera de ítems empieza por encima de 1) con una lista que sí
+// empezaba en 1, se desalineaba y atribuía la respuesta al ítem equivocado.
+//
 // Exportada: ../subirLote.js (README §4.10) la reutiliza tal cual para las
 // páginas de una hoja v2 — el motor IA no aplica a v1 (sobre todo burbujas
 // OMR sin letra impresa al lado, README §4.7), así que solo hace falta aquí.
-export function construirManifiestoItems(pagina, itemsPorId) {
+export function construirManifiestoItems(pagina, itemsPorId, numeroPorId) {
   return pagina.itemIds.map((id) => {
     const item = itemsPorId.get(id);
     const n = item.formato === "ordenar" || item.formato === "clasificar" ? item.elementos.length : undefined;
-    return { id: item.id, formato: item.formato, ...(n !== undefined ? { n } : {}) };
+    return { id: item.id, formato: item.formato, numero: numeroPorId.get(id), ...(n !== undefined ? { n } : {}) };
   });
 }
 
-export function construirEntradaPaginaIA(pagina, warp, itemsPorId, paginaId) {
+// Campos de demografía REALMENTE impresos en esta página concreta (a partir
+// de pagina.lineas, que ya viene recortado a lo que cae en esta página
+// física — comun.js::paginarBloques): el bloque de demografía (README §4.9)
+// no siempre cabe en una sola página ("Página de datos 1/2", "2/2" si hace
+// falta), así que no se puede asumir que los 6 catálogos + año de nacimiento
+// estén todos aquí. Pedirle al modelo TODOS los campos en CADA página de
+// demografía (como hacía la primera versión de esto) le obligaba a
+// inventar/dejar en blanco los que no estaban físicamente en esa imagen —
+// y esa respuesta vacía sobrescribía después, en textosGlobal, la lectura
+// correcta que sí se había hecho en la otra página. Ahora cada página solo
+// se pregunta por lo que de verdad tiene impreso.
+function construirCamposDemografiaPresentes(pagina) {
+  const claves = new Set(pagina.lineas.map((l) => l.clave));
+  const campos = Object.keys(CAMPOS_CATALOGO).filter((campo) => claves.has(`demografia:${campo}`));
+  if ([0, 1, 2, 3].some((i) => claves.has(`demografia:anio_nacimiento:${i}`))) campos.push("anio_nacimiento");
+  return campos;
+}
+
+export function construirEntradaPaginaIA(pagina, warp, itemsPorId, numeroPorId, paginaId) {
   const esDemografia = pagina.itemIds.length === 0;
   return {
     id: paginaId,
     imagen: warp.toDataURL("image/jpeg", 0.85),
     tipo: esDemografia ? "demografia" : "items",
-    ...(esDemografia ? {} : { items: construirManifiestoItems(pagina, itemsPorId) }),
+    ...(esDemografia
+      ? { campos: construirCamposDemografiaPresentes(pagina) }
+      : { items: construirManifiestoItems(pagina, itemsPorId, numeroPorId) }),
   };
 }
 
@@ -353,6 +383,7 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas, motorOcr
   const textosGlobal = new Map();
   const paginasWarpeadas = [];
   const itemsPorId = new Map(items.map((it) => [it.id, it]));
+  const numeroPorId = new Map(items.map((it, i) => [it.id, i + 1]));
   // Token detectado por QR en alguna de las páginas escaneadas (README §4.9);
   // empieza con el que se haya seleccionado a mano ANTES de escanear (si
   // había uno), pero un QR leído con éxito lo sustituye — es más fiable que
@@ -484,7 +515,7 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, paginas, motorOcr
         if (qrPagina?.examId) examIdDetectado = qrPagina.examId;
 
         if (motorOcr === "ia") {
-          const entradaIA = construirEntradaPaginaIA(pagina, warp, itemsPorId, `pagina-${indice}`);
+          const entradaIA = construirEntradaPaginaIA(pagina, warp, itemsPorId, numeroPorId, `pagina-${indice}`);
           if (agrupacionIA === "examen") {
             pendientesIA.push(entradaIA);
           } else {
