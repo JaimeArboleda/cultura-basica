@@ -95,28 +95,56 @@ const CAMPOS_DEMOGRAFIA_CATALOGO = [
 ] as const;
 const CAMPOS_DEMOGRAFIA_VALIDOS = new Set<string>([...CAMPOS_DEMOGRAFIA_CATALOGO, "anio_nacimiento"]);
 
-function validarItem(it: unknown): it is ItemEntrada {
-  if (typeof it !== "object" || it === null) return false;
+// Devuelven un motivo (string) si la entrada es inválida, o null si es
+// válida — a diferencia de un simple boolean, esto permite que el 400 diga
+// EXACTAMENTE qué campo de qué página falló (id, índice, campos concretos)
+// en vez de un mensaje genérico. Descubierto necesario tras un caso real: un
+// 400 genérico no bastaba para saber si el problema era una página sin
+// `campos`, un ítem sin `numero`, o algo del todo distinto (README §4.7).
+function motivoItemInvalido(it: unknown): string | null {
+  if (typeof it !== "object" || it === null) return "no es un objeto";
   const o = it as Record<string, unknown>;
-  if (typeof o.id !== "string" || !o.id) return false;
-  if (typeof o.formato !== "string" || !FORMATOS_VALIDOS.has(o.formato as FormatoItem)) return false;
-  if (typeof o.numero !== "number" || !Number.isInteger(o.numero) || o.numero < 1) return false;
-  if (o.formato === "ordenar" || o.formato === "clasificar") {
-    return typeof o.n === "number" && Number.isInteger(o.n) && o.n > 0;
+  if (typeof o.id !== "string" || !o.id) return "falta id";
+  if (typeof o.formato !== "string" || !FORMATOS_VALIDOS.has(o.formato as FormatoItem)) {
+    return `formato inválido: ${JSON.stringify(o.formato)}`;
   }
-  return true;
+  if (typeof o.numero !== "number" || !Number.isInteger(o.numero) || o.numero < 1) {
+    return `falta numero (o no es un entero >= 1): ${JSON.stringify(o.numero)}`;
+  }
+  if ((o.formato === "ordenar" || o.formato === "clasificar") && !(typeof o.n === "number" && Number.isInteger(o.n) && o.n > 0)) {
+    return `formato "${o.formato}" necesita n (entero > 0): ${JSON.stringify(o.n)}`;
+  }
+  return null;
 }
 
-function validarPagina(p: unknown): p is PaginaEntrada {
-  if (typeof p !== "object" || p === null) return false;
+function motivoPaginaInvalida(p: unknown, indice: number): string | null {
+  if (typeof p !== "object" || p === null) return `página ${indice}: no es un objeto`;
   const o = p as Record<string, unknown>;
-  if (typeof o.id !== "string" || !o.id) return false;
-  if (typeof o.imagen !== "string" || !o.imagen.startsWith("data:image/")) return false;
-  if (o.tipo === "demografia") {
-    return Array.isArray(o.campos) && o.campos.length > 0 && o.campos.every((c) => CAMPOS_DEMOGRAFIA_VALIDOS.has(c as string));
+  if (typeof o.id !== "string" || !o.id) return `página ${indice}: falta id`;
+  if (typeof o.imagen !== "string" || !o.imagen.startsWith("data:image/")) {
+    return `página ${indice} (id=${JSON.stringify(o.id)}): imagen no es una data URL válida`;
   }
-  if (o.tipo === "items") return Array.isArray(o.items) && o.items.length > 0 && o.items.every(validarItem);
-  return false;
+  if (o.tipo === "demografia") {
+    if (!Array.isArray(o.campos) || o.campos.length === 0) {
+      return `página ${indice} (id=${JSON.stringify(o.id)}, demografia): falta campos o está vacío`;
+    }
+    const invalido = o.campos.find((c) => !CAMPOS_DEMOGRAFIA_VALIDOS.has(c as string));
+    if (invalido !== undefined) {
+      return `página ${indice} (id=${JSON.stringify(o.id)}, demografia): campo desconocido ${JSON.stringify(invalido)}`;
+    }
+    return null;
+  }
+  if (o.tipo === "items") {
+    if (!Array.isArray(o.items) || o.items.length === 0) {
+      return `página ${indice} (id=${JSON.stringify(o.id)}, items): falta items o está vacío`;
+    }
+    for (let i = 0; i < o.items.length; i++) {
+      const motivo = motivoItemInvalido(o.items[i]);
+      if (motivo) return `página ${indice} (id=${JSON.stringify(o.id)}), ítem ${i}: ${motivo}`;
+    }
+    return null;
+  }
+  return `página ${indice} (id=${JSON.stringify(o.id)}): tipo inválido ${JSON.stringify(o.tipo)}`;
 }
 
 // ============================================================
@@ -310,12 +338,27 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
   }
   const b = body as Record<string, unknown>;
 
-  if (!Array.isArray(b.paginas) || b.paginas.length === 0 || !b.paginas.every(validarPagina)) {
+  if (!Array.isArray(b.paginas) || b.paginas.length === 0) {
     return error(
       env,
       400,
       'Falta paginas: array de {id, imagen:data-url, tipo:"demografia"|"items", campos?:[...] (si tipo=demografia), items?:[{id,formato,numero,n?}] (si tipo=items)}'
     );
+  }
+  for (let i = 0; i < b.paginas.length; i++) {
+    const motivo = motivoPaginaInvalida(b.paginas[i], i);
+    if (motivo) {
+      // Log sin la imagen (base64, demasiado grande y no aporta nada al
+      // diagnóstico) para que `wrangler tail` muestre id/tipo/campos/items
+      // completos en vez de cortarse a media data URL.
+      const resumen = (b.paginas as unknown[]).map((p) => {
+        if (typeof p !== "object" || p === null) return p;
+        const { imagen, ...resto } = p as Record<string, unknown>;
+        return { ...resto, imagen: typeof imagen === "string" ? `<${imagen.length} chars>` : imagen };
+      });
+      console.log("[ocr-ia] body inválido", motivo, JSON.stringify(resumen));
+      return error(env, 400, `Body inválido: ${motivo}`);
+    }
   }
   const paginas = b.paginas as PaginaEntrada[];
 

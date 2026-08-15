@@ -124,10 +124,13 @@ describe("POST /api/admin/ocr-ia", () => {
     expect(res.status).toBe(400);
   });
 
-  it("400 con página demografia sin campos", async () => {
+  it("400 con página demografia sin campos, con mensaje específico (no genérico)", async () => {
     const auth = await tokenAdmin();
     const res = await postOcrIa({ paginas: [{ id: "p1", imagen: IMAGEN_VALIDA, tipo: "demografia", campos: [] }] }, auth);
     expect(res.status).toBe(400);
+    const cuerpo = (await res.json()) as { error: string };
+    expect(cuerpo.error).toMatch(/p1/);
+    expect(cuerpo.error).toMatch(/campos/);
   });
 
   it("400 con página demografia con un campo desconocido", async () => {
