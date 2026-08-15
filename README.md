@@ -954,6 +954,31 @@ tercer argumento) y sumando margen + alto de caja en vez de solo el alto de
 caja. Con la medida ya fiable, el paginado necesita bastante más páginas de
 las que parecía antes (el empaquetado previo metía de más, no de menos).
 
+**Fuente incrustada (`comun.js::FUENTE_HOJA`/`cargarFuenteHoja`), no la del
+sistema — tercer fallo del mismo estilo, encontrado con la subida en bloque
+de verdad:** `getBoundingClientRect()` es fiable solo si mide con la MISMA
+fuente en cualquier dispositivo; `font-family: "Helvetica Neue", Arial,
+Helvetica, sans-serif` confía en que el sistema operativo tenga alguna de
+esas instaladas, y si no (p. ej. un Linux sin Helvetica/Arial, como el
+entorno donde corre `ocr_tests/generar.mjs`) el navegador sustituye por otra
+fuente con métricas distintas — suficiente para desplazar dónde cae cada
+salto de página. Como el número de página va incrustado en el QR pequeño de
+cada hoja (README §4.9/§4.10), esto puede hacer que "página 11" exista en el
+dispositivo donde se IMPRIMIÓ pero no en el dispositivo donde se LEE después
+(o al revés): la subida en bloque falla con "la página N no existe en la
+hoja de la versión V" sin que haya cambiado el banco de ítems, solo el
+dispositivo. Arreglado incrustando **Liberation Sans**
+(`public/admin/papel/fonts/`, licencia OFL-1.1, metricamente compatible con
+Arial) como fichero propio vía `@font-face` — no un CDN externo tipo Google
+Fonts: así no depende de que ese servicio esté accesible (importante para
+`ocr_tests/generar.mjs`, que corre en un entorno con red restringida) ni
+añade una dependencia de red a algo tan central como el paginado. El
+`@font-face` viaja dentro de `CSS_HOJA_BASE` (llega automáticamente tanto al
+`<style>` de medición como al de la ventana de impresión) y
+`construirPaginas`/`abrirVentanaImpresion` esperan a que el archivo esté
+REALMENTE descargado (`document.fonts.load`/`document.fonts.ready`, no basta
+con inyectar el `<style>`) antes de medir o de imprimir.
+
 **v1 — decisión de diseño: la hoja es casi toda "rellena una burbuja", no
 letra manuscrita.** Opción múltiple y selección múltiple ya son
 burbujas/casillas de forma natural; `ordenar` y `clasificar` se resuelven

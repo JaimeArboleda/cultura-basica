@@ -256,7 +256,7 @@ function construirBloquesDemografia(qr) {
 // qr: { tokenId, examId, version } opcional — ver v1/hoja.js::construirHoja
 // para el porqué de exam_id/página y de que esto sea async (README §4.10).
 export async function construirHoja(items, qr) {
-  const paginas = construirPaginas(
+  const paginas = await construirPaginas(
     construirBloquesDemografia(qr),
     items.map((item, i) => construirBloqueItem(item, i + 1)),
     CSS_HOJA

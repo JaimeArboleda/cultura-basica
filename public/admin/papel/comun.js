@@ -44,6 +44,82 @@ export const COLOR_ACENTO = "#2b4c7e";
 
 export const LETRAS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
+// Fuente fija para toda la hoja (impresión Y medición/lectura): antes se
+// usaba "Helvetica Neue", Arial, Helvetica, sans-serif confiando en que el
+// sistema operativo la tuviera instalada — pero el paginado (paginarBloques
+// más abajo) depende de MEDIR el alto real de cada bloque en el DOM, y un
+// dispositivo sin esas fuentes (p. ej. un Linux sin Helvetica/Arial) mide
+// con métricas distintas a las de un Windows/Mac con Arial de verdad. Eso
+// puede dar un número de páginas distinto entre quien IMPRIME la hoja y
+// quien la LEE después (aunque sea la misma persona, en otro dispositivo):
+// con la subida en bloque, el QR de una página dice "página 11" pero quien
+// lee reconstruye solo 10 y esa página "no existe" (caso real).
+//
+// Liberation Sans (public/admin/papel/fonts/, licencia OFL-1.1, libre de
+// embeber/redistribuir — ver fonts/LICENSE.txt): metricamente compatible
+// con Arial (mismos anchos de carácter, diseñada por Red Hat justo para
+// eso), así que el aspecto apenas cambia frente al font-family anterior.
+// Se sirve como fichero ESTÁTICO propio (no un CDN externo tipo Google
+// Fonts): no depende de que ese servicio esté accesible — importante para
+// que ocr_tests/generar.mjs (Playwright en un entorno con red restringida)
+// pueda seguir generando hojas de prueba, y para no añadir una dependencia
+// de red más a algo tan central como el paginado.
+export const FUENTE_HOJA = "Liberation Sans (hoja)";
+// import.meta.url (la URL del propio comun.js) como base, no una ruta
+// relativa a secas ni el dominio de producción a fuego: resuelve bien tanto
+// dentro de la SPA del panel como al incrustarse (ya como URL absoluta) en
+// el HTML de la ventana de impresión (blob:, README de abrirVentanaImpresion
+// más abajo — un blob: no tiene una base fiable para resolver rutas
+// relativas propias).
+const URL_FUENTE_REGULAR = new URL("./fonts/LiberationSans-Regular.ttf", import.meta.url).href;
+const URL_FUENTE_BOLD = new URL("./fonts/LiberationSans-Bold.ttf", import.meta.url).href;
+
+// @font-face con font-weight 400/700 (los dos únicos pesos con fichero
+// propio — 600, usado en un par de sitios como .hoja-instruccion, no tiene
+// archivo dedicado en Liberation Sans; el navegador cae al peso más cercano
+// ya cargado, consistente en cualquier dispositivo igualmente). Parte de
+// CSS_HOJA_BASE (más abajo) para que llegue automáticamente a los dos sitios
+// que necesitan la fuente: el <style> temporal de medición (construirPaginas)
+// y el <style> de la ventana de impresión (abrirVentanaImpresion) — los dos
+// inyectan el mismo `css` (CSS_HOJA_BASE + el de la versión), sin tener que
+// duplicar el @font-face en cada uno.
+const CSS_FUENTE_HOJA = `
+  @font-face {
+    font-family: "${FUENTE_HOJA}";
+    src: url("${URL_FUENTE_REGULAR}") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: block;
+  }
+  @font-face {
+    font-family: "${FUENTE_HOJA}";
+    src: url("${URL_FUENTE_BOLD}") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+    font-display: block;
+  }
+`;
+
+let promesaFuenteHoja = null;
+// Espera a que la fuente esté REALMENTE lista para medir (document.fonts.load
+// fuerza la descarga y resuelve cuando el archivo ya está listo, a diferencia
+// de document.fonts.ready, que solo espera a las fuentes YA solicitadas
+// antes de llamarlo). Requiere que el @font-face de arriba ya esté en el
+// documento (viene con CSS_HOJA_BASE, ver construirPaginas más abajo).
+export async function cargarFuenteHoja() {
+  if (!promesaFuenteHoja) {
+    promesaFuenteHoja = Promise.all(
+      ["400", "700"].map((peso) => document.fonts.load(`${peso} 11px "${FUENTE_HOJA}"`))
+    );
+  }
+  try {
+    return await promesaFuenteHoja;
+  } catch (e) {
+    promesaFuenteHoja = null; // no dejar la caché envenenada para siempre: el siguiente intento puede reintentarlo
+    throw e;
+  }
+}
+
 // Nº de líneas y de casillas por línea por defecto para un bloque de texto
 // (bloqueCasillasTexto): 1 línea de 20 casillas basta para respuestas breves
 // tipo alias de un ítem 'abierto' (p. ej. "sigmund freud"); dos líneas
@@ -55,12 +131,13 @@ export const CASILLAS_POR_LINEA = 20;
 // casillas de texto — común a cualquier versión. Cada versión añade su propio
 // CSS para cómo se marcan las respuestas (burbujas, casillas de letra...).
 export const CSS_HOJA_BASE = `
+  ${CSS_FUENTE_HOJA}
   .hoja-pagina {
     width: ${PAGE_W_MM}mm;
     height: ${PAGE_H_MM}mm;
     box-sizing: border-box;
     padding: ${PAGINA_PADDING_MM}mm;
-    font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+    font-family: "${FUENTE_HOJA}", "Helvetica Neue", Arial, Helvetica, sans-serif;
     font-size: 11px;
     line-height: 1.35;
     color: #111;
@@ -480,10 +557,15 @@ function paginarBloques(medida, nodos, formatearTitulo) {
 // — ni el padding de 18mm, ni la tipografía de 11px, ni los márgenes reales
 // — completamente desconectados de cómo se ve la página impresa. Se retira
 // al terminar para no dejar reglas de la hoja flotando en el resto del panel.
-export function construirPaginas(bloquesDemografia, bloquesItems, css) {
+export async function construirPaginas(bloquesDemografia, bloquesItems, css) {
   const estiloTemporal = document.createElement("style");
   estiloTemporal.textContent = css;
   document.head.appendChild(estiloTemporal);
+  // Después de inyectar `css` (con el @font-face de FUENTE_HOJA, ver
+  // CSS_HOJA_BASE más arriba): document.fonts.load() necesita que el
+  // @font-face ya esté registrado en el documento para poder encontrar qué
+  // descargar.
+  await cargarFuenteHoja();
   const medida = crearContenedorMedida();
   try {
     const paginasDemografia = paginarBloques(medida, bloquesDemografia, (n, total) =>
@@ -504,6 +586,12 @@ export function construirPaginas(bloquesDemografia, bloquesItems, css) {
 // css: el CSS_HOJA completo de la versión (CSS_HOJA_BASE + el suyo propio).
 export function abrirVentanaImpresion(paginas, css) {
   const cuerpo = paginas.map((p) => p.elemento.outerHTML).join("\n");
+  // `css` ya trae el @font-face de FUENTE_HOJA (CSS_HOJA_BASE, más arriba):
+  // la hoja impresa tiene que verse con las MISMAS métricas con las que se
+  // calculó el paginado, o el propio documento impreso desmentiría el número
+  // de página que lleva en su QR. Se espera a document.fonts.ready antes de
+  // imprimir — "load" por sí solo no garantiza que el archivo de la fuente ya
+  // haya terminado de descargarse, solo que se solicitó.
   const html = `<!doctype html>
 <html><head><meta charset="utf-8" />
 <title>Hoja de respuestas — Cultura Básica</title>
@@ -512,7 +600,11 @@ export function abrirVentanaImpresion(paginas, css) {
   body { margin: 0; }
   ${css}
 </style>
-</head><body>${cuerpo}<script>window.addEventListener("load", () => window.print());<\/script></body></html>`;
+</head><body>${cuerpo}<script>
+  window.addEventListener("load", () => {
+    (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => window.print());
+  });
+<\/script></body></html>`;
   const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   const ventana = window.open(url, "_blank");

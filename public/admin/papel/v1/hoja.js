@@ -325,7 +325,7 @@ function construirBloquesDemografia(qr) {
 // para imprimir) no se genera ningún QR y la función es efectivamente
 // inmediata.
 export async function construirHoja(items, qr) {
-  const paginas = construirPaginas(
+  const paginas = await construirPaginas(
     construirBloquesDemografia(qr),
     items.map((item, i) => construirBloqueItem(item, i + 1)),
     CSS_HOJA
