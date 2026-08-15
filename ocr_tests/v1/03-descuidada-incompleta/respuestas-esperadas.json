@@ -2,8 +2,8 @@
   "persona": "03-descuidada-incompleta",
   "descripcion": "Letra desordenada, deja varias en blanco",
   "version_pipeline": 1,
-  "token_id_qr": "9a7605a1-4736-4f9c-9fdb-4c8072261e32",
-  "exam_id_qr": "A8CNUM2N",
+  "token_id_qr": "TEST-V1-03-DESCUIDADA-INCOMPLETA",
+  "exam_id_qr": "F35A8CNU",
   "paginas": 12,
   "demografia": {
     "consentimiento": true,
@@ -17,73 +17,78 @@
     "libros_en_casa": null
   },
   "respuestas_esperadas": {
-    "10": "sigmund freud",
-    "11": "isabel i y fernando",
-    "12": 4,
+    "10": "freud",
+    "11": "velazquez",
     "13": 5,
     "14": [
       0,
       2,
+      3,
       4,
-      6,
-      7
+      6
+    ],
+    "15": [
+      "La Ilíada",
+      "El Coliseo de Roma",
+      "El Corán",
+      null,
+      "El David de Miguel Ángel",
+      "Don Quijote de la Mancha",
+      "La Novena Sinfonía de Beethoven",
+      "Crimen y Castigo de Dostoievsky",
+      null,
+      null
     ],
     "16": 2,
-    "17": 2,
+    "17": 3,
     "18": [
+      0,
       1,
       4,
       8
     ],
     "19": "valor plusvalia",
+    "20": 1,
+    "21": 0,
     "22": {
-      "Debussy": "Clasicismo",
+      "Debussy": "Impresionismo",
       "Palestrina": "Renacimiento",
-      "Beethoven": "Renacimiento",
-      "Chopin": "Romanticismo",
-      "Handel": "Barroco",
-      "Tomás Luis de Victoria": "Romanticismo",
-      "Ravel": "Barroco",
-      "Bach": "Barroco",
-      "Mozart": "Clasicismo"
+      "Beethoven": "Clasicismo",
+      "Chopin": "Impresionismo",
+      "Handel": "Impresionismo",
+      "Tomás Luis de Victoria": "Renacimiento",
+      "Ravel": "Impresionismo",
+      "Bach": "Renacimiento",
+      "Liszt": "Barroco",
+      "Mozart": "Romanticismo"
     },
-    "23": 2,
+    "23": 4,
     "24": [
-      1,
       2,
       3
     ],
     "25": 4,
-    "01": "la fotosintesis",
-    "02": "isabel y fernando",
+    "01": "los reyes catolicos",
+    "05": 4,
     "03": [
       "Ramsés II",
-      "Alejandro Magno",
-      "Julio César",
       null,
+      "Julio César",
+      "Mahoma",
       "Santo Tomás de Aquino",
       "Leonardo Da Vinci",
       "Isaac Newton",
       "Napoleón",
       "Karl Marx",
-      "Mao Zedong"
+      null
     ],
-    "04": {
-      "El entierro del Conde Orgaz": "El Greco",
-      "Ana Karenina": "Lev Tolstói",
-      "La Divina Comedia": "Dante Alighieri",
-      "La Piedad": "Miguel Ángel",
-      "Las señoritas de Avignon": "Pablo Picasso",
-      "La Regenta": "Leopoldo Alas \"Clarín\"",
-      "Analectas": "Confucio"
-    },
-    "05": 2,
-    "06": "fotosintesis",
-    "07": "los aminoacidos",
-    "08": "inflacion",
     "09": [
       0,
       1
-    ]
+    ],
+    "02": "isabel y fernando",
+    "07": "los reyes catolicos",
+    "06": "la plusvalia",
+    "08": "aminoacidos"
   }
 }

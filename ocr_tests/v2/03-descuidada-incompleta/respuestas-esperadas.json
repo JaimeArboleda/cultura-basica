@@ -2,9 +2,9 @@
   "persona": "03-descuidada-incompleta",
   "descripcion": "Letra desordenada, deja varias en blanco",
   "version_pipeline": 2,
-  "token_id_qr": "9a7605a1-4736-4f9c-9fdb-4c8072261e32",
-  "exam_id_qr": "CK5GJVNZ",
-  "paginas": 10,
+  "token_id_qr": "TEST-V2-03-DESCUIDADA-INCOMPLETA",
+  "exam_id_qr": "FCK5GJVN",
+  "paginas": 11,
   "demografia": {
     "consentimiento": true,
     "compromiso_honestidad": true,
@@ -17,81 +17,89 @@
     "libros_en_casa": null
   },
   "respuestas_esperadas": {
-    "10": "cuatro quinceavos",
-    "11": "velasquez",
-    "12": 4,
-    "13": 2,
+    "10": "isabel y fernando",
+    "11": "diego velazquez",
+    "12": 2,
+    "13": 0,
     "14": [
       0,
+      1,
       2,
       4,
       6
     ],
     "15": [
-      "El David de Miguel Ángel",
       "La Ilíada",
-      "El Guernica de Picasso",
-      "Cien años de soledad",
-      "Crimen y Castigo de Dostoievsky",
-      "Don Quijote de la Mancha",
-      "La Novena Sinfonía de Beethoven",
+      "El Coliseo de Roma",
       "El Corán",
       "El Cantar del Mío Cid",
-      "El Coliseo de Roma"
+      "El David de Miguel Ángel",
+      "Don Quijote de la Mancha",
+      "La Novena Sinfonía de Beethoven",
+      "Crimen y Castigo de Dostoievsky",
+      "El Guernica de Picasso",
+      "Cien años de soledad"
     ],
-    "16": 1,
-    "17": 5,
-    "20": 3,
-    "21": 5,
+    "16": 4,
+    "17": 3,
+    "18": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "19": "isabel de castilla y fernando de aragon",
+    "20": 1,
+    "21": 3,
     "22": {
-      "Debussy": "Romanticismo",
-      "Palestrina": "Barroco",
-      "Beethoven": "Renacimiento",
-      "Chopin": "Renacimiento",
-      "Handel": "Impresionismo",
-      "Tomás Luis de Victoria": "Clasicismo",
+      "Debussy": "Impresionismo",
+      "Palestrina": "Renacimiento",
+      "Beethoven": "Clasicismo",
+      "Chopin": "Romanticismo",
+      "Handel": "Barroco",
+      "Tomás Luis de Victoria": "Renacimiento",
       "Ravel": "Impresionismo",
-      "Bach": "Clasicismo",
-      "Liszt": "Renacimiento",
+      "Bach": "Barroco",
       "Mozart": "Clasicismo"
     },
-    "23": 4,
     "24": [
       1,
       2,
       3
     ],
     "25": 4,
-    "02": "los reyes catolicos",
+    "05": 4,
     "03": [
-      null,
-      "Mahoma",
-      "Julio César",
-      "Leonardo Da Vinci",
-      null,
+      "Ramsés II",
       "Alejandro Magno",
+      "Julio César",
+      "Mahoma",
+      "Santo Tomás de Aquino",
+      "Leonardo Da Vinci",
       "Isaac Newton",
-      null,
+      "Napoleón",
       "Karl Marx",
-      "Napoleón"
+      "Mao Zedong"
     ],
+    "09": [
+      0,
+      1,
+      2
+    ],
+    "02": "isabel i y fernando",
+    "07": "amino acidos",
     "04": {
       "El entierro del Conde Orgaz": "El Greco",
       "Ana Karenina": "Lev Tolstói",
       "La Divina Comedia": "Dante Alighieri",
       "La maja desnuda": "Francisco de Goya",
+      "Macbeth": "William Shakespeare",
       "La Piedad": "Miguel Ángel",
       "Las señoritas de Avignon": "Pablo Picasso",
       "La Regenta": "Leopoldo Alas \"Clarín\"",
       "Analectas": "Confucio"
     },
-    "05": 0,
-    "06": "la fotosintesis",
-    "07": "freud",
-    "08": "los reyes catolicos",
-    "09": [
-      0,
-      1
-    ]
+    "06": "isabel y fernando",
+    "08": "sigmund freud"
   }
 }

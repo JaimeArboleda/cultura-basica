@@ -2,9 +2,9 @@
   "persona": "02-con-correcciones",
   "descripcion": "Se equivoca a menudo y corrige mucho",
   "version_pipeline": 2,
-  "token_id_qr": "9a7605a1-4736-4f9c-9fdb-4c8072261e32",
-  "exam_id_qr": "FPJMXPDF",
-  "paginas": 10,
+  "token_id_qr": "TEST-V2-02-CON-CORRECCIONES",
+  "exam_id_qr": "HGAYNNHS",
+  "paginas": 11,
   "demografia": {
     "consentimiento": true,
     "compromiso_honestidad": true,
@@ -17,10 +17,16 @@
     "libros_en_casa": "0-10"
   },
   "respuestas_esperadas": {
-    "10": "cuatro quinceavos",
-    "11": "velasquez",
+    "10": "4 quinceavos",
+    "11": "diego velazquez",
     "12": 4,
     "13": 5,
+    "14": [
+      0,
+      2,
+      4,
+      6
+    ],
     "15": [
       "La Ilíada",
       "El Coliseo de Roma",
@@ -40,22 +46,22 @@
       4,
       8
     ],
-    "19": "valor plusvalia",
-    "20": 1,
-    "21": 5,
+    "19": "plusvalia",
+    "20": 3,
+    "21": 1,
     "22": {
       "Debussy": "Impresionismo",
       "Palestrina": "Renacimiento",
-      "Beethoven": "Renacimiento",
-      "Chopin": "Clasicismo",
-      "Handel": "Romanticismo",
-      "Tomás Luis de Victoria": "Clasicismo",
+      "Beethoven": "Clasicismo",
+      "Chopin": "Romanticismo",
+      "Handel": "Barroco",
+      "Tomás Luis de Victoria": "Renacimiento",
       "Ravel": "Impresionismo",
-      "Bach": "Renacimiento",
-      "Liszt": "Renacimiento",
+      "Bach": "Barroco",
+      "Liszt": "Romanticismo",
       "Mozart": "Clasicismo"
     },
-    "23": 5,
+    "23": 3,
     "24": [
       1,
       2,
@@ -63,7 +69,7 @@
     ],
     "25": 4,
     "01": "sigmund freud",
-    "02": "fernando e isabel",
+    "05": 4,
     "03": [
       "Ramsés II",
       "Alejandro Magno",
@@ -76,6 +82,12 @@
       "Karl Marx",
       "Mao Zedong"
     ],
+    "09": [
+      0,
+      1
+    ],
+    "02": "fernando e isabel",
+    "07": "amino acidos",
     "04": {
       "El entierro del Conde Orgaz": "El Greco",
       "Ana Karenina": "Lev Tolstói",
@@ -87,13 +99,7 @@
       "La Regenta": "Leopoldo Alas \"Clarín\"",
       "Analectas": "Confucio"
     },
-    "05": 4,
-    "06": "fotosintesis",
-    "07": "los aminoacidos",
-    "08": "la inflacion",
-    "09": [
-      0,
-      1
-    ]
+    "06": "inflacion",
+    "08": "inflacion"
   }
 }

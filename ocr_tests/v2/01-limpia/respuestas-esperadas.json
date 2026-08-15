@@ -2,9 +2,9 @@
   "persona": "01-limpia",
   "descripcion": "Cuidadosa, sin apenas correcciones",
   "version_pipeline": 2,
-  "token_id_qr": "9a7605a1-4736-4f9c-9fdb-4c8072261e32",
-  "exam_id_qr": "JWLQCKF3",
-  "paginas": 10,
+  "token_id_qr": "TEST-V2-01-LIMPIA",
+  "exam_id_qr": "JCMJJWLQ",
+  "paginas": 11,
   "demografia": {
     "consentimiento": true,
     "compromiso_honestidad": true,
@@ -18,7 +18,7 @@
   },
   "respuestas_esperadas": {
     "10": "4 quinceavos",
-    "11": "velazquez",
+    "11": "velasquez",
     "12": 4,
     "13": 5,
     "14": [
@@ -29,7 +29,7 @@
     ],
     "15": [
       "La Ilíada",
-      null,
+      "El Coliseo de Roma",
       "El Corán",
       "El Cantar del Mío Cid",
       "El David de Miguel Ángel",
@@ -39,14 +39,13 @@
       "El Guernica de Picasso",
       "Cien años de soledad"
     ],
-    "16": 2,
     "17": 2,
     "18": [
       1,
       4,
       8
     ],
-    "19": "valor plusvalia",
+    "19": "la plusvalia",
     "20": 1,
     "21": 5,
     "22": {
@@ -58,7 +57,8 @@
       "Tomás Luis de Victoria": "Renacimiento",
       "Ravel": "Impresionismo",
       "Bach": "Barroco",
-      "Liszt": "Romanticismo"
+      "Liszt": "Romanticismo",
+      "Mozart": "Clasicismo"
     },
     "23": 2,
     "24": [
@@ -68,7 +68,7 @@
     ],
     "25": 4,
     "01": "freud",
-    "02": "isabel de castilla y fernando de aragon",
+    "05": 4,
     "03": [
       "Ramsés II",
       "Alejandro Magno",
@@ -81,24 +81,23 @@
       "Karl Marx",
       "Mao Zedong"
     ],
+    "09": [
+      0,
+      1
+    ],
+    "02": "isabel i de castilla y fernando ii de aragon",
+    "07": "los aminoacidos",
     "04": {
       "El entierro del Conde Orgaz": "El Greco",
       "Ana Karenina": "Lev Tolstói",
       "La Divina Comedia": "Dante Alighieri",
-      "La maja desnuda": "Francisco de Goya",
       "Macbeth": "William Shakespeare",
       "La Piedad": "Miguel Ángel",
       "Las señoritas de Avignon": "Pablo Picasso",
       "La Regenta": "Leopoldo Alas \"Clarín\"",
       "Analectas": "Confucio"
     },
-    "05": 4,
     "06": "fotosintesis",
-    "07": "los aminoacidos",
-    "08": "la inflacion",
-    "09": [
-      0,
-      1
-    ]
+    "08": "inflacion"
   }
 }

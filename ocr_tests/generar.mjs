@@ -534,7 +534,23 @@ async function comprimirParaPdf(page, buf, { anchoMax = 1600, calidad = 0.55 } =
 // ============================================================
 
 async function main() {
-  const items = JSON.parse(await readFile(path.join(RAIZ_REPO, "data/items.json"), "utf8"));
+  const bancoSinOrdenar = JSON.parse(await readFile(path.join(RAIZ_REPO, "data/items.json"), "utf8"));
+  // Mismo orden de presentación que usa la app de verdad (worker/src/sorteo.ts
+  // ::ordenarTest, a partir de data/orden-test.json — README §1.4/§8) — NO el
+  // orden alfabético por id de data/items.json. Generar las hojas de prueba en
+  // el orden equivocado las desincroniza de lo que hoy reconstruye
+  // GET /api/admin/items-impresion (usado por "Subir en bloque" y el flujo
+  // secuencial para saber qué va en cada página): incluso puede dar un número
+  // de páginas distinto si el contenido de algún ítem cambió de tamaño desde
+  // que se generaron las hojas, con lo que una foto de "página 3" ya no
+  // contiene lo que la app espera leer en su página 3 reconstruida.
+  const ordenIds = JSON.parse(await readFile(path.join(RAIZ_REPO, "data/orden-test.json"), "utf8"));
+  const idsBanco = new Set(bancoSinOrdenar.map((it) => it.id));
+  const orden = ordenIds.filter((id) => idsBanco.has(id));
+  const vistos = new Set(orden);
+  const faltantes = bancoSinOrdenar.map((it) => it.id).filter((id) => !vistos.has(id));
+  const porId = new Map(bancoSinOrdenar.map((it) => [it.id, it]));
+  const items = [...orden, ...faltantes].map((id) => porId.get(id));
   const poolAbierto = [
     ...new Set(
       items

@@ -2,8 +2,8 @@
   "persona": "02-con-correcciones",
   "descripcion": "Se equivoca a menudo y corrige mucho",
   "version_pipeline": 1,
-  "token_id_qr": "9a7605a1-4736-4f9c-9fdb-4c8072261e32",
-  "exam_id_qr": "MAC85CAW",
+  "token_id_qr": "TEST-V1-02-CON-CORRECCIONES",
+  "exam_id_qr": "QGS3MAC8",
   "paginas": 12,
   "demografia": {
     "consentimiento": true,
@@ -18,7 +18,7 @@
   },
   "respuestas_esperadas": {
     "10": "4/15",
-    "11": "velazquez",
+    "11": "la fotosintesis",
     "12": 4,
     "13": 5,
     "14": [
@@ -40,25 +40,27 @@
       "Cien años de soledad"
     ],
     "16": 2,
-    "17": 2,
+    "17": 5,
     "18": [
+      0,
       1,
       4,
       8
     ],
-    "19": "la plusvalia",
+    "19": "valor plusvalia",
     "20": 1,
+    "21": 1,
     "22": {
-      "Debussy": "Clasicismo",
+      "Debussy": "Impresionismo",
       "Palestrina": "Renacimiento",
-      "Beethoven": "Impresionismo",
-      "Chopin": "Barroco",
-      "Handel": "Renacimiento",
-      "Tomás Luis de Victoria": "Clasicismo",
-      "Ravel": "Romanticismo",
+      "Beethoven": "Clasicismo",
+      "Chopin": "Romanticismo",
+      "Handel": "Barroco",
+      "Tomás Luis de Victoria": "Renacimiento",
+      "Ravel": "Impresionismo",
       "Bach": "Barroco",
       "Liszt": "Romanticismo",
-      "Mozart": "Impresionismo"
+      "Mozart": "Clasicismo"
     },
     "23": 2,
     "24": [
@@ -66,7 +68,8 @@
       2,
       3
     ],
-    "02": "reyes catolicos",
+    "25": 0,
+    "05": 4,
     "03": [
       "Ramsés II",
       "Alejandro Magno",
@@ -79,6 +82,8 @@
       "Karl Marx",
       "Mao Zedong"
     ],
+    "02": "isabel i de castilla y fernando ii de aragon",
+    "07": "amino acidos",
     "04": {
       "El entierro del Conde Orgaz": "El Greco",
       "Ana Karenina": "Lev Tolstói",
@@ -90,13 +95,7 @@
       "La Regenta": "Leopoldo Alas \"Clarín\"",
       "Analectas": "Confucio"
     },
-    "05": 4,
-    "06": "la fotosintesis",
-    "07": "los aminoacidos",
-    "08": "inflacion",
-    "09": [
-      0,
-      1
-    ]
+    "06": "la plusvalia",
+    "08": "inflacion"
   }
 }
