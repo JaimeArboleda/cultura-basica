@@ -477,6 +477,7 @@ export async function renderSubirLote(contenedorRaiz) {
           <select id="select-modelo-ia-lote">
             <option value="gpt-4o-mini">gpt-4o-mini</option>
             <option value="gpt-5-mini">gpt-5-mini</option>
+            <option value="gpt-5-nano">gpt-5-nano (más barato, menos capaz)</option>
           </select>
         </label>
         <p class="nota-formato">
