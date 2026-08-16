@@ -190,7 +190,7 @@ function motivoPaginaInvalida(p: unknown, indice: number): string | null {
 // devolverlo en la respuesta, y la forma esperada de la respuesta).
 // ============================================================
 
-const SYSTEM_PROMPT =
+export const SYSTEM_PROMPT =
   "Eres un asistente que digitaliza hojas de examen en papel escaneadas y ya enderezadas. Cada pregunta tiene un " +
   'bloque "Respuesta" (una o varias casillas donde se escribió la respuesta a mano) y, debajo, un bloque ' +
   '"Corrección" más pequeño y separado por una línea discontinua, que solo se rellena si la persona quiso corregir ' +
@@ -230,7 +230,7 @@ function describirFormatoItem(item: ItemEntrada): string {
   }
 }
 
-function construirContenidoPagina(pagina: PaginaEntrada): Array<Record<string, unknown>> {
+export function construirContenidoPagina(pagina: PaginaEntrada): Array<Record<string, unknown>> {
   let texto: string;
   if (pagina.tipo === "demografia") {
     const campos = pagina.campos!;

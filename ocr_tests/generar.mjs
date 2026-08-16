@@ -83,7 +83,14 @@ function otroIndice(rng, correcto, total) {
 const FUENTES_INK = {
   clara: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/architectsdaughter/ArchitectsDaughter-Regular.ttf",
   media: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/patrickhand/PatrickHand-Regular.ttf",
-  descuidada: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/caveat/Caveat%5Bwght%5D.ttf",
+  // Antes Caveat[wght].ttf (fuente VARIABLE) — pdf-lib/fontkit subsettea mal
+  // sus glifos con `embedFont(..., { subset: true })`: casi todas las letras
+  // salían invisibles en el PDF final (solo alguna suelta, al azar,
+  // renderizaba), aunque el propio texto sí se calculaba y persistía bien en
+  // el plan — visto al comparar el PDF ya rasterizado contra
+  // `respuestas-esperadas.json`, que sí tenía el valor esperado. Gochi Hand
+  // es una fuente ESTÁTICA (no variable) con el mismo espíritu descuidado.
+  descuidada: "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/gochihand/GochiHand-Regular.ttf",
 };
 async function descargarFuenteInk(nombre) {
   const resp = await fetch(FUENTES_INK[nombre]);

@@ -96,17 +96,38 @@ las 4 instancias crearon su sesión de extremo a extremo sin fallos:
 
 | Instancia | Ítems | Demografía |
 |---|---|---|
-| `01-letra-clara` | 21/25 (84%) | 7/7 (100%) |
-| `02-con-correcciones` | 19/23 (83%) | 7/7 (100%) |
-| `03-valores-invalidos-e-incompletas` | 20/25 (80%) | 7/7 (100%) |
-| `04-descuidada-ruidosa` | 6/23 (26%) | 3/6 (50%) |
+| `01-letra-clara` | 19/25 (76%) | 7/7 (100%) |
+| `02-con-correcciones` | 17/23 (74%) | 7/7 (100%) |
+| `03-valores-invalidos-e-incompletas` | 19/25 (76%) | 7/7 (100%) |
+| `04-descuidada-ruidosa` | 16/23 (70%) | 6/6 (100%) |
 
-Los fallos que quedan en las 3 primeras instancias son sobre todo de acento
-("PLUSVALIA" en vez de "PLUSVALÍA") o de espacios perdidos en respuestas
-largas de varias palabras ("ISABELDECASTILLA...") — `igual()` en este
+Los fallos que quedan son sobre todo de acento ("PLUSVALIA" en vez de
+"PLUSVALÍA"), de espacios perdidos en respuestas largas de varias palabras
+("ISABELDECASTILLA...") o casos donde el modelo no aplicó bien la
+precedencia Respuesta/Corrección en un `clasificar` — `igual()` en este
 script compara con igualdad estricta, más exigente que la tolerancia de
 edición real de `worker/src/correccion.ts::corregirAbierto`, así que la
 precisión real de puntuación es probablemente algo mayor que estos
-porcentajes. `04-descuidada-ruidosa` es deliberadamente el perfil más
-adversarial (letra descuidada, foto con más ruido/desenfoque) — su cifra
-baja es la esperada, no una regresión.
+porcentajes.
+
+**Bug real encontrado con esta batería, ya corregido:** la fuente de tinta
+de `04-descuidada-ruidosa` era `Caveat[wght].ttf`, una fuente VARIABLE —
+`pdf-lib`/`fontkit` subsettean mal sus glifos con
+`embedFont(..., { subset: true })` y casi toda la tinta salía invisible en
+el PDF (una letra suelta, al azar, sí renderizaba). Antes de corregirlo
+esta instancia medía 6/23 (26%) ítems y 3/6 (50%) demografía — no porque el
+modelo leyera mal, sino porque la imagen que se le mandaba estaba casi en
+blanco. Cambiada a Gochi Hand (estática); los números de la tabla ya
+reflejan la fuente corregida. Lección: antes de atribuir un fallo al motor
+de OCR-IA, comprobar primero que la imagen de entrada tiene tinta visible —
+inspeccionar el JPEG generado antes de gastar cuota de la API.
+
+**Bug real encontrado y NO corregido todavía** (afecta también a la hoja
+real, no solo a estas fixtures): el ítem `02` tiene `casillasAbierto: 18`
+(constante fija en `hoja.js::CONFIG_POR_DEFECTO`) pero su
+`respuesta_canonica` completa ("Isabel de Castilla y Fernando de Aragón")
+ocupa 40 caracteres con espacios — no cabe físicamente en la fila de
+casillas impresa, ni en la hoja real ni en estas fixtures. Cualquiera que
+escriba la respuesta completa y correcta no puede terminarla. Pendiente de
+decidir el arreglo (más casillas solo para este ítem, cambiar a
+`estiloAbierto: "linea"`, o acortar la respuesta canónica esperada).
