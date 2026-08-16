@@ -298,3 +298,54 @@ el prompt/esquema/salida cruda real:
 - El resto son 2-3 fallos genuinos de lectura sin patrón claro
   (`03-valores-invalidos-e-incompletas`, la instancia con valores fuera de
   formato a propósito).
+
+## Rediseño del layout de la hoja en papel: Respuesta/Corrección lado a lado (16 de agosto de 2026)
+
+Cambio posterior de layout (no de prompts/esquema): la hoja en papel
+comprimió la página de datos a 1 sola página y reordenó el banco de ítems
+para caber en 5 páginas de preguntas (6 en total con la de datos, antes 7) —
+ver el git log de `public/admin/papel/hoja.js`/`geometria.js`/
+`data/orden-test.json` para el detalle de cada cambio. El más relevante para
+OCR-IA: en opción única, selección múltiple, ordenar y clasificar, los
+bloques "Respuesta" y "Corrección" pasan de ir apilados (Corrección debajo)
+a ir **en la misma fila, lado a lado** (Respuesta a la izquierda, Corrección
+a la derecha) — solo "abierto" sigue apilado (demasiadas casillas para caber
+lado a lado). `SYSTEM_PROMPT_ITEMS` (`worker/src/endpoints/admin/ocrIa.ts`)
+describía un único layout apilado para los 5 formatos ("y, debajo, un bloque
+Corrección..., separado por una línea discontinua" — esa línea discontinua,
+además, nunca se llegó a dibujar en ningún layout, apilado o no: pura
+descripción inexacta ya desde antes de este cambio). Corregido para describir
+ambos layouts explícitamente según el formato. El esquema JSON
+(`construirEsquemaCompleto`/`esquemaCampoRespuestaItem`) no dependía de la
+posición del bloque Corrección, solo de su formato/recuento de opciones —
+no hizo falta tocarlo.
+
+Como el pipeline entero calcula la paginación al vuelo a partir del banco de
+ítems (`hoja.js::calcularManifiesto`, README del proyecto §4.7) y ni
+`generar.mjs` ni `probar_ocr_ia.mjs` asumen un nº de páginas fijo en ningún
+sitio (leen `manifiesto.length`), regenerar las fixtures con el nuevo layout
+fue solo volver a ejecutar `node ocr_tests/generar.mjs` — las 4 instancias
+pasaron de 7 a 6 páginas (`pagina-07.jpg` desaparece en las 4) sin tocar
+ningún dato de las personas ni de sus planes de respuesta.
+
+**Corrida de verificación** (`gpt-5-mini`, mismo día, mismas 4 instancias,
+fixtures regeneradas con el layout nuevo, prompt corregido, contra
+`wrangler dev` local):
+
+| Instancia | Ítems | Demografía |
+|---|---|---|
+| `01-letra-clara` | **25/25 (100%)** | 7/7 (100%) |
+| `02-con-correcciones` | **23/25 (92%)** | 7/7 (100%) |
+| `03-valores-invalidos-e-incompletas` | **22/25 (88%)** | 7/7 (100%) |
+| `04-descuidada-ruidosa` | **25/25 (100%)** | 6/7 (86%) |
+
+**95/100 (95%) de acierto agregado en ítems**, en línea con la corrida de
+referencia anterior (94%) — sin regresión atribuible al nuevo layout lado a
+lado: ninguno de los fallos de esta corrida es una confusión entre columna
+Respuesta/columna Corrección (se revisó la respuesta cruda de cada fallo
+contra el prompt). Los fallos que quedan repiten los mismos patrones ya
+documentados arriba — alucinación en preguntas en blanco (`02-con-
+correcciones` ítem 01, "SIGMUND FREUD" donde el plan dejaba la pregunta en
+blanco; `04-descuidada-ruidosa` demografía.libros_en_casa, "0-10" también
+sobre un campo en blanco) y autocompletar una respuesta a medias
+("PLUSV" → ya contaba como fallo esperado en el plan) — ninguno nuevo.
