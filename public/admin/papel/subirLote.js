@@ -1,14 +1,15 @@
-// Subida en bloque de hojas en papel (README §4.10): pestaña "Subir en
-// bloque" del panel de admin. A diferencia del flujo secuencial de siempre
-// (./digitalizar.js — sube las páginas de UNA hoja, en orden, en una sola
-// visita), aquí se suben fotos o PDFs sueltos de páginas de CUALQUIER hoja,
-// en cualquier orden y en cuantas visitas hagan falta: cada página se
+// Digitalización de tests en papel en bloque (README §4.10): pestaña
+// "Digitalizar tests" del panel de admin (antes "Subir en bloque" — el flujo
+// secuencial que subía las páginas de UNA hoja, en orden, en una sola visita,
+// se retiró por legacy frente a este, ver git log). Aquí se suben fotos,
+// PDFs, o un .zip con cualquier mezcla de ambos, de páginas de CUALQUIER
+// hoja, en cualquier orden y en cuantas visitas hagan falta: cada página se
 // identifica sola por el QR pequeño que lleva en todas las páginas
 // (qr.js::codificarPayloadQrPagina — exam_id + número de página) y el
 // resultado ya decodificado se guarda en el Worker
 // (worker/src/endpoints/admin/examenesPapel.ts) hasta que un examen tiene
 // todas sus páginas y se puede "Finalizar" — momento en el que se reutiliza
-// la MISMA pantalla de confirmación que el flujo secuencial
+// la MISMA pantalla de confirmación que usaba el flujo secuencial retirado
 // (renderConfirmacionYCrear, ./digitalizar.js) para no mantener dos
 // formularios de creación de sesión por separado.
 //
@@ -23,6 +24,7 @@ import {
   detectarFiduciales,
   ESCALA_DIGITALIZACION,
   leerQrsDePagina,
+  leerZip,
   prepararImagenFuente,
   warpearImagen,
 } from "./comun.js";
@@ -347,6 +349,88 @@ async function renderListaExamenes(zona, { contenedorRaiz, tokens, items, totalP
 }
 
 // ============================================================
+// Clasificación de un archivo subido (foto, PDF, o .zip con cualquier mezcla
+// de ambos, README §4.10) en "unidades" (una por página, {etiqueta, canvas,
+// item}) — recursiva, así un .zip dentro de un .zip (raro, pero no cuesta
+// nada admitirlo) se abre igual. Entradas del zip que no son ni imagen ni PDF
+// (metadatos de macOS, .DS_Store...) se descartan en silencio.
+// ============================================================
+
+const EXTENSION_IMAGEN = /\.(jpe?g|png|gif|bmp|webp|heic|heif|tiff?)$/i;
+const EXTENSION_PDF = /\.pdf$/i;
+const EXTENSION_ZIP = /\.zip$/i;
+
+function esZip(file) {
+  return file.type === "application/zip" || file.type === "application/x-zip-compressed" || EXTENSION_ZIP.test(file.name);
+}
+function esPdf(file) {
+  return file.type === "application/pdf" || EXTENSION_PDF.test(file.name);
+}
+function esImagen(file) {
+  return file.type.startsWith("image/") || EXTENSION_IMAGEN.test(file.name);
+}
+
+async function agregarUnidadesDeArchivo(file, etiqueta, unidades, listaProgreso) {
+  if (esZip(file)) {
+    const item = document.createElement("li");
+    item.textContent = `${etiqueta}: abriendo .zip…`;
+    listaProgreso.prepend(item);
+    try {
+      const entradas = await leerZip(file);
+      item.remove();
+      for (const { nombre, blob } of entradas) {
+        const nombreBase = nombre.split("/").pop() ?? nombre;
+        // Metadatos de macOS al comprimir con Finder (carpeta __MACOSX/,
+        // ficheros "._nombre.ext" con la MISMA extensión que el archivo real
+        // que acompañan — el filtro por extensión de más abajo no los
+        // descarta solo, hace falta este aparte) — no son ni imagen ni PDF,
+        // aunque lo parezcan por el nombre.
+        if (nombre.startsWith("__MACOSX/") || nombreBase.startsWith("._")) continue;
+        if (!esPdf({ type: blob.type, name: nombre }) && !esImagen({ type: blob.type, name: nombre }) && !esZip({ type: blob.type, name: nombre })) {
+          continue; // ni imagen, ni PDF, ni zip anidado: metadatos/basura del propio zip, se ignora
+        }
+        await agregarUnidadesDeArchivo(new File([blob], nombre), `${etiqueta} > ${nombre}`, unidades, listaProgreso);
+      }
+    } catch (e) {
+      item.textContent = `${etiqueta}: error al leer el .zip (${e.message})`;
+      item.className = "progreso-error";
+    }
+    return;
+  }
+
+  if (esPdf(file)) {
+    const item = document.createElement("li");
+    item.textContent = `${etiqueta}: dividiendo PDF en páginas…`;
+    listaProgreso.prepend(item);
+    try {
+      const paginas = await cargarPaginasPdf(file);
+      item.remove();
+      paginas.forEach((canvas, i) => {
+        const filaPagina = document.createElement("li");
+        filaPagina.textContent = `${etiqueta} (página ${i + 1} de ${paginas.length}): en cola…`;
+        listaProgreso.prepend(filaPagina);
+        unidades.push({ etiqueta: `${etiqueta} (página ${i + 1})`, canvas, item: filaPagina });
+      });
+    } catch (e) {
+      item.textContent = `${etiqueta}: error al leer el archivo (${e.message})`;
+      item.className = "progreso-error";
+    }
+    return;
+  }
+
+  const item = document.createElement("li");
+  item.textContent = `${etiqueta}: en cola…`;
+  listaProgreso.prepend(item);
+  try {
+    const canvas = await prepararImagenFuente(file);
+    unidades.push({ etiqueta, canvas, item });
+  } catch (e) {
+    item.textContent = `${etiqueta}: error al leer el archivo (${e.message})`;
+    item.className = "progreso-error";
+  }
+}
+
+// ============================================================
 // Entrada de la pestaña
 // ============================================================
 
@@ -354,14 +438,14 @@ export async function renderSubirLote(contenedorRaiz) {
   const { tokens } = await api.tokens();
   contenedorRaiz.innerHTML = `
     <section class="digitalizar-bloque">
-      <h3>Subir páginas sueltas (fotos o PDF), en cualquier orden</h3>
+      <h3>Subir páginas sueltas (fotos, PDF o un .zip con varios), en cualquier orden</h3>
       <p class="nota-formato">
         Pensado para digitalizar en dos pasos: primero escanear o fotografiar TODAS las hojas rellenadas de
-        una remesa (mezcladas, sin ordenar), y luego subir aquí las imágenes o PDFs sueltos — en el orden
-        que sea, y en varias visitas si hace falta. Cada página se identifica sola por su código QR (examen
-        + número de página) y se va colocando en su sitio. Si un PDF ya trae todas las páginas de una hoja,
-        mejor: se procesa de una vez. Cuando un examen tenga todas sus páginas, aparece abajo listo para
-        "Finalizar".
+        una remesa (mezcladas, sin ordenar), y luego subir aquí las imágenes o PDFs — sueltos, en un único
+        .zip con cualquier mezcla de ambos, o combinando varias subidas — en el orden que sea, y en varias
+        visitas si hace falta. Cada página se identifica sola por su código QR (examen + número de página) y
+        se va colocando en su sitio. Si un PDF ya trae todas las páginas de una hoja, mejor: se procesa de
+        una vez. Cuando un examen tenga todas sus páginas, aparece abajo listo para "Finalizar".
       </p>
       <label class="campo">
         <span>Modelo de OCR-IA</span>
@@ -370,7 +454,7 @@ export async function renderSubirLote(contenedorRaiz) {
           <option value="gpt-5-nano">gpt-5-nano (más barato, menos capaz)</option>
         </select>
       </label>
-      <input type="file" id="campo-archivos-lote" accept="image/*,application/pdf" multiple />
+      <input type="file" id="campo-archivos-lote" accept="image/*,application/pdf,application/zip,.zip" multiple />
       <div id="zona-intervencion-lote" class="escaneo-paso" hidden></div>
       <ul id="lista-progreso-lote" class="lista-progreso"></ul>
     </section>
@@ -409,28 +493,7 @@ export async function renderSubirLote(contenedorRaiz) {
 
     const unidades = [];
     for (const file of archivos) {
-      const esPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
-      const item = document.createElement("li");
-      item.textContent = esPdf ? `${file.name}: dividiendo PDF en páginas…` : `${file.name}: en cola…`;
-      listaProgreso.prepend(item);
-      try {
-        if (esPdf) {
-          const paginas = await cargarPaginasPdf(file);
-          item.remove();
-          paginas.forEach((canvas, i) => {
-            const filaPagina = document.createElement("li");
-            filaPagina.textContent = `${file.name} (página ${i + 1} de ${paginas.length}): en cola…`;
-            listaProgreso.prepend(filaPagina);
-            unidades.push({ etiqueta: `${file.name} (página ${i + 1})`, canvas, item: filaPagina });
-          });
-        } else {
-          const canvas = await prepararImagenFuente(file);
-          unidades.push({ etiqueta: file.name, canvas, item });
-        }
-      } catch (e) {
-        item.textContent = `${file.name}: error al leer el archivo (${e.message})`;
-        item.className = "progreso-error";
-      }
+      await agregarUnidadesDeArchivo(file, file.name, unidades, listaProgreso);
     }
 
     for (const unidad of unidades) {

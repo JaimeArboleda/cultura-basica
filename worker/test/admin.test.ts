@@ -118,6 +118,50 @@ describe("Gestión de tokens", () => {
     expect(intento.status).toBe(403);
   });
 
+  it("rehabilitar devuelve la caducidad que el token tenía antes de revocarlo", async () => {
+    const auth = await tokenAdmin();
+    const token = await crearTokenViaAdmin(auth, "familia de Gerardo", { horas_validez: 100 });
+    const antesDeRevocar = await fetchAdmin("/api/admin/tokens", {}, auth);
+    const { tokens: listadoAntes } = (await antesDeRevocar.json()) as { tokens: { id: string; expira_en: string }[] };
+    const expiraEnOriginal = listadoAntes.find((t) => t.id === token.id)!.expira_en;
+
+    await fetchAdmin(`/api/admin/tokens/${token.id}`, { method: "DELETE" }, auth);
+
+    const rehabilitar = await fetchAdmin(`/api/admin/tokens/${token.id}/rehabilitar`, { method: "POST" }, auth);
+    expect(rehabilitar.status).toBe(200);
+
+    const despues = await fetchAdmin("/api/admin/tokens", {}, auth);
+    const { tokens: listadoDespues } = (await despues.json()) as { tokens: { id: string; expira_en: string }[] };
+    expect(listadoDespues.find((t) => t.id === token.id)!.expira_en).toBe(expiraEnOriginal);
+
+    // Vuelve a servir para crear sesiones, con la caducidad original restaurada.
+    const sesion = await fetchAdmin("/api/sesion", {
+      method: "POST",
+      body: JSON.stringify({
+        token: token.id,
+        consentimiento: true,
+        compromiso_honestidad: true,
+        user_agent_clase: "escritorio",
+        demografia: demografiaValida(),
+      }),
+    });
+    expect(sesion.status).toBe(201);
+  });
+
+  it("rehabilitar en un token que nunca se revocó (solo caducado por tiempo) devuelve 400", async () => {
+    const auth = await tokenAdmin();
+    const token = await crearTokenViaAdmin(auth, "familia de Gerardo", { horas_validez: 2 });
+
+    const rehabilitar = await fetchAdmin(`/api/admin/tokens/${token.id}/rehabilitar`, { method: "POST" }, auth);
+    expect(rehabilitar.status).toBe(400);
+  });
+
+  it("rehabilitar en un token inexistente devuelve 404", async () => {
+    const auth = await tokenAdmin();
+    const rehabilitar = await fetchAdmin("/api/admin/tokens/no-existe/rehabilitar", { method: "POST" }, auth);
+    expect(rehabilitar.status).toBe(404);
+  });
+
   it("rechaza crear un token sin descripción", async () => {
     const auth = await tokenAdmin();
     const res = await fetchAdmin("/api/admin/tokens", { method: "POST", body: JSON.stringify({}) }, auth);

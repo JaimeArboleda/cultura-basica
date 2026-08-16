@@ -7,9 +7,12 @@
 // cookies. El token llega en el fragmento de la URL tras el login (ver init())
 // y se guarda en localStorage.
 //
-import { renderDigitalizar } from "./papel/digitalizar.js";
+import { obtenerManifiesto } from "./papel/digitalizar.js";
 import { renderSubirLote } from "./papel/subirLote.js";
 import { renderEditarSesion } from "./editarSesion.js";
+import { obtenerUpng } from "./papel/comun.js";
+import { generarExamId } from "./papel/qr.js";
+import { construirHoja } from "./papel/hoja.js";
 
 // API_BASE duplica intencionalmente la constante de ../js/api.js: son despliegues
 // separados y el front-end del test no debe depender del panel ni viceversa.
@@ -47,6 +50,7 @@ export const api = {
   tokens: () => peticion("/api/admin/tokens"),
   crearToken: (body) => peticion("/api/admin/tokens", { method: "POST", body: JSON.stringify(body) }),
   revocarToken: (id) => peticion(`/api/admin/tokens/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  rehabilitarToken: (id) => peticion(`/api/admin/tokens/${encodeURIComponent(id)}/rehabilitar`, { method: "POST" }),
   borrarSesionesToken: (id) =>
     peticion(`/api/admin/tokens/${encodeURIComponent(id)}/sesiones`, { method: "DELETE" }),
   borrarTokenCompleto: (id) =>
@@ -169,9 +173,12 @@ const PESTANAS = [
   { id: "stats", etiqueta: "Estadísticas", render: renderStats },
   { id: "avanzado", etiqueta: "Estadísticas avanzadas", render: renderAvanzado },
   { id: "tokens", etiqueta: "Tokens", render: renderTokens },
-  { id: "sesiones", etiqueta: "Sesiones", render: renderSesiones },
-  { id: "digitalizar", etiqueta: "Digitalizar tests", render: renderDigitalizar },
-  { id: "subir-lote", etiqueta: "Subir en bloque", render: renderSubirLote },
+  { id: "sesiones", etiqueta: "Respuestas", render: renderSesiones },
+  // Antes "Subir en bloque": la pestaña "Digitalizar tests" secuencial
+  // (subir página a página, una hoja por visita) se retiró por legacy frente
+  // a esta — admite cualquier mezcla de fotos/PDFs sueltos o un zip con
+  // varios (README §4.10), así que hereda también el nombre.
+  { id: "subir-lote", etiqueta: "Digitalizar tests", render: renderSubirLote },
   { id: "solicitudes", etiqueta: "Solicitudes de acceso", render: renderSolicitudes },
   { id: "admins", etiqueta: "Administradores", render: renderAdmins },
 ];
@@ -690,11 +697,35 @@ function filaToken(t) {
       <td>${t.n_completas}</td>
       <td><button type="button" class="boton-tabla" data-copiar-token="${enlace}">Copiar enlace</button></td>
       <td class="acciones-tabla">
+        <button type="button" class="boton-tabla" data-imprimir-remesa="${t.id}" data-descripcion-remesa="${escaparHtml(t.descripcion)}">Imprimir remesa</button>
         ${caducado ? "" : `<button type="button" class="boton-tabla" data-revocar="${t.id}">Revocar</button>`}
+        ${
+          t.expira_en_antes_de_revocar != null
+            ? `<button type="button" class="boton-tabla" data-rehabilitar="${t.id}" title="Vuelve a habilitarlo con la caducidad que tenía antes de revocarlo">Rehabilitar</button>`
+            : ""
+        }
         <button type="button" class="boton-tabla boton-peligro" data-borrar-remesa="${t.id}">Borrar respuestas</button>
         <button type="button" class="boton-tabla boton-peligro" data-borrar-token="${t.id}" title="Borra el token entero y todas sus sesiones, sin dejar rastro">Borrar token</button>
       </td>
     </tr>`;
+}
+
+// Genera `cantidad` hojas en blanco para la remesa `tokenId`, cada una con su
+// propio exam_id corto (README §4.9/§4.10) — distinto en cada PDF, usado
+// también en el nombre del fichero, para poder identificar cada hoja física
+// suelta antes de repartirla. onProgreso(hechos, total), opcional, para ir
+// informando mientras se generan (puede tardar unos segundos si son muchas).
+async function generarZipRemesa(tokenId, cantidad, onProgreso) {
+  const [{ ctx, items }, upng] = await Promise.all([obtenerManifiesto(), obtenerUpng()]);
+  ctx.UPNG = upng;
+  const archivos = [];
+  for (let i = 0; i < cantidad; i++) {
+    const examId = generarExamId();
+    const { pdfBytes } = await construirHoja(ctx, items, { tokenId, examId });
+    archivos.push({ nombre: `hoja-${examId}.pdf`, contenido: new Uint8Array(pdfBytes) });
+    onProgreso?.(i + 1, cantidad);
+  }
+  return construirZip(archivos);
 }
 
 async function renderTokens(contenedor, recargar) {
@@ -767,6 +798,53 @@ async function renderTokens(contenedor, recargar) {
       if (!confirm("¿Revocar este token? Dejará de servir para crear sesiones nuevas de inmediato.")) return;
       await api.revocarToken(boton.dataset.revocar);
       recargar();
+    });
+  });
+
+  contenedor.querySelectorAll("[data-rehabilitar]").forEach((boton) => {
+    boton.addEventListener("click", async () => {
+      if (!confirm("¿Rehabilitar este token con la caducidad que tenía antes de revocarlo?")) return;
+      try {
+        await api.rehabilitarToken(boton.dataset.rehabilitar);
+        recargar();
+      } catch (e) {
+        alert(e.message);
+      }
+    });
+  });
+
+  contenedor.querySelectorAll("[data-imprimir-remesa]").forEach((boton) => {
+    boton.addEventListener("click", async () => {
+      const cantidadTexto = prompt("¿Cuántas hojas quieres generar para esta remesa?", "10");
+      if (cantidadTexto == null) return;
+      const cantidad = Number(cantidadTexto);
+      if (!Number.isInteger(cantidad) || cantidad < 1) {
+        alert("Introduce un número entero mayor que 0.");
+        return;
+      }
+      const tokenId = boton.dataset.imprimirRemesa;
+      const textoOriginal = boton.textContent;
+      boton.disabled = true;
+      try {
+        const blob = await generarZipRemesa(tokenId, cantidad, (hechos, total) => {
+          boton.textContent = `Generando… (${hechos}/${total})`;
+        });
+        const url = URL.createObjectURL(blob);
+        const enlace = document.createElement("a");
+        const sufijoDescripcion = boton.dataset.descripcionRemesa
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "");
+        enlace.href = url;
+        enlace.download = `hojas-${sufijoDescripcion || tokenId}.zip`;
+        enlace.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        alert(`Error generando las hojas: ${e.message}`);
+      } finally {
+        boton.disabled = false;
+        boton.textContent = textoOriginal;
+      }
     });
   });
 

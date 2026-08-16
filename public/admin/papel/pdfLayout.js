@@ -67,15 +67,24 @@ export function elegirColumnas(font, tamanoPt, entradas, anchoDisponiblePt, { ma
 }
 
 // Reparte `entradas` en una rejilla de `nCols` columnas, orden de lectura por
-// filas (izquierda a derecha, luego la siguiente fila) — más natural para
-// escanear a la vista que por columnas. Devuelve {filas, anchoColPt}, donde
-// filas es un array de arrays de {texto, indice} (índice original, para las
-// etiquetas A/B/C... o 1/2/3...).
+// COLUMNAS (la primera columna se rellena entera antes de pasar a la
+// siguiente) — así una lista etiquetada A/B/C.../1/2/3... se lee de arriba a
+// abajo dentro de cada columna en vez de saltar de 3 en 3 (p. ej. con 3
+// columnas, la primera columna pasaba a ser A) D) G)... en vez de A) B) C)...,
+// el motivo original de este cambio). Devuelve {filas, anchoColPt}, donde
+// filas es un array (uno por fila visual) de arrays de {texto, indice, col}
+// — indice es la posición original (para las etiquetas A/B/C... o 1/2/3...),
+// col la columna en la que se dibuja.
 export function distribuirEnRejilla(entradas, nCols, anchoDisponiblePt, gapPt = mmAPt(4)) {
   const anchoColPt = (anchoDisponiblePt - gapPt * (nCols - 1)) / nCols;
-  const filas = [];
-  for (let i = 0; i < entradas.length; i += nCols) {
-    filas.push(entradas.slice(i, i + nCols).map((texto, j) => ({ texto, indice: i + j })));
+  const filasPorColumna = Math.ceil(entradas.length / nCols);
+  const filas = Array.from({ length: filasPorColumna }, () => []);
+  for (let col = 0; col < nCols; col++) {
+    for (let fila = 0; fila < filasPorColumna; fila++) {
+      const indice = col * filasPorColumna + fila;
+      if (indice >= entradas.length) continue;
+      filas[fila].push({ texto: entradas[indice], indice, col });
+    }
   }
   return { filas, anchoColPt };
 }

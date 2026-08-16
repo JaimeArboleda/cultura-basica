@@ -297,6 +297,77 @@ async function obtenerPdfJs() {
   return promesaPdfJs;
 }
 
+// ============================================================
+// Lectura de un .zip subido en "Digitalizar tests" (README §4.10, subida en
+// bloque): puede traer una mezcla suelta de fotos y PDFs. Lector mínimo del
+// formato PKZIP (misma referencia que el escritor de admin.js::construirZip,
+// APPNOTE.TXT de PKWARE), sin ninguna librería nueva — el único método de
+// compresión que hace falta soportar en LECTURA es DEFLATE (el que usan los
+// zips normales de macOS/Windows/Linux; STORE, sin comprimir, también, es el
+// que genera nuestro propio construirZip), inflado con el DecompressionStream
+// nativo del navegador (soportado en Chrome/Edge/Firefox/Safari recientes) en
+// vez de añadir una librería de compresión.
+async function inflarDeflate(bytes) {
+  const ds = new DecompressionStream("deflate-raw");
+  const writer = ds.writable.getWriter();
+  writer.write(bytes);
+  writer.close();
+  return new Uint8Array(await new Response(ds.readable).arrayBuffer());
+}
+
+// Busca la firma del End Of Central Directory (0x06054b50) desde el final del
+// archivo hacia atrás — puede no estar en los últimos 22 bytes exactos si el
+// zip lleva un comentario global (longitud variable, hasta 65535 bytes).
+function buscarFinDirectorioCentral(vista) {
+  const minimo = Math.max(0, vista.byteLength - 22 - 65535);
+  for (let i = vista.byteLength - 22; i >= minimo; i--) {
+    if (vista.getUint32(i, true) === 0x06054b50) return i;
+  }
+  throw new Error("No es un .zip válido (no se encontró el fin del directorio central)");
+}
+
+export async function leerZip(file) {
+  const buffer = await file.arrayBuffer();
+  const vista = new DataView(buffer);
+  const bytes = new Uint8Array(buffer);
+  const finCentral = buscarFinDirectorioCentral(vista);
+  const numEntradas = vista.getUint16(finCentral + 10, true);
+  let offset = vista.getUint32(finCentral + 16, true);
+
+  const decodificador = new TextDecoder();
+  const entradas = [];
+  for (let i = 0; i < numEntradas; i++) {
+    if (vista.getUint32(offset, true) !== 0x02014b50) {
+      throw new Error("No es un .zip válido (cabecera del directorio central inesperada)");
+    }
+    const metodo = vista.getUint16(offset + 10, true);
+    const tamComprimido = vista.getUint32(offset + 20, true);
+    const longNombre = vista.getUint16(offset + 28, true);
+    const longExtra = vista.getUint16(offset + 30, true);
+    const longComentario = vista.getUint16(offset + 32, true);
+    const offsetLocal = vista.getUint32(offset + 42, true);
+    const nombre = decodificador.decode(bytes.subarray(offset + 46, offset + 46 + longNombre));
+
+    if (!nombre.endsWith("/") && vista.getUint32(offsetLocal, true) === 0x04034b50) {
+      const longNombreLocal = vista.getUint16(offsetLocal + 26, true);
+      const longExtraLocal = vista.getUint16(offsetLocal + 28, true);
+      const inicioDatos = offsetLocal + 30 + longNombreLocal + longExtraLocal;
+      const comprimidos = bytes.subarray(inicioDatos, inicioDatos + tamComprimido);
+      // 0 = sin comprimir (STORE), 8 = DEFLATE — los dos únicos métodos que
+      // producen los compresores de zip habituales; cualquier otro (raro:
+      // BZIP2, LZMA...) se descarta en vez de fallar todo el lote entero.
+      if (metodo === 0) {
+        entradas.push({ nombre, blob: new Blob([comprimidos]) });
+      } else if (metodo === 8) {
+        const datos = await inflarDeflate(comprimidos);
+        entradas.push({ nombre, blob: new Blob([datos]) });
+      }
+    }
+    offset += 46 + longNombre + longExtra + longComentario;
+  }
+  return entradas;
+}
+
 export async function cargarPaginasPdf(file) {
   const pdfjsLib = await obtenerPdfJs();
   const buffer = await file.arrayBuffer();

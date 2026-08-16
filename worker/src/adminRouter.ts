@@ -20,7 +20,14 @@ import {
 import { deleteSesion, getSesionDetalle, getSesiones, putSesionEdicion } from "./endpoints/admin/sesiones";
 import { deleteSolicitud, getSolicitudes, patchSolicitud } from "./endpoints/admin/solicitudes";
 import { getStats } from "./endpoints/admin/stats";
-import { deleteToken, deleteTokenCompleto, deleteTokenSesiones, getTokens, postTokens } from "./endpoints/admin/tokens";
+import {
+  deleteToken,
+  deleteTokenCompleto,
+  deleteTokenSesiones,
+  getTokens,
+  postTokenRehabilitar,
+  postTokens,
+} from "./endpoints/admin/tokens";
 import { esAdmin } from "./db";
 import { error } from "./http";
 import type { Env } from "./tipos";
@@ -48,6 +55,10 @@ export async function manejarRutaAdmin(request: Request, env: Env, pathname: str
   // más todas sus sesiones/respuestas, sin dejar rastro.
   const mTokenCompleto = pathname.match(/^\/api\/admin\/tokens\/([^/]+)\/completo$/);
   if (method === "DELETE" && mTokenCompleto) return deleteTokenCompleto(env, decodeURIComponent(mTokenCompleto[1]));
+
+  // "Rehabilitar": lo contrario de la revocación de más abajo.
+  const mTokenRehabilitar = pathname.match(/^\/api\/admin\/tokens\/([^/]+)\/rehabilitar$/);
+  if (method === "POST" && mTokenRehabilitar) return postTokenRehabilitar(env, decodeURIComponent(mTokenRehabilitar[1]));
 
   const mToken = pathname.match(/^\/api\/admin\/tokens\/([^/]+)$/);
   if (method === "DELETE" && mToken) return deleteToken(env, decodeURIComponent(mToken[1]));

@@ -31,7 +31,16 @@ CREATE TABLE tokens (
   -- obtenerDatasetCompleto (siguen visibles filtrando el panel explícitamente
   -- por ese token). Pensado para probar el pipeline de digitalización contra la
   -- API real de OpenAI sin ensuciar las estadísticas del piloto.
-  es_prueba   INTEGER NOT NULL DEFAULT 0
+  es_prueba   INTEGER NOT NULL DEFAULT 0,
+  -- "Rehabilitar" (README §4.5, lo contrario de "Revocar"): NULL salvo justo
+  -- después de revocar, momento en el que guarda el expira_en que tenía ANTES
+  -- de la revocación (revocarToken lo sobrescribe con "ahora") — así
+  -- rehabilitarToken puede devolverle exactamente esa misma caducidad
+  -- original en vez de inventar una nueva. Se vuelve a poner a NULL al
+  -- rehabilitar, así el botón "Rehabilitar" solo aparece tras una revocación
+  -- explícita, nunca en un token que simplemente caducó solo por el paso del
+  -- tiempo (ahí no hay "caducidad original" distinta que restaurar).
+  expira_en_antes_de_revocar TEXT
 );
 
 -- Solicitudes de acceso de quien llega sin token válido (README §4.5): solo
