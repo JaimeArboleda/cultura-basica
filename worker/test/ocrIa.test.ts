@@ -192,7 +192,7 @@ describe("POST /api/admin/ocr-ia", () => {
     expect(res.status).toBe(400);
   });
 
-  it("acepta consentimiento/compromiso_honestidad como campos de demografía válidos (antes solo OMR)", async () => {
+  it("400 con consentimiento/compromiso_honestidad como campos de demografía: nunca se piden a OCR-IA", async () => {
     const auth = await tokenAdmin();
     const res = await postOcrIa(
       {
@@ -202,9 +202,7 @@ describe("POST /api/admin/ocr-ia", () => {
       },
       auth
     );
-    // Body válido: sin OPENAI_API_KEY en el entorno de test, el 400 de validación
-    // ya no debería dispararse — solo el 500 de "falta la API key" más abajo.
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
   });
 
   it("500 con mensaje claro si el Worker no tiene OPENAI_API_KEY configurada (aunque el body sea válido)", async () => {
@@ -278,12 +276,5 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
       { id: "p", imagen: "x", tipo: "demografia", campos: ["anio_nacimiento"] },
     ]);
     expect(propiedad(esquema, "p::anio_nacimiento")).toEqual({ type: "string", pattern: "^[0-9]{0,4}$" });
-  });
-
-  it("demografía: checkboxes siguen restringidas a SI/NO", () => {
-    const esquema = construirEsquemaCompleto([
-      { id: "p", imagen: "x", tipo: "demografia", campos: ["consentimiento"] },
-    ]);
-    expect(propiedad(esquema, "p::consentimiento")).toEqual({ type: "string", enum: ["SI", "NO"] });
   });
 });

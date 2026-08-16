@@ -176,8 +176,6 @@ export function renderConfirmacionYCrear(
   zona,
   { tokenIdDetectado, examIdDetectado, tokens, items, textosGlobal, paginasWarpeadas, alRecargar }
 ) {
-  const consentimientoSeed = leerTexto(textosGlobal, "demografia:consentimiento") === "SI";
-  const honestidadSeed = leerTexto(textosGlobal, "demografia:compromiso_honestidad") === "SI";
   // 4 claves independientes (demografia:anio_nacimiento:0..3, ocrIa.ts): el
   // Worker ya reparte el año de 4 dígitos que devuelve el modelo en una clave
   // por dígito, mismo formato que el resto de casillas individuales.
@@ -227,23 +225,14 @@ export function renderConfirmacionYCrear(
   zona.innerHTML = `
     <h3>Confirmar datos y crear la sesión</h3>
     <p class="nota-formato">
-      Esto es solo lo imprescindible para poder crear la sesión (remesa, consentimiento, compromiso y
-      demografía). Las 25 respuestas se revisan justo después, ya guardadas, en la misma pantalla de
-      edición que el resto de sesiones del panel — así se corrige al momento sin perder lo digitalizado.
+      Esto es solo lo imprescindible para poder crear la sesión (remesa y demografía). Las casillas de
+      consentimiento y compromiso se imprimen en la hoja como recordatorio para quien la rellena, pero no
+      se piden aquí: una sesión digitalizada siempre se da por consentida. Las 25 respuestas se revisan
+      justo después, ya guardadas, en la misma pantalla de edición que el resto de sesiones del panel —
+      así se corrige al momento sin perder lo digitalizado.
     </p>
     ${miniaturas}
     ${bloqueToken}
-    <div class="revision-item">
-      <div class="revision-item-enunciado">Consentimiento y compromiso</div>
-      <label class="revision-checkbox">
-        <input type="checkbox" data-campo="demografia:consentimiento" ${consentimientoSeed ? "checked" : ""} />
-        Consiente participar
-      </label>
-      <label class="revision-checkbox">
-        <input type="checkbox" data-campo="demografia:compromiso_honestidad" ${honestidadSeed ? "checked" : ""} />
-        Compromiso de honestidad
-      </label>
-    </div>
     ${bloqueCamposDemografia(demografiaSeed)}
     <div class="botones-celda">
       <button type="button" class="boton-principal boton-ancho-auto" id="boton-crear-sesion">Crear sesión y revisar respuestas</button>
@@ -264,16 +253,18 @@ export function renderConfirmacionYCrear(
     boton.disabled = true;
     estado.textContent = "Creando sesión…";
     try {
-      const consentimiento = zona.querySelector('[data-campo="demografia:consentimiento"]').checked;
-      const compromiso_honestidad = zona.querySelector('[data-campo="demografia:compromiso_honestidad"]').checked;
       const demografia = leerDemografiaDelFormulario(zona);
       const respuestas = decodificarRespuestas(items, textosGlobal);
       const resultado = await api.digitalizar({
         token_id: tokenId,
         version_papel: VERSION_PIPELINE,
         examen_id: examIdDetectado ?? null,
-        consentimiento,
-        compromiso_honestidad,
+        // Las casillas de la hoja son un recordatorio para quien la rellena
+        // (README §4.7), no una condición que se compruebe al digitalizar —
+        // una sesión ya rellenada en papel y presentada para digitalizar
+        // siempre se considera consentida.
+        consentimiento: true,
+        compromiso_honestidad: true,
         demografia,
         respuestas,
       });
@@ -289,6 +280,10 @@ export function renderConfirmacionYCrear(
 // Construcción de la entrada de OCR-IA para una página ya enderezada — id +
 // formato de cada ítem (o campos de demografía) impreso en ESA página; el
 // enunciado/opciones/elementos los lee el modelo directamente de la imagen.
+// Las casillas de consentimiento/compromiso se imprimen igual pero nunca
+// entran aquí (hoja.js::construirBloquesDemografia no las incluye en
+// camposDemografia): la digitalización siempre las da por buenas, ver
+// worker/src/endpoints/admin/digitalizacion.ts.
 // ============================================================
 
 export function construirEntradaPaginaIA(paginaManifiesto, warpCanvas, paginaId) {

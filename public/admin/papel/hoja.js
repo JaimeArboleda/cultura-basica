@@ -571,7 +571,15 @@ function construirBloquesDemografia(ctx, anchoPt, config, sintetico) {
       mmAPt(1)
     ),
   ]);
-  bloques.push({ ...consentimiento, camposDemografia: ["consentimiento", "compromiso_honestidad"] });
+  // Las casillas se imprimen y se piden igual (nudge social para que quien
+  // rellena la hoja se lo tome en serio), pero NO se piden a OCR-IA: no hay
+  // forma de invalidar una sesión ya rellenada en papel por esto, así que
+  // leerlas nunca cambia nada salvo añadir una fuente de fallo más — y medida
+  // contra la API real resultó ser, con diferencia, el campo menos fiable de
+  // toda la hoja (decisión del propietario del proyecto). La digitalización
+  // (worker/src/endpoints/admin/digitalizacion.ts) siempre manda
+  // consentimiento/compromiso_honestidad = true.
+  bloques.push({ ...consentimiento, camposDemografia: [] });
 
   const anio = apilar([
     construirTitulo(ctx, "Año de nacimiento", anchoPt, config),

@@ -984,10 +984,14 @@ que v1, Tesseract y el paginado por medición de DOM se retiraron enteros
   como cada página se manda entera a un modelo de visión (ver más abajo), ya
   no hace falta OMR ni recortar casillas — lo único que se recorta de la
   foto en el navegador son las dos cajas de QR (posiciones FIJAS,
-  `public/admin/papel/geometria.js`, ya no medidas). Incluso las casillas de
+  `public/admin/papel/geometria.js`, ya no medidas). Las casillas de
   consentimiento y compromiso de honestidad (antes las únicas marcas OMR que
-  quedaban) se leen ahora como parte de la misma imagen de la página de
-  demografía.
+  quedaban) se imprimen igual, pero YA NO se leen: son un recordatorio
+  impreso para quien rellena la hoja, no una condición real — medidas contra
+  la API real resultaron ser el campo menos fiable de toda la hoja (una
+  marca pequeña, fácil de "diluir" entre el resto de campos de la misma
+  petición) sin aportar nada a cambio, así que la digitalización siempre las
+  da por consentidas (decisión del propietario del proyecto).
 
 **Hoja compacta con opciones en columnas (`hoja.js`):** las listas de
 opciones/elementos/categorías se reparten en 1, 2 o 3 columnas según la
@@ -1016,9 +1020,10 @@ lectura, no el diseño de casillas):**
   también admite `"linea"` (una raya para escribir en natural, más compacta
   — ya no hace falta la disciplina de una letra por casilla que necesitaba
   Tesseract, un modelo de visión lee bien una línea de escritura seguida).
-- Los 6 catálogos de opción única de demografía (sexo, CCAA...) y
-  consentimiento/compromiso de honestidad se leen igual que cualquier otro
-  campo de esa misma imagen.
+- Los 6 catálogos de opción única de demografía (sexo, CCAA...) se leen
+  igual que cualquier otro campo de esa misma imagen; consentimiento y
+  compromiso de honestidad se imprimen en la misma página pero no se piden
+  a OCR-IA (ver arriba).
 
 **Precedencia Respuesta/Corrección, por casilla individual:** cada casilla
 es su propia región de texto en la imagen, así que "en blanco" es
@@ -1088,11 +1093,18 @@ a ciegas sin ver el resto de la pregunta).
 **Selectores del panel:**
 - **Modelo**: `gpt-5-mini` / `gpt-5-nano` (más barato, menos capaz).
 - **Agrupación** (solo en el flujo secuencial, "Digitalizar tests"; la
-  subida en bloque no la ofrece): una llamada por página, o una sola con
-  todas las páginas de la hoja juntas al terminar de escanear. En "Subir en
-  bloque" siempre es una llamada por página — cada página se persiste sola
-  en cuanto se lee, puede que en visitas o dispositivos distintos (§4.10),
-  así que no existe un momento de "hoja completa" antes de guardar.
+  subida en bloque no la ofrece): una llamada por página (por defecto), o
+  una sola con todas las páginas de la hoja juntas al terminar de escanear.
+  **Una llamada por página da resultados notablemente mejores, medido
+  contra la API real** (`ocr_tests/probar_ocr_ia.mjs`): con 7 páginas/~30
+  campos en un único mensaje, el modelo mezcla respuestas entre páginas con
+  más frecuencia que si cada página va en su propia petición — "examen
+  completo" existe sobre todo para abaratar/acelerar cuando se puede tolerar
+  algo menos de precisión, no como opción recomendada. En "Subir en bloque"
+  siempre es una llamada por página — cada página se persiste sola en cuanto
+  se lee, puede que en visitas o dispositivos distintos (§4.10), así que no
+  existe un momento de "hoja completa" antes de guardar (y de paso, siempre
+  usa la variante más fiable).
 
 **`POST /api/admin/ocr-ia` (`worker/src/endpoints/admin/ocrIa.ts`)** hace una
 única llamada a la API de OpenAI (`chat/completions` con visión) por
@@ -1109,9 +1121,9 @@ modelo siga la instrucción del prompt al pie de la letra — con `gpt-5-nano`
 prompt dejaba huecos en el JSON de vuelta con demasiada frecuencia.
 
 **Cada campo de una sola letra va restringido a sus letras válidas, no a
-un string libre** (`enum: ["SI","NO"]` para consentimiento/compromiso;
-`enum` con las letras A..última opción impresa para opción única y para
-cada catálogo cerrado de demografía — sexo, CCAA...; `pattern` acotado al
+un string libre** (`enum` con las letras A..última opción impresa para
+opción única y para cada catálogo cerrado de demografía — sexo, CCAA...;
+`pattern` acotado al
 mismo alfabeto para selección múltiple, que admite varias letras juntas; y
 `pattern: "^[0-9]{0,4}$"` para el año de nacimiento). El cliente calcula
 cuántas letras son válidas para cada ítem concreto a partir del propio

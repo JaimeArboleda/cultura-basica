@@ -186,14 +186,21 @@ async function probarInstancia(dir, items, manifiesto, tokenPruebaId) {
     });
   }
 
-  const { resultados } = await peticion("/api/admin/ocr-ia", {
-    method: "POST",
-    body: JSON.stringify({ modelo: MODELO, paginas: paginasEntrada }),
-  });
-
+  // Una llamada por página, NUNCA todas juntas en una sola: es la opción por
+  // defecto del panel real (public/admin/papel/digitalizar.js,
+  // #select-agrupacion-ia) y, medido contra la API real, da resultados
+  // notablemente mejores que mandar la hoja completa de una vez — con 7
+  // páginas/~34 campos en un solo mensaje, el modelo mezclaba respuestas
+  // entre páginas. Probar aquí "examen completo" mediría una configuración
+  // que el panel no usa por defecto y dejaría una imagen pesimista de la
+  // precisión real.
   const textos = new Map();
   const demografiaLeida = {};
   for (const pagina of paginasEntrada) {
+    const { resultados } = await peticion("/api/admin/ocr-ia", {
+      method: "POST",
+      body: JSON.stringify({ modelo: MODELO, paginas: [pagina] }),
+    });
     const textosPagina = resultados[pagina.id] ?? {};
     if (pagina.tipo === "demografia") {
       for (const campo of pagina.campos) {
@@ -203,8 +210,6 @@ async function probarInstancia(dir, items, manifiesto, tokenPruebaId) {
           // individual del resto de la hoja).
           const anio = [0, 1, 2, 3].map((i) => textosPagina[`demografia:anio_nacimiento:${i}`] ?? "").join("");
           demografiaLeida.anio_nacimiento = Number(anio.replace(/\D/g, "")) || undefined;
-        } else if (campo === "consentimiento" || campo === "compromiso_honestidad") {
-          demografiaLeida[campo] = (textosPagina[`demografia:${campo}`] ?? "").toUpperCase() === "SI";
         } else {
           const letra = (textosPagina[`demografia:${campo}`] ?? "").toUpperCase();
           const idx = primeraLetra(letra, CATALOGOS[claveCatalogo(campo)].length);
@@ -253,20 +258,32 @@ async function probarInstancia(dir, items, manifiesto, tokenPruebaId) {
     estudios_mayor_progenitor: demografiaLeida.estudios_mayor_progenitor ?? CATALOGOS.nivel_estudios[0],
     libros_en_casa: demografiaLeida.libros_en_casa ?? CATALOGOS.libros_en_casa[0],
   };
-  const sesion = await peticion("/api/admin/digitalizacion", {
-    method: "POST",
-    body: JSON.stringify({
-      token_id: tokenPruebaId,
-      examen_id: esperado.exam_id_qr,
-      consentimiento: demografiaLeida.consentimiento ?? true,
-      compromiso_honestidad: demografiaLeida.compromiso_honestidad ?? true,
-      demografia: demografiaCompleta,
-      respuestas: respuestasDecodificadas,
-    }),
-  });
-  console.log(`  Sesión creada/actualizada: ${sesion.sesion_id} (token de pruebas, excluida de las estadísticas)`);
+  // Como el propio panel (público/admin/papel/digitalizar.js): las casillas
+  // de consentimiento/compromiso son un recordatorio impreso, no algo que se
+  // lea ni se pida a OCR-IA — la digitalización siempre las da por buenas.
+  // Aun así no se envuelve en try/catch para tapar el error: cualquier fallo
+  // real aquí interesa reportarlo, pero no debe tumbar el resto del lote
+  // (otras personas no tienen por qué compartirlo).
+  let sesionId = null;
+  try {
+    const sesion = await peticion("/api/admin/digitalizacion", {
+      method: "POST",
+      body: JSON.stringify({
+        token_id: tokenPruebaId,
+        examen_id: esperado.exam_id_qr,
+        consentimiento: true,
+        compromiso_honestidad: true,
+        demografia: demografiaCompleta,
+        respuestas: respuestasDecodificadas,
+      }),
+    });
+    sesionId = sesion.sesion_id;
+    console.log(`  Sesión creada/actualizada: ${sesionId} (token de pruebas, excluida de las estadísticas)`);
+  } catch (err) {
+    console.log(`  FALLO extremo a extremo (POST /api/admin/digitalizacion): ${err.message}`);
+  }
 
-  return { nombre, aciertos, total, demografiaOk, demografiaTotal };
+  return { nombre, aciertos, total, demografiaOk, demografiaTotal, sesionId };
 }
 
 async function main() {
@@ -305,7 +322,10 @@ async function main() {
 
   console.log("\n=== Resumen ===");
   for (const r of resumen) {
-    console.log(`  ${r.nombre}: ítems ${r.aciertos}/${r.total}, demografía ${r.demografiaOk}/${r.demografiaTotal}`);
+    console.log(
+      `  ${r.nombre}: ítems ${r.aciertos}/${r.total}, demografía ${r.demografiaOk}/${r.demografiaTotal}` +
+        (r.sesionId ? `, sesión ${r.sesionId}` : ", SIN sesión (falló el extremo a extremo)")
+    );
   }
 }
 

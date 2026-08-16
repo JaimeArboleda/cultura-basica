@@ -83,3 +83,30 @@ Deliberadamente **no** se ejecuta como parte de `npm test`: necesita red,
 un Worker ya desplegado (o `wrangler dev` local) y una API key de OpenAI
 real configurada en el Worker (gasta cuota real). Es un script aparte,
 igual que `generar.mjs`.
+
+Manda una llamada por página (nunca la hoja completa junta), igual que el
+valor por defecto del selector de agrupación del panel — ver README del
+proyecto §4.7 para por qué: medido con este mismo script, mandar todas las
+páginas juntas mezclaba respuestas entre ellas con más frecuencia.
+
+**Última corrida de referencia** (`gpt-5-mini`, 16 de agosto de 2026, contra
+`wrangler dev` local): con el esquema restringido a enums/patterns (§4.7) y
+las casillas de consentimiento/compromiso ya fuera del alcance de OCR-IA,
+las 4 instancias crearon su sesión de extremo a extremo sin fallos:
+
+| Instancia | Ítems | Demografía |
+|---|---|---|
+| `01-letra-clara` | 21/25 (84%) | 7/7 (100%) |
+| `02-con-correcciones` | 19/23 (83%) | 7/7 (100%) |
+| `03-valores-invalidos-e-incompletas` | 20/25 (80%) | 7/7 (100%) |
+| `04-descuidada-ruidosa` | 6/23 (26%) | 3/6 (50%) |
+
+Los fallos que quedan en las 3 primeras instancias son sobre todo de acento
+("PLUSVALIA" en vez de "PLUSVALÍA") o de espacios perdidos en respuestas
+largas de varias palabras ("ISABELDECASTILLA...") — `igual()` en este
+script compara con igualdad estricta, más exigente que la tolerancia de
+edición real de `worker/src/correccion.ts::corregirAbierto`, así que la
+precisión real de puntuación es probablemente algo mayor que estos
+porcentajes. `04-descuidada-ruidosa` es deliberadamente el perfil más
+adversarial (letra descuidada, foto con más ruido/desenfoque) — su cifra
+baja es la esperada, no una regresión.

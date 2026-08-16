@@ -1,8 +1,9 @@
 // Motor de OCR-IA del pipeline en papel (README §4.7): único motor de
 // lectura desde que se retiraron Tesseract.js y el OMR (v1/v2 del pipeline,
-// ver git log) — toda la hoja, incluidas las casillas de consentimiento y
-// compromiso de honestidad (antes las únicas marcas OMR que quedaban), se
-// resuelve mandando la imagen de página entera a un modelo de visión.
+// ver git log) — la hoja se resuelve mandando la imagen de página entera a
+// un modelo de visión. Las casillas de consentimiento/compromiso de
+// honestidad se imprimen igual, pero nunca se leen aquí (decisión del
+// propietario del proyecto: no condicionan la digitalización).
 //
 // Diseño: se manda la PÁGINA ENTERA ya enderezada como una sola imagen, no un
 // recorte por casilla — el modelo lee el layout impreso él solo (enunciados,
@@ -96,15 +97,13 @@ const CAMPOS_DEMOGRAFIA_CATALOGO = [
   "estudios_mayor_progenitor",
   "libros_en_casa",
 ] as const;
-// Casillas cuadradas simples de sí/no (README §2) — antes las únicas marcas
-// OMR que quedaban en el pipeline (oscuridad umbralizada); ahora se leen
-// igual que el resto de la página, como parte de la misma imagen.
-const CAMPOS_DEMOGRAFIA_CHECKBOX = ["consentimiento", "compromiso_honestidad"] as const;
-const CAMPOS_DEMOGRAFIA_VALIDOS = new Set<string>([
-  ...CAMPOS_DEMOGRAFIA_CATALOGO,
-  ...CAMPOS_DEMOGRAFIA_CHECKBOX,
-  "anio_nacimiento",
-]);
+// Consentimiento/compromiso_honestidad se imprimen en la hoja (recordatorio
+// para quien la rellena) pero NUNCA se piden aquí: no condicionan la
+// digitalización (worker/src/endpoints/admin/digitalizacion.ts siempre las
+// da por buenas) y, medidas contra la API real, resultaron ser el campo
+// menos fiable de toda la hoja sin aportar nada a cambio — decisión del
+// propietario del proyecto, no una limitación técnica del motor.
+const CAMPOS_DEMOGRAFIA_VALIDOS = new Set<string>([...CAMPOS_DEMOGRAFIA_CATALOGO, "anio_nacimiento"]);
 
 // Nº de opciones de cada catálogo cerrado (worker/src/tipos.ts) — igual que
 // numOpciones/numCategorias para los ítems del banco, restringe el esquema
@@ -235,8 +234,7 @@ function construirContenidoPagina(pagina: PaginaEntrada): Array<Record<string, u
   let texto: string;
   if (pagina.tipo === "demografia") {
     const campos = pagina.campos!;
-    const catalogos = campos.filter((c) => !CAMPOS_DEMOGRAFIA_CHECKBOX.includes(c as (typeof CAMPOS_DEMOGRAFIA_CHECKBOX)[number]) && c !== "anio_nacimiento");
-    const checkboxes = campos.filter((c) => CAMPOS_DEMOGRAFIA_CHECKBOX.includes(c as (typeof CAMPOS_DEMOGRAFIA_CHECKBOX)[number]));
+    const catalogos = campos.filter((c) => c !== "anio_nacimiento");
     const partes: string[] = [`Página "${pagina.id}": es (una parte de) la página de datos de la hoja (demografía).`];
     if (catalogos.length > 0) {
       const conRango = catalogos.map((c) => {
@@ -251,12 +249,6 @@ function construirContenidoPagina(pagina: PaginaEntrada): Array<Record<string, u
     }
     if (campos.includes("anio_nacimiento")) {
       partes.push('Y el año de nacimiento como los 4 dígitos escritos en sus 4 casillas (campo "anio_nacimiento").');
-    }
-    if (checkboxes.length > 0) {
-      partes.push(
-        `Estos campos son casillas cuadradas (sí/no), no casillas de letra: responde "SI" si la casilla está ` +
-          `rellenada/marcada con tinta, o "NO" si está en blanco: ${checkboxes.join(", ")}.`
-      );
     }
     texto = partes.join(" ");
   } else {
@@ -275,7 +267,11 @@ function construirContenidoPagina(pagina: PaginaEntrada): Array<Record<string, u
   }
   return [
     { type: "text", text: texto },
-    { type: "image_url", image_url: { url: pagina.imagen } },
+    // detail:"high" evita que la API downscalee la imagen antes de leerla —
+    // sin esto, una letra entre varias parecidas puede perderse en la pasada
+    // de baja resolución que "auto" usa por defecto para decidir cuántos
+    // tiles pedir.
+    { type: "image_url", image_url: { url: pagina.imagen, detail: "high" } },
   ];
 }
 
@@ -346,9 +342,7 @@ export function construirEsquemaCompleto(paginas: PaginaEntrada[]) {
     if (pagina.tipo === "demografia") {
       for (const campo of pagina.campos!) {
         const clave = `${pagina.id}::${campo}`;
-        if ((CAMPOS_DEMOGRAFIA_CHECKBOX as readonly string[]).includes(campo)) {
-          properties[clave] = { type: "string", enum: ["SI", "NO"] };
-        } else if (campo === "anio_nacimiento") {
+        if (campo === "anio_nacimiento") {
           // Solo dígitos, como mucho 4 (una casilla por dígito impreso) — no
           // impide una respuesta incompleta (2 dígitos escritos, 2 en
           // blanco), pero sí cualquier carácter que no sea un dígito.
