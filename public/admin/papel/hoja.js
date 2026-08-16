@@ -70,6 +70,13 @@ const CASILLA_GAP_PT = mmAPt(0.8);
 const CASILLA_BORDE_PT = mmAPt(0.35);
 const GAP_COLUMNAS_PT = mmAPt(4);
 
+// Columna reservada para el QR grande + la etiqueta con el token_id, en la
+// cabecera de la página 1 — ancho fijo (en vez de "todo lo que sobre", como
+// antes) para dejar sitio a las instrucciones generales de al lado, a la
+// derecha (ver construirInstruccionesGenerales).
+const ANCHO_ETIQUETA_TOKEN_PT = mmAPt(55);
+const GAP_INSTRUCCIONES_PT = mmAPt(8);
+
 // Apila sub-bloques verticalmente: la primitiva compositiva de todo este
 // módulo — cada builder de más abajo devuelve {altoPt, dibujar(...)} y esta
 // función los combina en uno solo del mismo tipo, así un bloque de ítem es
@@ -189,9 +196,18 @@ function construirEnunciado(ctx, numero, texto, anchoPt, config) {
   const font = ctx.fontBold;
   const lineas = envolverTexto(font, tamanoPt, texto, anchoTexto);
   const altoLinea = altoLineaPt(tamanoPt);
+  const alturaTexto = lineas.length * altoLinea;
+  // El círculo (DIAM_PT) es más alto que una sola línea de texto (altoLinea):
+  // si se dibujaran ambos alineados al mismo yTopPt, el texto quedaría
+  // visiblemente más arriba que el centro del círculo (bug real, número y
+  // primera línea del enunciado desalineados). Centrar el texto dentro de la
+  // altura del círculo cuando el texto es más corto que él (caso 1 línea, el
+  // más frecuente); si el texto ocupa más (varias líneas), ya no hace falta
+  // el ajuste, el círculo queda arriba junto a la primera línea.
+  const offsetTextoPt = Math.max(0, (DIAM_PT - alturaTexto) / 2);
   const numeroTxt = String(numero);
   return {
-    altoPt: Math.max(lineas.length * altoLinea, DIAM_PT) + mmAPt(1.5),
+    altoPt: Math.max(alturaTexto, DIAM_PT) + mmAPt(1.5),
     dibujar(lienzo, xPt, yTopPt) {
       lienzo.circulo(xPt + DIAM_PT / 2, yTopPt + DIAM_PT / 2, DIAM_PT / 2, { color: ctx.colorAcento });
       const tamNumero = 7.5;
@@ -200,7 +216,9 @@ function construirEnunciado(ctx, numero, texto, anchoPt, config) {
         tamanoPt: tamNumero,
         color: ctx.PDFLib.rgb(1, 1, 1),
       });
-      lineas.forEach((linea, i) => lienzo.texto(xPt + DIAM_PT + GAP_PT, yTopPt + i * altoLinea, linea, { font, tamanoPt }));
+      lineas.forEach((linea, i) =>
+        lienzo.texto(xPt + DIAM_PT + GAP_PT, yTopPt + offsetTextoPt + i * altoLinea, linea, { font, tamanoPt })
+      );
     },
   };
 }
@@ -262,8 +280,7 @@ function construirListaEtiquetada(ctx, entradas, etiquetas, anchoPt, config) {
     dibujar(lienzo, xPt, yTopPt) {
       filas.forEach((fila, fi) => {
         fila.forEach((celda) => {
-          const ci = celda.indice % nCols;
-          lienzo.texto(xPt + ci * (anchoColPt + GAP_COLUMNAS_PT), yTopPt + fi * altoLinea, celda.texto, { font, tamanoPt });
+          lienzo.texto(xPt + celda.col * (anchoColPt + GAP_COLUMNAS_PT), yTopPt + fi * altoLinea, celda.texto, { font, tamanoPt });
         });
       });
     },
@@ -317,8 +334,28 @@ function dibujarInk(lienzo, ctx, texto, xCasillaPt, yCasillaPt, tamanoPt = 9) {
 // (opción/selección/ordenar/clasificar/año) nunca llegan a necesitarlo — n
 // ahí es como mucho el nº de opciones u elementos del ítem (≤26 letras),
 // siempre cabe en una fila — pero la función es genérica por si acaso.
+// Nº de casillas que caben en una sola fila del ancho dado, sin desbordar el
+// margen (usado tanto para decidir el ajuste de "abierto" más abajo como
+// dentro de construirFilaCasillas).
+function casillasPorFila(anchoPt) {
+  return Math.max(1, Math.floor((anchoPt + CASILLA_GAP_PT) / (CASILLA_W_PT + CASILLA_GAP_PT)));
+}
+
+// Ajusta el nº de casillas de una respuesta "abierta" para que cada fila
+// llegue siempre hasta el margen y todas las filas tengan el MISMO nº de
+// casillas: una respuesta de una sola línea antes se quedaba con solo las
+// casillas mínimas necesarias (hueco sin usar hasta el margen); una de dos
+// líneas repartía el resto en una segunda fila más corta que la primera
+// (asimétrico). Redondea `n` hacia arriba al múltiplo de `casillasPorFila`
+// más cercano, así todas las filas quedan completas y de igual tamaño.
+function casillasAbiertoAjustadas(n, anchoPt) {
+  const porFila = casillasPorFila(anchoPt);
+  const numFilas = Math.max(1, Math.ceil(n / porFila));
+  return porFila * numFilas;
+}
+
 function construirFilaCasillas(ctx, n, anchoPt, { etiquetasCabecera, valores } = {}) {
-  const porFila = Math.max(1, Math.floor((anchoPt + CASILLA_GAP_PT) / (CASILLA_W_PT + CASILLA_GAP_PT)));
+  const porFila = casillasPorFila(anchoPt);
   const numFilas = Math.ceil(n / porFila);
   const altoCabecera = etiquetasCabecera ? altoLineaPt(6) : 0;
   const altoFila = altoCabecera + CASILLA_H_PT;
@@ -432,6 +469,52 @@ function construirCasillaConEtiqueta(ctx, etiqueta, anchoPt, config, marcado) {
 }
 
 // ============================================================
+// Instrucciones generales (solo página 1, arriba a la derecha, junto al QR
+// grande): breves a propósito, para que la página de datos censales no crezca
+// a una segunda hoja. Un ejemplo "Bien" (letra centrada en la casilla) y uno
+// "Mal" (letra pequeña/descentrada) bastan — el texto ya pide mayúsculas de
+// imprenta, los ejemplos son solo refuerzo visual.
+// ============================================================
+
+function construirInstruccionesGenerales(ctx, anchoPt) {
+  const colorError = ctx.PDFLib.rgb(0.72, 0.16, 0.16);
+  const titulo = construirParrafo(ctx, "Cómo rellenar", 8, anchoPt, {
+    negrita: true,
+    color: ctx.colorAcento,
+    margenInferiorPt: mmAPt(1),
+  });
+  const texto = construirParrafo(ctx, "Mayúsculas y letra de imprenta, bien centrada en la casilla:", 6.8, anchoPt, {
+    color: ctx.colorTextoSuave,
+    margenInferiorPt: mmAPt(1.8),
+  });
+
+  const LADO_PT = mmAPt(8);
+  const GAP_PT = mmAPt(5);
+  const ejemplos = {
+    altoPt: LADO_PT + mmAPt(0.8) + altoLineaPt(6),
+    dibujar(lienzo, xPt, yTopPt) {
+      lienzo.rect(xPt, yTopPt, LADO_PT, LADO_PT, { borderColor: ctx.colorNegro, borderWidth: CASILLA_BORDE_PT });
+      lienzo.textoCentrado(xPt + LADO_PT / 2, yTopPt + LADO_PT / 2 - 9 * 0.36, "A", {
+        font: ctx.fontBold,
+        tamanoPt: 9,
+        color: ctx.colorNegro,
+      });
+      lienzo.texto(xPt, yTopPt + LADO_PT + mmAPt(0.8), "Bien", { font: ctx.fontBold, tamanoPt: 6, color: ctx.colorAcento });
+
+      const x2 = xPt + LADO_PT + GAP_PT;
+      lienzo.rect(x2, yTopPt, LADO_PT, LADO_PT, { borderColor: ctx.colorNegro, borderWidth: CASILLA_BORDE_PT });
+      lienzo.texto(x2 + LADO_PT * 0.42, yTopPt + LADO_PT * 0.3, "a", {
+        font: ctx.fontRegular,
+        tamanoPt: 12,
+        color: ctx.colorNegro,
+      });
+      lienzo.texto(x2, yTopPt + LADO_PT + mmAPt(0.8), "Mal", { font: ctx.fontBold, tamanoPt: 6, color: colorError });
+    },
+  };
+  return apilar([titulo, texto, ejemplos]);
+}
+
+// ============================================================
 // Bloque completo de un ítem del banco (README §4.2: un formato por tipo)
 // ============================================================
 
@@ -466,7 +549,7 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       // respuesta_canonica (README §4.3), así que no se puede calcular aquí
       // a partir de ella (antes lo intentaba y siempre caía al mínimo fijo:
       // bug real, la hoja en producción nunca dibujaba más de 18 casillas).
-      numCasillasAbierto = item.casillas_abierto ?? config.casillasAbierto;
+      numCasillasAbierto = casillasAbiertoAjustadas(item.casillas_abierto ?? config.casillasAbierto, anchoPt);
       partes.push(construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config, resp, numCasillasAbierto));
       partes.push(
         construirRespuestaAbierta(ctx, "Corrección (solo si te equivocaste arriba)", anchoPt, config, corr, numCasillasAbierto)
@@ -584,33 +667,44 @@ const CAMPOS_DEMOGRAFIA = [
   ["libros_en_casa", "libros_en_casa", "Libros en casa a los 15 años (aprox.)"],
 ];
 
+// Margen tras cada bloque de demografía (README "padding entre elementos"):
+// antes los bloques se apilaban con margen 0, así que en páginas donde varios
+// caían seguidos (p. ej. "Año de nacimiento" seguido de "Sexo") la primera
+// fila del siguiente bloque quedaba pegada, a veces solapada, contra el
+// último elemento del anterior (bug real, más visible cuantas más opciones
+// tenía el bloque siguiente en varias columnas).
+const MARGEN_ENTRE_BLOQUES_DEMOGRAFIA_PT = mmAPt(2.5);
+
 // sintetico (opcional, ocr_tests/ únicamente): { consentimiento, compromiso_honestidad
 // (booleanos), anio_nacimiento (string 4 dígitos), <campo catálogo>: letra }.
 function construirBloquesDemografia(ctx, anchoPt, config, sintetico) {
   const bloques = [];
 
-  const consentimiento = apilar([
-    construirTitulo(ctx, "Consentimiento y compromiso", anchoPt, config),
-    apilar(
-      [
-        construirCasillaConEtiqueta(
-          ctx,
-          "He leído la información del estudio y consiento participar de forma anónima.",
-          anchoPt,
-          config,
-          sintetico?.consentimiento
-        ),
-        construirCasillaConEtiqueta(
-          ctx,
-          "Me comprometo a responder con honestidad, sin buscar las respuestas.",
-          anchoPt,
-          config,
-          sintetico?.compromiso_honestidad
-        ),
-      ],
-      mmAPt(1)
-    ),
-  ]);
+  const consentimiento = apilar(
+    [
+      construirTitulo(ctx, "Consentimiento y compromiso", anchoPt, config),
+      apilar(
+        [
+          construirCasillaConEtiqueta(
+            ctx,
+            "He leído la información del estudio y consiento participar de forma anónima.",
+            anchoPt,
+            config,
+            sintetico?.consentimiento
+          ),
+          construirCasillaConEtiqueta(
+            ctx,
+            "Me comprometo a responder con honestidad, sin buscar las respuestas.",
+            anchoPt,
+            config,
+            sintetico?.compromiso_honestidad
+          ),
+        ],
+        mmAPt(1)
+      ),
+    ],
+    MARGEN_ENTRE_BLOQUES_DEMOGRAFIA_PT
+  );
   // Las casillas se imprimen y se piden igual (nudge social para que quien
   // rellena la hoja se lo tome en serio), pero NO se piden a OCR-IA: no hay
   // forma de invalidar una sesión ya rellenada en papel por esto, así que
@@ -621,22 +715,28 @@ function construirBloquesDemografia(ctx, anchoPt, config, sintetico) {
   // consentimiento/compromiso_honestidad = true.
   bloques.push({ ...consentimiento, camposDemografia: [] });
 
-  const anio = apilar([
-    construirTitulo(ctx, "Año de nacimiento", anchoPt, config),
-    construirInstruccion(ctx, "4 dígitos, en números de imprenta.", anchoPt, config),
-    construirFilaCasillas(ctx, 4, anchoPt, { valores: sintetico?.anio_nacimiento ? [...sintetico.anio_nacimiento] : undefined }),
-  ]);
+  const anio = apilar(
+    [
+      construirTitulo(ctx, "Año de nacimiento", anchoPt, config),
+      construirInstruccion(ctx, "4 dígitos, en números de imprenta.", anchoPt, config),
+      construirFilaCasillas(ctx, 4, anchoPt, { valores: sintetico?.anio_nacimiento ? [...sintetico.anio_nacimiento] : undefined }),
+    ],
+    MARGEN_ENTRE_BLOQUES_DEMOGRAFIA_PT
+  );
   bloques.push({ ...anio, camposDemografia: ["anio_nacimiento"] });
 
   for (const [campo, claveCatalogo, etiqueta] of CAMPOS_DEMOGRAFIA) {
     const valores = CATALOGOS[claveCatalogo];
     const letras = valores.map((_, i) => LETRAS[i]);
     const valorInk = sintetico?.[campo];
-    const bloque = apilar([
-      construirTitulo(ctx, etiqueta, anchoPt, config),
-      construirListaEtiquetada(ctx, valores, letras, anchoPt, config),
-      construirBloqueCasillas(ctx, "Respuesta", 1, anchoPt, config, { valores: valorInk ? [valorInk] : undefined }),
-    ]);
+    const bloque = apilar(
+      [
+        construirTitulo(ctx, etiqueta, anchoPt, config),
+        construirListaEtiquetada(ctx, valores, letras, anchoPt, config),
+        construirBloqueCasillas(ctx, "Respuesta", 1, anchoPt, config, { valores: valorInk ? [valorInk] : undefined }),
+      ],
+      MARGEN_ENTRE_BLOQUES_DEMOGRAFIA_PT
+    );
     bloques.push({ ...bloque, camposDemografia: [campo] });
   }
 
@@ -765,21 +865,31 @@ export async function construirHoja(ctx, items, qr, config = CONFIG_POR_DEFECTO,
       const yPt = mmAPt(cajaGrandeMm.y / PX_POR_MM);
       const ladoPt = mmAPt(QR_GRANDE_SIZE_MM);
       if (qr) {
-        await lienzo.imagenQr(xPt, yPt, ladoPt, codificarPayloadQr({ ...qr, version: VERSION_PIPELINE, pagina: numeroPagina }));
+        // El QR grande lleva SOLO el token_id de la remesa (README §4.9):
+        // ya no incluye versión ni exam_id/página — eso viaja en el QR
+        // pequeño de página (codificarPayloadQrPagina), que está en TODAS
+        // las páginas, incluida esta.
+        await lienzo.imagenQr(xPt, yPt, ladoPt, codificarPayloadQr({ tokenId: qr.tokenId }));
       } else {
         lienzo.rect(xPt, yPt, ladoPt, ladoPt, { borderColor: ctx.colorGris, borderWidth: mmAPt(0.3) });
       }
       // Etiqueta a la DERECHA del QR (no debajo): así cabe dentro del propio
       // alto reservado para el bloque (ALTURA_QR_GRANDE_PT), sin invadir el
-      // inicio del flujo de contenido que viene justo después.
+      // inicio del flujo de contenido que viene justo después. Ancho fijo
+      // (ANCHO_ETIQUETA_TOKEN_PT), no "todo lo que sobra": deja sitio a las
+      // instrucciones generales a su derecha.
       const xEtiqueta = xPt + ladoPt + mmAPt(4);
       lienzo.texto(xEtiqueta, yPt + mmAPt(2), "Código de la remesa", { font: ctx.fontBold, tamanoPt: 8 });
       if (qr?.tokenId) {
-        const lineasToken = envolverTexto(ctx.fontRegular, 6.5, qr.tokenId, ANCHO_CONTENIDO_PT - ladoPt - mmAPt(4));
+        const lineasToken = envolverTexto(ctx.fontRegular, 6.5, qr.tokenId, ANCHO_ETIQUETA_TOKEN_PT);
         lineasToken.forEach((linea, i) =>
           lienzo.texto(xEtiqueta, yPt + mmAPt(6) + i * altoLineaPt(6.5), linea, { tamanoPt: 6.5, color: ctx.colorTextoSuave })
         );
       }
+
+      const xInstrucciones = xEtiqueta + ANCHO_ETIQUETA_TOKEN_PT + GAP_INSTRUCCIONES_PT;
+      const anchoInstruccionesPt = PADDING_PT + ANCHO_CONTENIDO_PT - xInstrucciones;
+      construirInstruccionesGenerales(ctx, anchoInstruccionesPt).dibujar(lienzo, xInstrucciones, yPt);
     }
 
     if (qr?.examId) {

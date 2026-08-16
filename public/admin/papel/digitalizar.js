@@ -401,9 +401,10 @@ function iniciarEscaneo(zona, { tokenIdInicial, tokens, items, manifiesto, model
           avisar: (msg) => (estado.textContent = msg),
         });
         if (qrGrandeTexto) {
+          // El QR grande solo lleva el token_id (README §4.9): el exam_id
+          // viene siempre del QR pequeño de página, de ahí abajo.
           const qrGrande = decodificarPayloadQr(qrGrandeTexto);
           if (tokens.some((t) => t.id === qrGrande.tokenId)) tokenIdDetectado = qrGrande.tokenId;
-          if (qrGrande.examId) examIdDetectado = qrGrande.examId;
         }
         if (qrPaginaTexto) {
           const qrPagina = decodificarPayloadQrPagina(qrPaginaTexto);

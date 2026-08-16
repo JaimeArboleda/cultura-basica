@@ -139,27 +139,18 @@ export function generarExamId() {
   return id;
 }
 
-// Payload del QR GRANDE (solo página 1, README §4.9/§4.10): token_id +
-// versión del pipeline + exam_id + número de página, en JSON.
-export function codificarPayloadQr({ tokenId, version, examId, pagina }) {
-  return JSON.stringify({ token_id: tokenId, version, exam_id: examId ?? null, pagina: pagina ?? null });
+// Payload del QR GRANDE (solo página 1, README §4.9/§4.10): SOLO el token_id
+// de la remesa, en texto plano (sin JSON, sin versión, sin exam_id/página —
+// eso viaja en el QR pequeño de página, en todas las páginas). Antes incluía
+// también versión/exam_id/página; se simplificó porque lo único que hace
+// falta resolver desde el QR grande es la remesa (README §4.9, "por qué dos
+// QR y no uno solo").
+export function codificarPayloadQr({ tokenId }) {
+  return tokenId;
 }
 
 export function decodificarPayloadQr(texto) {
-  try {
-    const obj = JSON.parse(texto);
-    if (obj && typeof obj.token_id === "string" && typeof obj.version === "number") {
-      return {
-        tokenId: obj.token_id,
-        version: obj.version,
-        examId: typeof obj.exam_id === "string" ? obj.exam_id : null,
-        pagina: typeof obj.pagina === "number" ? obj.pagina : null,
-      };
-    }
-  } catch {
-    // no era JSON: hoja de antes de que existiera el campo "version"
-  }
-  return { tokenId: texto, version: 1, examId: null, pagina: null };
+  return { tokenId: texto };
 }
 
 // Payload del QR PEQUEÑO de página (README §4.10, en TODAS las páginas):

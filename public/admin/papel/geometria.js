@@ -20,12 +20,12 @@ export const PAGE_H_MM = 297;
 export const PAGE_W = Math.round(PAGE_W_MM * PX_POR_MM); // ≈ 794
 export const PAGE_H = Math.round(PAGE_H_MM * PX_POR_MM); // ≈ 1123
 
-// Margen de contenido: más ajustado que el diseño anterior (18mm) porque
-// ahora el objetivo es una hoja compacta (7-8 páginas en vez de 11) — sigue
-// dejando hueco de sobra entre los fiduciales (a 3mm del borde) y el
-// contenido para que detectarFiduciales() no confunda un bloque de texto con
-// un fiducial.
-export const PADDING_MM = 14;
+// Margen de contenido: 15mm, el mínimo recomendable para que ninguna
+// impresora doméstica/de oficina recorte contenido por falta de margen (antes
+// 14mm, insuficiente en algunas impresoras) — sigue dejando hueco de sobra
+// entre los fiduciales (a 3mm del borde) y el contenido para que
+// detectarFiduciales() no confunda un bloque de texto con un fiducial.
+export const PADDING_MM = 15;
 
 export const FIDUCIAL_INSET_MM = 3; // distancia del borde de la página al fiducial más cercano
 export const FIDUCIAL_SIZE_MM = 5;
