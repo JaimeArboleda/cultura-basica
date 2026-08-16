@@ -154,21 +154,25 @@ export function decodificarPayloadQr(texto) {
 }
 
 // Payload del QR PEQUEÑO de página (README §4.10, en TODAS las páginas):
-// deliberadamente solo {exam_id, pagina} — token_id/versión solo hacen falta
-// una vez, al ver la primera página de un exam_id nuevo. Claves de una letra
-// a propósito, mismo motivo de tamaño que generarExamId().
+// "examId:pagina" en texto plano, SIN JSON — token_id/versión solo hacen
+// falta una vez, al ver la primera página de un exam_id nuevo, así que este
+// QR ya llevaba deliberadamente solo estos dos campos; lo que cambió es CÓMO
+// se codifican. `generarExamId()` nunca produce ":", así que partir por el
+// ÚLTIMO ":" es inambiguo. Con el JSON anterior ({"u":"...","p":N}, ~22
+// bytes) el propio tamaño del payload obligaba a una versión de QR más
+// grande (25×25 módulos) que este formato compacto (~10-11 bytes, 21×21,
+// la versión más pequeña posible) — a igual tamaño físico impreso (10mm),
+// cada módulo sale un ~19% más grande (0.40mm → 0.476mm), más tolerante a
+// una foto de móvil algo borrosa o con poca luz.
 export function codificarPayloadQrPagina({ examId, pagina }) {
-  return JSON.stringify({ u: examId, p: pagina });
+  return `${examId}:${pagina}`;
 }
 
 export function decodificarPayloadQrPagina(texto) {
-  try {
-    const obj = JSON.parse(texto);
-    if (obj && typeof obj.u === "string" && typeof obj.p === "number") {
-      return { examId: obj.u, pagina: obj.p };
-    }
-  } catch {
-    // QR ilegible o de formato inesperado: el llamador cae a resolución manual
-  }
-  return null;
+  const i = texto.lastIndexOf(":");
+  if (i === -1) return null;
+  const examId = texto.slice(0, i);
+  const pagina = Number(texto.slice(i + 1));
+  if (!examId || !Number.isInteger(pagina) || pagina < 1) return null;
+  return { examId, pagina };
 }

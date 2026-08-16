@@ -1279,17 +1279,22 @@ escanearlas ni subirlas en el orden físico.
   quedó un pipeline activo), con el `token_id` también en texto plano al lado
   por si hace falta leerlo a ojo.
 - **QR pequeño de página**, en **todas** las páginas de la hoja (incluida la
-  1): solo `{exam_id, pagina}` (`codificarPayloadQrPagina`/
-  `decodificarPayloadQrPagina`), sin repetir remesa —
+  1): `"exam_id:pagina"` en texto plano, SIN JSON (`codificarPayloadQrPagina`/
+  `decodificarPayloadQrPagina`, `papel/qr.js`), sin repetir remesa —
   deliberadamente corto para que, a igual tamaño físico impreso (10×10mm),
   el módulo de cada casilla del QR sea más grande y la lectura desde una
-  foto de móvil sea más fiable. `exam_id` en sí también es corto por el
-  mismo motivo: 8 caracteres de un alfabeto sin ambigüedad visual (sin
-  `0`/`O`, `1`/`I`/`L`..., `papel/qr.js::generarExamId`, alfabeto tipo
-  Crockford Base32) en vez de un UUID v4 completo de 36 caracteres — de
-  sobra único para los cientos de hojas de un piloto, y mucho más legible si
-  hay que teclearlo a mano (§4.10, resolución manual) o leerlo a ojo en la
-  propia hoja.
+  foto de móvil sea más fiable. El formato JSON anterior (`{"u":"...",
+  "p":N}`, ~22 bytes) obligaba a una versión de QR más grande (25×25
+  módulos, 0.40mm/módulo a 10mm de lado) que este texto plano (~10-11 bytes,
+  21×21, la versión de QR más pequeña posible, 0.476mm/módulo — un ~19%
+  más grande, gratis, sin tocar el tamaño físico) — `generarExamId()` nunca
+  produce `:`, así que partir por el ÚLTIMO `:` es inambiguo. `exam_id` en sí
+  también es corto por el mismo motivo: 8 caracteres de un alfabeto sin
+  ambigüedad visual (sin `0`/`O`, `1`/`I`/`L`..., `papel/qr.js::generarExamId`,
+  alfabeto tipo Crockford Base32) en vez de un UUID v4 completo de 36
+  caracteres — de sobra único para los cientos de hojas de un piloto, y mucho
+  más legible si hay que teclearlo a mano (§4.10, resolución manual) o
+  leerlo a ojo en la propia hoja.
 
 **Por qué dos QR y no uno solo más grande:** el grande sirve para identificar
 la remesa a ojo desde la propia hoja y como respaldo automático al
