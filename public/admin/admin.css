@@ -340,7 +340,7 @@ a.boton-tabla {
   padding-top: 1rem;
 }
 
-/* Selector de las 4 esquinas sobre la foto subida (digitalizar.js::crearSelectorEsquinas):
+/* Selector de las 4 esquinas sobre la foto subida (comun.js::crearSelectorEsquinas):
    ancho completo del contenedor con proporción preservada por el propio canvas
    (su width/height ya vienen fijados en JS a la proporción de la foto). */
 .canvas-esquinas {
@@ -417,7 +417,7 @@ a.boton-tabla {
   border-radius: var(--radio);
 }
 
-/* Pestaña "Subir en bloque" (README §4.10): subirLote.js. */
+/* Pestaña "Digitalizar tests" (README §4.10, antes "Subir en bloque"): subirLote.js. */
 .lista-progreso {
   list-style: none;
   margin: 0.75rem 0 0;

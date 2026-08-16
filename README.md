@@ -260,8 +260,8 @@ a CSV.
 │   │   │   ├── qr.js        # Generación/lectura de los 2 QR de la hoja (§4.9)
 │   │   │   ├── hoja.js      # Genera el PDF de la hoja con pdf-lib (§4.7)
 │   │   │   ├── comun.js     # Homografía, fiduciales, carga de librerías vía CDN (§4.7)
-│   │   │   ├── digitalizar.js # Impresión + escaneo/OCR-IA de tests en papel (§4.7)
-│   │   │   └── subirLote.js # Subida en bloque, fotos/PDF sueltos en cualquier orden (§4.10)
+│   │   │   ├── digitalizar.js # Contexto/manifiesto, decodificación de OCR-IA (compartido, §4.7)
+│   │   │   └── subirLote.js # "Digitalizar tests": fotos/PDF/.zip sueltos en cualquier orden (§4.10)
 │   │   └── editarSesion.js # Edición de demografía/respuestas de cualquier sesión (§4.8)
 │   └── styles.css
 ├── worker/              # Cloudflare Worker (API)
@@ -308,7 +308,13 @@ CREATE TABLE tokens (
   -- obtenerDatasetCompleto) — siguen visibles filtrando el panel por ese
   -- token a propósito. Pensado para probar el pipeline de digitalización
   -- contra la API real de OpenAI sin ensuciar las estadísticas del piloto.
-  es_prueba   INTEGER NOT NULL DEFAULT 0
+  es_prueba   INTEGER NOT NULL DEFAULT 0,
+  -- "Rehabilitar" (§4.5, lo contrario de "Revocar"): NULL salvo justo después
+  -- de revocar, momento en el que guarda el expira_en que tenía ANTES de la
+  -- revocación (revocarToken lo sobrescribe con "ahora") — así
+  -- rehabilitarToken puede devolverle exactamente esa misma caducidad. Vuelve
+  -- a NULL al rehabilitar.
+  expira_en_antes_de_revocar TEXT
 );
 
 CREATE TABLE solicitudes_acceso (
@@ -763,6 +769,25 @@ una *remesa* de invitación compartida por varias personas ("familia de Gerardo"
   un token sin caducidad se puede revocar igual (deja de valer para
   `POST /api/sesion` desde ese momento, aunque su `expira_en` siga siendo el
   centinela hasta que se revoque).
+- **"Rehabilitar"** (lo contrario de "Revocar"): le devuelve al token la
+  caducidad que tenía justo ANTES de esa revocación, en vez de fijar una nueva
+  arbitraria. Al revocar, `revocarToken` (`worker/src/db.ts`) guarda ese
+  `expira_en` previo en la columna `expira_en_antes_de_revocar` (§4.1) antes
+  de sobrescribirlo con "ahora"; `rehabilitarToken` hace el camino inverso y
+  vuelve a dejarla a `NULL`. Por eso el botón "Rehabilitar" solo aparece
+  tras una revocación explícita — un token que simplemente caducó solo por
+  el paso del tiempo no tiene ninguna caducidad "original" distinta que
+  restaurar (`POST /api/admin/tokens/:id/rehabilitar` responde 400 en ese
+  caso).
+
+  **Migrar una D1 ya desplegada** (test publicado antes de "Rehabilitar"), igual
+  que los ejemplos de §4.6/§4.7:
+
+  ```bash
+  npx wrangler d1 execute cultura-basica --remote \
+    --command="ALTER TABLE tokens ADD COLUMN expira_en_antes_de_revocar TEXT"
+  ```
+
 - **Remesas de pruebas** (`tokens.es_prueba`, §4.1): al crear un token se puede
   marcar como "de pruebas" (`es_prueba: true`, panel de admin) — sigue siendo un
   token normal, con un id igual de impredecible que cualquier otro (nunca un id
@@ -803,14 +828,30 @@ válido ve un formulario simple (dato de contacto + motivo opcional) en vez del
 test. Se guarda en su propia tabla, **no** en el dataset anónimo del estudio
 (§5) — solo la ve el panel de admin, que puede marcarla como atendida.
 
-**Panel de admin (`public/admin/`, bajo `/admin`):** seis pestañas — Estadísticas
+**Panel de admin (`public/admin/`, bajo `/admin`):** siete pestañas — Estadísticas
 (total/completas/en progreso, progreso hacia el objetivo del piloto de 100-150
 respuestas, distribución demográfica, todo filtrable por token), Estadísticas
 avanzadas (ver más abajo), Tokens
-(crear/listar/revocar/borrar remesa/copiar enlace/**borrar token entero**), Sesiones
-(listar con filtro por token y estado, borrar individual), Solicitudes de acceso
+(crear/listar/revocar/**rehabilitar**/borrar remesa/copiar enlace/**borrar token
+entero**/**imprimir remesa**, ver más abajo), Respuestas (antes "Sesiones";
+listar con filtro por token y estado, borrar individual), Digitalizar tests
+(§4.7/§4.10 — antes "Subir en bloque"; la pestaña "Digitalizar tests"
+secuencial original, que solo admitía subir las páginas de UNA hoja en orden
+en una sola visita, se retiró por legacy frente a esta), Solicitudes de acceso
 (listar, marcar atendida, **borrar**) y Administradores (añadir/quitar cuentas
 autorizadas).
+
+**"Imprimir remesa" (pestaña Tokens):** genera de una vez varias hojas en
+blanco para una misma remesa, cada una con su propio `exam_id` corto (README
+§4.9) — pide cuántas ("¿Cuántas hojas quieres generar?") y construye un PDF
+por hoja (mismo `hoja.js::construirHoja` que el resto del pipeline) enteramente
+en el navegador del admin, sin pasar por el Worker: no hace falta registrar
+los `exam_id` de antemano porque `examenes_papel` (§4.10) ya se crea de forma
+perezosa, con la primera página que se sube de cada hoja. Los PDFs se agrupan
+en un único `.zip` (mismo `construirZip` — formato PKZIP, sin comprimir — que
+usa "Descargar CSV (.zip)" más arriba) con nombre de fichero
+`hoja-<exam_id>.pdf` por hoja, para poder identificar cada una suelta antes de
+repartirla.
 
 **Estadísticas avanzadas: consola Python en el navegador (sin backend Python).**
 La pestaña "Estadísticas" de más arriba muestra agregados fijos; para explorar
@@ -1090,26 +1131,24 @@ modelo lee el enunciado, las opciones, los elementos... directamente de la
 imagen, sin que haga falta decirle coordenadas ni repetir el contenido del
 banco en el prompt — y le pide la **respuesta definitiva** de cada ítem,
 resolviendo él mismo la precedencia Respuesta/Corrección descrita arriba.
-Una sola llamada HTTP por página (o por examen completo, ver agrupación más
-abajo) con una imagen grande, no docenas de imágenes pequeñas: más simple,
-más barato y más preciso que recortar (un recorte obliga al modelo a decidir
-a ciegas sin ver el resto de la pregunta).
+Una sola llamada HTTP por página con una imagen grande, no docenas de
+imágenes pequeñas: más simple, más barato y más preciso que recortar (un
+recorte obliga al modelo a decidir a ciegas sin ver el resto de la pregunta).
 
 **Selectores del panel:**
 - **Modelo**: `gpt-5-mini` / `gpt-5-nano` (más barato, menos capaz).
-- **Agrupación** (solo en el flujo secuencial, "Digitalizar tests"; la
-  subida en bloque no la ofrece): una llamada por página (por defecto), o
-  una sola con todas las páginas de la hoja juntas al terminar de escanear.
-  **Una llamada por página da resultados notablemente mejores, medido
-  contra la API real** (`ocr_tests/probar_ocr_ia.mjs`): con 7 páginas/~30
-  campos en un único mensaje, el modelo mezcla respuestas entre páginas con
-  más frecuencia que si cada página va en su propia petición — "examen
-  completo" existe sobre todo para abaratar/acelerar cuando se puede tolerar
-  algo menos de precisión, no como opción recomendada. En "Subir en bloque"
-  siempre es una llamada por página — cada página se persiste sola en cuanto
-  se lee, puede que en visitas o dispositivos distintos (§4.10), así que no
-  existe un momento de "hoja completa" antes de guardar (y de paso, siempre
-  usa la variante más fiable).
+- **Agrupación — retirada, siempre "una llamada por página" (histórico):** el
+  flujo secuencial original ("Digitalizar tests", retirado, ver más abajo)
+  llegó a ofrecer también "una sola llamada con todas las páginas juntas al
+  terminar de escanear", pero **medido contra la API real
+  (`ocr_tests/probar_ocr_ia.mjs`) daba resultados notablemente peores**: con
+  7 páginas/~30 campos en un único mensaje, el modelo mezclaba respuestas
+  entre páginas con más frecuencia que con una petición por página. La
+  pestaña actual ("Digitalizar tests", antes "Subir en bloque", §4.10) nunca
+  ofreció esa opción — cada página se persiste sola en cuanto se lee, puede
+  que en visitas o dispositivos distintos, así que no existe un momento de
+  "hoja completa" antes de guardar — y con el flujo secuencial retirado, "una
+  llamada por página" es ahora la única variante que existe en el pipeline.
 
 **`POST /api/admin/ocr-ia` (`worker/src/endpoints/admin/ocrIa.ts`)** hace una
 única llamada a la API de OpenAI (`chat/completions` con visión) por
@@ -1197,9 +1236,9 @@ editar: son procedencia de la sesión, no datos a corregir.
 Tras crear una sesión desde una hoja escaneada, `papel/digitalizar.js` abre
 `editarSesion.js` sobre esa misma sesión en vez de mantener un formulario de
 revisión propio — así la corrección de las 25 respuestas ocurre siempre en
-la misma pantalla, tanto si la sesión viene de digitalizar (flujo secuencial
-o subida en bloque) como si se edita después desde Sesiones, sin dos
-formularios que mantener sincronizados.
+la misma pantalla, tanto si la sesión viene de digitalizar (§4.10) como si
+se edita después desde la pestaña Respuestas, sin dos formularios que
+mantener sincronizados.
 
 - Pantalla de **consentimiento informado** antes de nada: finalidad, responsable,
   carácter anónimo, derecho a abandonar.
@@ -1229,17 +1268,19 @@ página lleva su **número de página** — necesario para poder recomponer una
 hoja a partir de fotos sueltas subidas en cualquier orden, sin depender de
 escanearlas ni subirlas en el orden físico.
 
-**Dos QR por hoja, uno grande (solo página 1) y uno pequeño (todas las
-páginas)** (`papel/qr.js`):
+**Dos QR por hoja, uno grande (solo página 1, centrado abajo) y uno pequeño
+(todas las páginas)** (`papel/qr.js`):
 
-- **QR grande**, en la página de demografía: `{token_id, version, exam_id,
-  pagina}` completo en JSON (`codificarPayloadQr`/`decodificarPayloadQr`),
-  con el `token_id` también en texto plano al lado por si hace falta leerlo
-  a ojo. `version` es la del diseño de hoja (README §4.7) — informativo, ya
-  no decide "a qué decodificador despachar" porque solo hay uno.
+- **QR grande**, en la página de demografía: **solo el `token_id`** de la
+  remesa, en texto plano (`codificarPayloadQr`/`decodificarPayloadQr`,
+  simplificado a esto — antes JSON con `token_id`+`version`+`exam_id`+
+  `pagina`, pero `exam_id`/`pagina` ya viajaban también en el QR pequeño de
+  cada página, y la versión del pipeline dejó de hacer falta en cuanto solo
+  quedó un pipeline activo), con el `token_id` también en texto plano al lado
+  por si hace falta leerlo a ojo.
 - **QR pequeño de página**, en **todas** las páginas de la hoja (incluida la
   1): solo `{exam_id, pagina}` (`codificarPayloadQrPagina`/
-  `decodificarPayloadQrPagina`), sin repetir remesa ni versión —
+  `decodificarPayloadQrPagina`), sin repetir remesa —
   deliberadamente corto para que, a igual tamaño físico impreso (10×10mm),
   el módulo de cada casilla del QR sea más grande y la lectura desde una
   foto de móvil sea más fiable. `exam_id` en sí también es corto por el
@@ -1250,14 +1291,16 @@ páginas)** (`papel/qr.js`):
   hay que teclearlo a mano (§4.10, resolución manual) o leerlo a ojo en la
   propia hoja.
 
-**Por qué dos QR y no uno solo más grande:** el grande sigue haciendo falta
-para el flujo secuencial de siempre (§4.7, que solo necesita leer el QR una
-vez, al principio, para fijar la remesa) y para poder identificar la remesa
-a ojo desde la propia hoja. El pequeño es el que de verdad hace posible la
-subida en bloque (§4.10): tiene que estar en TODAS las páginas (una foto
-suelta de la página 7 no lleva ningún otro contexto), así que cuanto más
-corto su payload, más grande puede imprimirse cada módulo dentro de los
-10mm disponibles sin invadir el hueco de los fiduciales.
+**Por qué dos QR y no uno solo más grande:** el grande sirve para identificar
+la remesa a ojo desde la propia hoja y como respaldo automático al
+digitalizar la primera página de un examen nuevo — si el pequeño no se pudo
+leer o el examen aún no existe en el servidor, se cae a leer el grande antes
+de pedir la remesa a mano (`subirLote.js::procesarUnidad`, README §4.10). El
+pequeño es el que de verdad hace posible la subida en bloque: tiene que estar
+en TODAS las páginas (una foto suelta de la página 7 no lleva ningún otro
+contexto), así que cuanto más corto su payload, más grande puede imprimirse
+cada módulo dentro de los 10mm disponibles sin invadir el hueco de los
+fiduciales.
 
 **Por qué QR y no PDF417 u otro simbología 1D/2D:** el contenido a codificar
 es corto y no hay dispositivo lector dedicado — se decodifica con la misma
@@ -1293,47 +1336,59 @@ detectado coincide con un token real, la remesa queda fijada automáticamente
 ("Remesa detectada automáticamente" en la pantalla de confirmación); si el
 QR no se pudo leer (foto borrosa, hoja fotocopiada en blanco y negro sin
 suficiente contraste, etc.) se cae al desplegable manual de remesa de
-siempre, así el flujo secuencial nunca se bloquea por un QR ilegible.
+siempre, así la subida nunca se bloquea por un QR ilegible.
 
-**Compatibilidad hacia atrás:** una hoja impresa antes de que existiera
-`exam_id`/`pagina`, o con un diseño de hoja anterior a este (README §4.7,
-"Historia"), sigue leyéndose para el `token_id`/`version`:
-`decodificarPayloadQr` devuelve `examId: null`/`pagina: null` si esos campos
-no vienen en el JSON, y un texto plano sin JSON se interpreta como
-`{tokenId: texto, version: 1}` — pero como la posición de los QR y el propio
-contenido de la hoja son distintos en un diseño anterior, esas hojas ya no
-se pueden digitalizar con el pipeline actual.
+**Compatibilidad hacia atrás:** una hoja impresa con un diseño de hoja
+anterior a este (README §4.7, "Historia") ya no se puede digitalizar con el
+pipeline actual — la posición de los QR y el propio contenido de la hoja son
+distintos en un diseño anterior. `decodificarPayloadQr` tampoco intenta ya
+distinguir versiones por el contenido del QR grande: como ahora solo lleva el
+`token_id` en texto plano, cualquier texto leído se interpreta directamente
+como ese `token_id`.
 
-### 4.10 Subida en bloque de hojas en papel, en cualquier orden
+### 4.10 Digitalizar tests: subida en bloque de hojas en papel, en cualquier orden
 
-**Motivación:** el flujo secuencial (§4.7) obliga a subir las páginas de UNA
+**Motivación:** hubo un flujo secuencial antes (pestaña "Digitalizar tests"
+original, retirada — ver git log) que obligaba a subir las páginas de UNA
 hoja, en su orden físico exacto, sin interrupciones, en una sola visita al
-panel — lo que funciona bien para digitalizar una hoja suelta al momento,
-pero no para el caso real de una remesa grande: alguien escanea o fotografía
+panel — funcionaba bien para digitalizar una hoja suelta al momento, pero no
+para el caso real de una remesa grande: alguien escanea o fotografía
 **todas** las hojas de golpe (mezcladas, sin cuidar el orden ni agruparlas
 por persona) y luego hace falta subirlas al panel, quizá en varias sesiones
 de trabajo, sin tener que reordenar cientos de fotos a mano primero. La
-pestaña **"Subir en bloque"** (`public/admin/papel/subirLote.js`) resuelve
-justo eso: cada foto o página de PDF se identifica sola por su QR pequeño de
-página (§4.9, `{exam_id, pagina}`) y se coloca en su sitio, sin importar en
-qué orden, en cuántos archivos ni en cuántas visitas se suba.
+pestaña **"Digitalizar tests"** actual (antes "Subir en bloque",
+`public/admin/papel/subirLote.js`) resuelve justo eso, y sustituyó por
+completo al flujo secuencial: cada foto o página de PDF se identifica sola
+por su QR pequeño de página (§4.9, `{exam_id, pagina}`) y se coloca en su
+sitio, sin importar en qué orden, en cuántos archivos ni en cuántas visitas
+se suba.
 
-**Qué acepta:** imágenes sueltas (`image/*`, una foto = una página) o un PDF
+**Qué acepta:** imágenes sueltas (`image/*`, una foto = una página), un PDF
 con una o varias páginas ya escaneadas (`application/pdf`, dividido en
 imágenes en el propio navegador con **pdf.js**, cargado bajo demanda desde
-CDN igual que pdf-lib/qrcode-generator/jsQR — `comun.js::cargarPaginasPdf`).
-Si el PDF ya trae TODAS las páginas de una hoja, mejor: se procesan todas de
-una subida y el examen puede quedar completo al momento; si no, sus páginas
-se acumulan igual que las de cualquier otra foto suelta, identificadas por
-`exam_id`.
+CDN igual que pdf-lib/qrcode-generator/jsQR — `comun.js::cargarPaginasPdf`),
+o un **`.zip` con cualquier mezcla de fotos y PDFs sueltos** (`comun.js::leerZip`
+— lector PKZIP mínimo escrito a mano, igual que el escritor de
+`admin.js::construirZip`, README §4.5; el único método de compresión que hace
+falta soportar en lectura además de STORE es DEFLATE, con el
+`DecompressionStream` nativo del navegador en vez de añadir una librería de
+compresión). Cada archivo dentro del zip se procesa exactamente igual que si
+se hubiera subido suelto — recursivamente, así un zip con un PDF de varias
+páginas dentro también funciona — y los metadatos que añade macOS al
+comprimir con Finder (carpeta `__MACOSX/`, ficheros `._nombre.ext`) se
+descartan en silencio. Si un PDF (suelto o dentro de un zip) ya trae TODAS
+las páginas de una hoja, mejor: se procesan todas de una subida y el examen
+puede quedar completo al momento; si no, sus páginas se acumulan igual que
+las de cualquier otra foto suelta, identificadas por `exam_id`.
 
 **Persistencia del progreso, en el servidor (no en el navegador):** a
-diferencia del flujo secuencial (que solo vive en memoria del navegador
-durante una única visita), cada página sube su resultado YA DECODIFICADO en
-cuanto se lee (solo `{ textos: {...} }`, lo que devuelve OCR-IA para esa
-página — ya no hay oscuridad OMR que guardar) — nunca la foto en sí, mismo
-criterio de privacidad que el resto de la digitalización (§4.7: solo sale
-del navegador lo ya interpretado) — a dos tablas nuevas (`schema/schema.sql`):
+diferencia del flujo secuencial retirado (que solo vivía en memoria del
+navegador durante una única visita), cada página sube su resultado YA
+DECODIFICADO en cuanto se lee (solo `{ textos: {...} }`, lo que devuelve
+OCR-IA para esa página — ya no hay oscuridad OMR que guardar) — nunca la foto
+en sí, mismo criterio de privacidad que el resto de la digitalización (§4.7:
+solo sale del navegador lo ya interpretado) — a dos tablas nuevas
+(`schema/schema.sql`):
 
 ```sql
 CREATE TABLE examenes_papel (
@@ -1407,16 +1462,15 @@ body) y:
 - **Es idempotente por `exam_id`**: si ya existe una sesión con ese
   `exam_id`, la SOBRESCRIBE (misma `sesion_id`, reemplazo completo de
   demografía/respuestas, igual que `PUT /api/admin/sesiones/:id`, §4.8) en
-  vez de rechazar con 409 — volver a digitalizar la misma hoja física (tanto
-  por el flujo secuencial como por la subida en bloque, o pulsar "Finalizar"
-  dos veces) actualiza la sesión existente. Pensado sobre todo para la
-  subida en bloque: corregir una página ya subida (p. ej. re-subir la 7 con
-  una foto mejor) y volver a pulsar "Finalizar" basta para que la sesión
-  recoja el cambio, sin borrar nada primero — el botón sigue disponible tras
-  finalizar, relabeled a "Volver a finalizar".
+  vez de rechazar con 409 — volver a digitalizar la misma hoja física (pulsar
+  "Finalizar" dos veces) actualiza la sesión existente en vez de fallar.
+  Pensado sobre todo para corregir una página ya subida (p. ej. re-subir la 7
+  con una foto mejor) y volver a pulsar "Finalizar": la sesión recoge el
+  cambio sin borrar nada primero — el botón sigue disponible tras finalizar,
+  relabeled a "Volver a finalizar".
 - Marca `examenes_papel.sesion_id` con la sesión (recién creada o ya
   existente), para que el examen se marque como digitalizado en la lista de
-  "en progreso" de "Subir en bloque".
+  "en progreso" de "Digitalizar tests".
 
 **Qué NO resuelve todavía:** subir páginas de exámenes que compartan el
 mismo banco de ítems pero se hayan impreso con un `data/items.json` distinto

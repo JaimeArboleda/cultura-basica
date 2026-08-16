@@ -1,4 +1,12 @@
-import { borrarSesionesDeToken, borrarTokenCompleto, crearToken, listarTokens, obtenerToken, revocarToken } from "../../db";
+import {
+  borrarSesionesDeToken,
+  borrarTokenCompleto,
+  crearToken,
+  listarTokens,
+  obtenerToken,
+  rehabilitarToken,
+  revocarToken,
+} from "../../db";
 import { error, json } from "../../http";
 import { EXPIRA_EN_INFINITO, type Env } from "../../tipos";
 
@@ -60,6 +68,21 @@ export async function deleteToken(env: Env, id: string): Promise<Response> {
   const token = await obtenerToken(env, id);
   if (!token) return error(env, 404, "Token no encontrado");
   await revocarToken(env, id);
+  return json(env, { ok: true });
+}
+
+// "Rehabilitar": lo contrario de "Revocar" (README §4.5) — le devuelve al
+// token la caducidad que tenía justo antes de la última revocación. Si el
+// token nunca se revocó explícitamente (caducó solo por el paso del tiempo),
+// no hay una caducidad "original" distinta que restaurar: 400 en vez de un
+// no-op silencioso, para que el panel pueda avisar en vez de recargar sin más.
+export async function postTokenRehabilitar(env: Env, id: string): Promise<Response> {
+  const token = await obtenerToken(env, id);
+  if (!token) return error(env, 404, "Token no encontrado");
+  if (token.expira_en_antes_de_revocar == null) {
+    return error(env, 400, "Este token no fue revocado: no hay una caducidad original que restaurar");
+  }
+  await rehabilitarToken(env, id);
   return json(env, { ok: true });
 }
 

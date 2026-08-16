@@ -535,6 +535,7 @@ export interface FilaToken {
   creado_en: string;
   expira_en: string;
   es_prueba: number;
+  expira_en_antes_de_revocar: string | null;
 }
 
 export interface FilaTokenConConteo extends FilaToken {
@@ -560,7 +561,7 @@ export async function obtenerToken(env: Env, id: string): Promise<FilaToken | nu
 
 export async function listarTokens(env: Env): Promise<FilaTokenConConteo[]> {
   const { results } = await env.DB.prepare(
-    `SELECT t.id, t.descripcion, t.creado_por, t.creado_en, t.expira_en, t.es_prueba,
+    `SELECT t.id, t.descripcion, t.creado_por, t.creado_en, t.expira_en, t.es_prueba, t.expira_en_antes_de_revocar,
             COUNT(s.id) AS n_sesiones,
             SUM(CASE WHEN s.completo = 1 THEN 1 ELSE 0 END) AS n_completas
      FROM tokens t
@@ -573,8 +574,31 @@ export async function listarTokens(env: Env): Promise<FilaTokenConConteo[]> {
 
 // "Revocar" un token lo caduca de inmediato; no se borra la fila (queda como
 // registro histórico de la remesa) ni las sesiones/respuestas creadas con él.
+// Guarda el expira_en de ANTES de revocar en expira_en_antes_de_revocar (leído
+// del valor de la propia fila, no de un segundo SELECT: una sola UPDATE en
+// SQLite evalúa el lado derecho de todas las asignaciones contra la fila
+// ORIGINAL, así que "expira_en_antes_de_revocar = expira_en" captura el valor
+// previo aunque expira_en se sobrescriba en la misma sentencia) — es lo que
+// permite a rehabilitarToken devolverle esa misma caducidad más adelante.
 export async function revocarToken(env: Env, id: string): Promise<void> {
-  await env.DB.prepare("UPDATE tokens SET expira_en = ? WHERE id = ?").bind(new Date().toISOString(), id).run();
+  await env.DB.prepare("UPDATE tokens SET expira_en_antes_de_revocar = expira_en, expira_en = ? WHERE id = ?")
+    .bind(new Date().toISOString(), id)
+    .run();
+}
+
+// "Rehabilitar": lo contrario de revocar (README §4.5) — devuelve a
+// expira_en el valor que tenía justo antes de la última revocación, y limpia
+// expira_en_antes_de_revocar (así una hipotética caducidad natural posterior
+// ya no muestra el botón "Rehabilitar": ver comentario del schema). Solo
+// tiene efecto si el token fue revocado explícitamente alguna vez — si nunca
+// se revocó (caducó solo por el paso del tiempo), no hay una caducidad
+// "original" distinta que restaurar, y esta consulta no actualiza nada.
+export async function rehabilitarToken(env: Env, id: string): Promise<void> {
+  await env.DB.prepare(
+    "UPDATE tokens SET expira_en = expira_en_antes_de_revocar, expira_en_antes_de_revocar = NULL WHERE id = ? AND expira_en_antes_de_revocar IS NOT NULL"
+  )
+    .bind(id)
+    .run();
 }
 
 // --- Subida en bloque de hojas en papel (README §4.10) ---
