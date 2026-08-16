@@ -349,3 +349,208 @@ correcciones` ítem 01, "SIGMUND FREUD" donde el plan dejaba la pregunta en
 blanco; `04-descuidada-ruidosa` demografía.libros_en_casa, "0-10" también
 sobre un campo en blanco) y autocompletar una respuesta a medias
 ("PLUSV" → ya contaba como fallo esperado en el plan) — ninguno nuevo.
+
+## Refuerzo anti-alucinación + comparativa de 5 modelos (issue #31, 16 de agosto de 2026)
+
+Cambios de esta ronda, los tres verificados contra la API real:
+
+1. **`SYSTEM_PROMPT_ITEMS` refuerza explícitamente "no inventes"** — añadido
+   un párrafo final ("nunca modifiques lo consignado: no te inventes la
+   respuesta si no está... tu misión no es corregir, sino digitalizar de
+   manera absolutamente exacta") y una frase específica para el caso ya
+   documentado arriba (pregunta entera en blanco → `null`, nunca una
+   respuesta plausible inventada).
+2. **`SYSTEM_PROMPT_DEMOGRAFIA` deja de describir un bloque "Corrección" que
+   nunca existió en esa página.** Comparado el prompt contra
+   `public/admin/papel/hoja.js::construirBloquesDemografia`: los campos de
+   demografía (catálogos + año de nacimiento) imprimen un único bloque
+   "Respuesta", nunca un bloque "Corrección" — a diferencia de las páginas de
+   ítems. El prompt anterior (copiado por error del diseño de ítems) le pedía
+   al modelo resolver una precedencia sobre un bloque que no está impreso en
+   ningún sitio: puro ruido. Simplificado para describir solo lo que hay
+   realmente en la hoja. De paso, el texto del prompt de usuario de esta
+   página ya no cita el id interno de la página (p. ej. una cadena como
+   `"01-letra-clara-1"`, sin significado para el modelo) sino el mismo
+   "Debes digitalizar la página N" que ya usaban las páginas de ítems.
+3. **El esquema JSON de demografía ahora admite `null` explícitamente**
+   (antes solo el enum de letras válidas, o el patrón de dígitos, sin
+   posibilidad real de "no hay nada" pese a que el prompt ya se lo pedía).
+4. **Bug real encontrado y corregido contra la API real, no de lectura sino
+   de compatibilidad**: `gpt-5.4-nano`/`gpt-5.4-mini` (probados por primera
+   vez en esta ronda) rechazan con 400 el valor `reasoning_effort: "minimal"`
+   que el Worker manda siempre a cualquier modelo `gpt-5*`
+   ("Unsupported value: 'reasoning_effort' does not support 'minimal' with
+   this model. Supported values are: 'none', 'low', 'medium', 'high', and
+   'xhigh'." — esta generación lo renombró a `"none"`). En vez de mantener a
+   mano una tabla modelo→valor soportado (se habría quedado desactualizada
+   con el próximo modelo), `postOcrIa` ahora reintenta una vez leyendo del
+   propio mensaje de error qué valores soporta ese modelo y eligiendo el más
+   barato de la lista (`elegirReasoningEffortDesdeError`,
+   `worker/src/endpoints/admin/ocrIa.ts`).
+
+**Corrida comparativa de 5 modelos** (mismas 4 instancias de siempre, mismo
+prompt/esquema ya con los cambios de arriba, contra `wrangler dev` local):
+
+| Modelo | Ítems (100 totales) | Demografía (28 totales) | Coste estimado / 100 exámenes* |
+|---|---|---|---|
+| `gpt-4o` | 69/100 (69%) | 21/28 (75%) | ~$4.29 |
+| `gpt-5-nano` | 45/100 (45%) | 23/28 (82%) | ~$0.19 |
+| `gpt-5.4-nano` | 78/100 (78%) | 26/28 (93%) | ~$0.60 |
+| `gpt-5-mini` | 91/100 (91%) | 28/28 (100%) | ~$0.92 |
+| `gpt-5.4-mini` | **92/100 (92%)** | 26/28 (93%) | ~$2.15 |
+
+\* Estimado a partir del `usage` real devuelto por la API en esta misma
+corrida (`prompt_tokens`/`completion_tokens` medios por página, ver
+`console.log("[ocr-ia] uso", ...)` en `ocrIa.ts`), extrapolado a 6
+páginas/examen (el manifiesto actual: 1 de datos + 5 de ítems) × 100
+exámenes, con el precio estándar por token de cada modelo en la propia
+documentación de OpenAI (agosto de 2026) — no incluye el margen de la API de
+imágenes de OpenAI si difiriera del recuento de tokens que ya reporta
+`usage`, ni reintentos por 429/5xx.
+
+**Conclusión: `gpt-5-mini` (el modelo por defecto actual, `OPENAI_MODEL` en
+`wrangler.toml`) sigue siendo la mejor relación precisión/coste** — acierto
+prácticamente idéntico a `gpt-5.4-mini` (91% vs 92%, dentro del ruido de 4
+instancias) a menos de la mitad de coste, y muy por delante de `gpt-4o`
+(-22 puntos de acierto en ítems por 4.7× más caro) y de ambos modelos
+`nano` (demasiado fallo en ítems para un banco de solo 25 preguntas). No se
+ha cambiado el modelo por defecto del Worker como consecuencia de esta
+corrida — la decisión es del propietario del proyecto.
+
+**Alucinación en preguntas en blanco: reducida, no eliminada**, pese al
+refuerzo del prompt (punto 1 de arriba) — sigue apareciendo, con distinta
+frecuencia según el modelo:
+- `gpt-5-mini`: 2 casos en 100 ítems + 28 campos de demografía (`02-con-
+  correcciones` ítem 01 "SIGMUND FREUD" e ítem 21, ambos con la pregunta
+  realmente en blanco en el plan).
+- `gpt-4o`: 1 caso (mismo ítem 01 de `02-con-correcciones`, "FREUD").
+- `gpt-5.4-mini`: 1 caso (mismo ítem 01, "SIGMUND FREUD" — parece ser el caso
+  más "atractivo" para alucinar del set: es el primer ítem del banco y una
+  respuesta plausible y célebre, "Freud", encaja con varias preguntas de
+  psicología cercanas en la hoja).
+- `gpt-5-nano`/`gpt-5.4-nano`: no se observó ningún caso nuevo en esta
+  corrida, pero ambos modelos ya fallan tanto en lectura normal que un caso
+  aislado de alucinación no se distingue del ruido de fondo.
+
+Los demás patrones de fallo (autocompletar una respuesta a medias, texto
+invertido reconstruido como palabra real, algún error de lectura suelto)
+siguen apareciendo igual que en rondas anteriores, sin patrón nuevo
+atribuible a estos cambios.
+
+## Ejemplo de una sola vez (few-shot): 91% → 97-98% en `gpt-5-mini`, alucinación en blanco no reproducida (issue #31, mismo día)
+
+Siguiente paso, ya implementado: mandar un ejemplo de muestra (few-shot)
+junto con el prompt real de cada llamada a una página de tipo `items` —
+generado por `ocr_tests/generar_one_shot.mjs`, artefactos en
+`ocr_tests/one_shot_example/` (`pagina.jpg`, `user_prompt.txt`,
+`respuesta_esperada.json`, `items.json` con la definición de los 4 ítems y
+la tinta sintética) e inyectado en producción por `worker/src/endpoints/
+admin/ocrIa.ts::construirMensajesEjemplo` como un turno `user`+`assistant`
+adicional ANTES de la página real — **solo en peticiones que incluyen alguna
+página de tipo `items`** (demografía ya mide 100% sin él).
+
+**Una sola página, 4 preguntas, contenido distinto al banco real** (issue
+#31: "una página de ejemplo con preguntas diferentes a las del test"),
+numeradas 1-4 en la propia imagen (con aviso explícito en el texto de que es
+un ejemplo aparte, sin relación con la numeración de la página real que
+sigue en el turno siguiente) — cada una ataca un caso concreto de
+alucinación ya documentado arriba:
+
+1. **Abierto**: la respuesta canónica sería "JOSE DE ARIMATEA", pero lo
+   escrito es mucho más corto ("JUAN" en Respuesta, "JOSE" en Corrección) —
+   enseña a transcribir literalmente, nunca a completar hacia la respuesta
+   que "debería" ser.
+2. **Opción múltiple**: Respuesta y Corrección COMPLETAMENTE en blanco —
+   enseña que la salida correcta es `null` en ambas, el caso exacto de
+   alucinación en blanco de la ronda anterior.
+3. **Selección múltiple**: una casilla vacía en medio de la selección
+   ("A E" / "A B", con el hueco preservado como espacio literal) en los dos
+   bloques — enseña a no "cerrar" el hueco ni completar hacia el conjunto
+   que se supone correcto.
+4. **Ordenar**: la Corrección tiene una posición sin rellenar — enseña a
+   dejar esa clave como cadena vacía en el diccionario, no la letra "que
+   tocaría" según el resto de la secuencia.
+
+**Corrida de verificación** (`gpt-5-mini`, el modelo por defecto — mejor
+relación precisión/coste de la comparativa de 5 modelos de arriba —, mismas
+4 instancias, mismo `wrangler dev` local, con el ejemplo activado):
+
+| Instancia | Ítems (sin ejemplo → con ejemplo) | Demografía |
+|---|---|---|
+| `01-letra-clara` | 25/25 (100%) → **25/25 (100%)** | 7/7 (100%) |
+| `02-con-correcciones` | 22/25 (88%) → **25/25 (100%)** | 7/7 (100%) |
+| `03-valores-invalidos-e-incompletas` | 19/25 (76%) → **22/25 (88%)** (88% y 92% en dos corridas repetidas, ítems distintos fallando cada vez) | 7/7 (100%) |
+| `04-descuidada-ruidosa` | 25/25 (100%) → **25/25 (100%)** | 7/7 (100%) |
+
+**91/100 → 97/100 (97%) de acierto agregado en ítems**, demografía sigue en
+28/28 (100%). Más importante que el número agregado: **los dos casos de
+alucinación en preguntas en blanco de la corrida anterior (`02-con-
+correcciones` ítem 01 "SIGMUND FREUD" e ítem 21) NO se reprodujeron en
+ninguna de las dos corridas de verificación** — esa instancia pasó de 22/25
+a 25/25 exactamente por eso. Los fallos que quedan en `03-valores-invalidos-
+e-incompletas` son de los patrones YA documentados y no relacionados con
+blancos: autocompletar una respuesta a medias ("PLUSV" → "PLUSVALIA"), un
+error de lectura suelto en una opción múltiple, y en una corrida una
+respuesta `abierto` deliberadamente incompleta con un dígito de más
+("4/1" → "4/10").
+
+**Coste**: el turno adicional (imagen + texto + respuesta de ejemplo) suma
+~3200 tokens de prompt por llamada de media (4595 → 7768 tokens de prompt
+por página, medido con el mismo `usage` real de la API) — el coste estimado
+de `gpt-5-mini` por 100 exámenes sube de ~$0.92 a **~$1.33**, un incremento
+del 45% sobre una cifra ya muy baja en términos absolutos. Dado que elimina
+justo el patrón de fallo más preocupante (contenido inventado de la nada, no
+solo un error de lectura), el coste adicional parece razonable — decisión
+final del propietario del proyecto.
+
+**No implementado todavía**: no se ha vuelto a probar el ejemplo contra los
+otros 4 modelos de la comparativa (`gpt-4o`, `gpt-5-nano`, `gpt-5.4-nano`,
+`gpt-5.4-mini`) — el propio issue #31 pidió esta ronda solo con el modelo
+por defecto.
+
+## Amplía el ejemplo a 6 preguntas — intento de eliminar el autocompletado (issue #31, mismo día)
+
+Segunda iteración sobre el ejemplo de una sola vez: de 4 a 6 preguntas
+(añadidas `clasificar`, con dos clasificaciones completas y distintas entre
+Respuesta y Corrección; y un segundo `abierto` con Respuesta rellena y
+Corrección completamente en blanco → `null`), el antiguo ítem 4 de
+`ordenar` (elementos ficticios "Elemento W/X/Y/Z") sustituido por una
+pregunta con contenido real pero ajeno al banco (ordenar países por
+superficie), y — el cambio dirigido directamente al fallo de autocompletado
+— la Corrección del ítem 1 (`abierto`) pasa de "JOSE" (un nombre corto pero
+completo) a **"JOSE DE ARIMAT"**, la palabra cortada literalmente a medias,
+mucho más parecida al patrón real que seguía fallando ("PLUSV" →
+"PLUSVALIA"). También se quitaron las etiquetas "(EJEMPLO)" y la aclaración
+"(sin relación con el banco real)" que se imprimían en la propia página —
+ahora es visualmente indistinguible de una página real, la aclaración de que
+es un ejemplo vive solo en el texto que acompaña a la imagen (fuera de lo
+impreso).
+
+**Corrida de verificación** (`gpt-5-mini`, mismas 4 instancias):
+
+| Instancia | Ítems |
+|---|---|
+| `01-letra-clara` | 25/25 (100%) |
+| `02-con-correcciones` | 25/25 (100%) |
+| `03-valores-invalidos-e-incompletas` | 23/25 (92%) |
+| `04-descuidada-ruidosa` | 25/25 (100%) |
+
+**98/100 (98%)**, demografía 28/28 (100%) — se mantiene la mejora de la
+ronda anterior (ningún caso de alucinación en blanco) y sube un punto más
+sobre el 97% anterior.
+
+**El autocompletado de "PLUSV" NO se resolvió** — sigue siendo el único
+fallo sistemático que queda. Repetido 5 veces seguidas solo la instancia
+`03-valores-invalidos-e-incompletas` (mismo ítem 19 cada vez, mismo plan
+determinista): falló 4 de 5 veces, exactamente igual que "PLUSVALIA" (antes
+"PLUSVALÍA", el acento no cuenta como fallo). El refuerzo del ejemplo
+(Corrección cortada a medias en la pregunta 1) no cambió esta tasa de forma
+apreciable — parece un sesgo del modelo especialmente fuerte para ESTE caso
+concreto ("PLUSV" es una compleción casi inequívoca hacia una palabra muy
+común en español, "PLUSVALÍA"), no un problema general de autocompletado que
+el ejemplo pueda corregir con un solo caso de refuerzo. Candidatos para una
+tercera ronda, ninguno probado todavía: un ejemplo dedicado exclusivamente a
+este patrón (una palabra española muy reconocible cortada a la mitad, sin
+compartir turno con otras 5 preguntas que puedan diluir la lección) o
+aceptar que este caso concreto es un límite práctico del enfoque de prompt/
+few-shot con este modelo.

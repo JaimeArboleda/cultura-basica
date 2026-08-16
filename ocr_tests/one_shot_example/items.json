@@ -1,0 +1,116 @@
+{
+  "items": [
+    {
+      "id": "ejemplo-abierto-1",
+      "formato": "abierto",
+      "enunciado": "¿Quién, según los evangelios, cedió su propia tumba para el entierro de Jesús de Nazaret?",
+      "casillas_abierto": 20
+    },
+    {
+      "id": "ejemplo-opcion-multiple",
+      "formato": "opcion_multiple",
+      "enunciado": "¿Cuál de estos NO es un océano?",
+      "opciones": [
+        "Pacífico",
+        "Atlántico",
+        "Índico",
+        "Ártico",
+        "Amazonas"
+      ]
+    },
+    {
+      "id": "ejemplo-seleccion-multiple",
+      "formato": "seleccion_multiple",
+      "enunciado": "Marca TODAS las capitales de país entre estas ciudades:",
+      "opciones": [
+        "Madrid",
+        "Lisboa",
+        "Barcelona",
+        "Múnich",
+        "Roma"
+      ],
+      "num_correctas": 3
+    },
+    {
+      "id": "ejemplo-ordenar",
+      "formato": "ordenar",
+      "enunciado": "Ordena estos países de mayor a menor superficie:",
+      "elementos": [
+        "Rusia",
+        "Canadá",
+        "España",
+        "Francia"
+      ]
+    },
+    {
+      "id": "ejemplo-clasificar",
+      "formato": "clasificar",
+      "enunciado": "Clasifica estos animales según su clase: mamífero, ave o reptil:",
+      "elementos": [
+        "Águila",
+        "Delfín",
+        "Murciélago",
+        "Serpiente"
+      ],
+      "categorias": [
+        "Mamífero",
+        "Ave",
+        "Reptil"
+      ]
+    },
+    {
+      "id": "ejemplo-abierto-2",
+      "formato": "abierto",
+      "enunciado": "¿Cuál es la capital de Australia?",
+      "casillas_abierto": 16
+    }
+  ],
+  "respuestas_sinteticas": {
+    "items": {
+      "ejemplo-abierto-1": {
+        "respuesta": "JUAN EL BAUTIS",
+        "correccion": "JOSE DE ARIMATEA"
+      },
+      "ejemplo-opcion-multiple": {
+        "respuesta": "",
+        "correccion": ""
+      },
+      "ejemplo-seleccion-multiple": {
+        "respuesta": "A E",
+        "correccion": "A B"
+      },
+      "ejemplo-ordenar": {
+        "respuesta": [
+          "C",
+          "D",
+          "B",
+          "A"
+        ],
+        "correccion": [
+          "D",
+          "A",
+          "C",
+          "B"
+        ]
+      },
+      "ejemplo-clasificar": {
+        "respuesta": [
+          "B",
+          "A",
+          "",
+          "B"
+        ],
+        "correccion": [
+          "B",
+          "A",
+          "",
+          "C"
+        ]
+      },
+      "ejemplo-abierto-2": {
+        "respuesta": "SYDNEY",
+        "correccion": ""
+      }
+    }
+  }
+}

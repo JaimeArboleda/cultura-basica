@@ -31,6 +31,7 @@
 //
 // Uso: node ocr_tests/probar_ocr_ia.mjs
 import { readFile, readdir } from "node:fs/promises";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PDFDocument, rgb } from "pdf-lib";
@@ -44,6 +45,11 @@ const RAIZ_REPO = path.resolve(__dirname, "..");
 const API_BASE = process.env.CULTURA_BASICA_API_BASE;
 const ADMIN_TOKEN = process.env.CULTURA_BASICA_ADMIN_TOKEN;
 const MODELO = process.env.CULTURA_BASICA_MODELO || "gpt-5-mini";
+// Override opcional de reasoning_effort (issue #31): solo para comparar
+// contra la API real si subir el esfuerzo de razonamiento por encima de
+// "minimal" (el valor por defecto del Worker) mejora algún fallo concreto —
+// nunca lo manda el panel de admin real.
+const REASONING_EFFORT = process.env.CULTURA_BASICA_REASONING_EFFORT || undefined;
 
 // Mismo cálculo que worker/src/items.ts::casillasAbiertoPara (duplicado a
 // propósito: este script carga el banco crudo de data/items.json
@@ -191,10 +197,23 @@ function normalizar(s) {
     .replace(/\s+/g, " ")
     .trim();
 }
+// Tope de espacios antes de expandir combinatoriamente (2^n variantes): a
+// diferencia de worker/src/correccion.ts::variantesSinEspacios (que solo se
+// aplica a los alias FIJOS y cortos del banco de ítems), aquí también se
+// aplica a `obtenida`, la respuesta cruda del modelo — sin límite, texto
+// alucinado con espaciado letra a letra en una respuesta larga (visto contra
+// la API real, issue #31) puede tener más de 30 espacios y hacer explotar el
+// Set (RangeError: Set maximum size exceeded), tumbando todo el lote de
+// pruebas por un solo fallo ya evidente. Con más de este tope se renuncia a
+// la expansión completa y solo se compara sin espacios en absoluto: una
+// respuesta así de espaciada ya es un fallo claro de todas formas.
+const TOPE_ESPACIOS_PARA_EXPANDIR = 16;
+
 function variantesSinEspacios(texto) {
   const posiciones = [];
   for (let i = 0; i < texto.length; i++) if (texto[i] === " ") posiciones.push(i);
   if (posiciones.length === 0) return [texto];
+  if (posiciones.length > TOPE_ESPACIOS_PARA_EXPANDIR) return [texto, texto.replace(/ /g, "")];
   const variantes = new Set();
   const totalMascaras = 1 << posiciones.length;
   for (let mascara = 0; mascara < totalMascaras; mascara++) {
@@ -256,7 +275,7 @@ async function probarInstancia(dir, items, manifiesto, tokenPruebaId) {
   for (const pagina of paginasEntrada) {
     const { resultados } = await peticion("/api/admin/ocr-ia", {
       method: "POST",
-      body: JSON.stringify({ modelo: MODELO, paginas: [pagina] }),
+      body: JSON.stringify({ modelo: MODELO, ...(REASONING_EFFORT ? { reasoning_effort: REASONING_EFFORT } : {}), paginas: [pagina] }),
     });
     const textosPagina = resultados[pagina.id] ?? {};
     if (pagina.tipo === "demografia") {
@@ -346,7 +365,19 @@ async function probarInstancia(dir, items, manifiesto, tokenPruebaId) {
 
 async function main() {
   const entradas = await readdir(RAIZ_REPO + "/ocr_tests", { withFileTypes: true });
-  let personasDisponibles = entradas.filter((e) => e.isDirectory() && !e.name.startsWith(".")).map((e) => e.name);
+  const candidatas = entradas.filter((e) => e.isDirectory() && !e.name.startsWith(".")).map((e) => e.name);
+  // Solo carpetas de persona de verdad (con respuestas-esperadas.json) —
+  // ocr_tests/one_shot_example/ vive en el mismo directorio (generada por
+  // generar_one_shot.mjs, issue #31) pero no es una instancia de prueba, es
+  // el ejemplo de una sola vez que se inyecta en cada llamada real: sin este
+  // filtro, el escaneo la trataba como una persona más y crasheaba al no
+  // encontrar ese fichero.
+  let personasDisponibles = [];
+  for (const nombre of candidatas) {
+    if (fs.existsSync(path.join(RAIZ_REPO, "ocr_tests", nombre, "respuestas-esperadas.json"))) {
+      personasDisponibles.push(nombre);
+    }
+  }
   if (process.env.CULTURA_BASICA_PERSONAS) {
     const pedidas = new Set(process.env.CULTURA_BASICA_PERSONAS.split(","));
     personasDisponibles = personasDisponibles.filter((p) => pedidas.has(p));

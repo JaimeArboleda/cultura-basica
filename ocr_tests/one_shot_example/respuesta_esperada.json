@@ -1,0 +1,46 @@
+{
+  "1": {
+    "respuesta_inicial": "JUAN EL BAUTIS",
+    "correccion": "JOSE DE ARIMATEA"
+  },
+  "2": {
+    "respuesta_inicial": null,
+    "correccion": null
+  },
+  "3": {
+    "respuesta_inicial": "A E",
+    "correccion": "A B"
+  },
+  "4": {
+    "respuesta_inicial": {
+      "1": "C",
+      "2": "D",
+      "3": "B",
+      "4": "A"
+    },
+    "correccion": {
+      "1": "D",
+      "2": "A",
+      "3": "C",
+      "4": "B"
+    }
+  },
+  "5": {
+    "respuesta_inicial": {
+      "1": "B",
+      "2": "A",
+      "3": "",
+      "4": "B"
+    },
+    "correccion": {
+      "1": "B",
+      "2": "A",
+      "3": "",
+      "4": "C"
+    }
+  },
+  "6": {
+    "respuesta_inicial": "SYDNEY",
+    "correccion": null
+  }
+}

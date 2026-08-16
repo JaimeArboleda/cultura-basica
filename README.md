@@ -847,11 +847,35 @@ blanco para una misma remesa, cada una con su propio `exam_id` corto (README
 por hoja (mismo `hoja.js::construirHoja` que el resto del pipeline) enteramente
 en el navegador del admin, sin pasar por el Worker: no hace falta registrar
 los `exam_id` de antemano porque `examenes_papel` (§4.10) ya se crea de forma
-perezosa, con la primera página que se sube de cada hoja. Los PDFs se agrupan
-en un único `.zip` (mismo `construirZip` — formato PKZIP, sin comprimir — que
-usa "Descargar CSV (.zip)" más arriba) con nombre de fichero
-`hoja-<exam_id>.pdf` por hoja, para poder identificar cada una suelta antes de
-repartirla.
+perezosa, con la primera página que se sube de cada hoja. Las páginas de todas
+las hojas se combinan en un ÚNICO PDF de descarga (`hojas-<descripción>.pdf`,
+`generarPdfRemesa`/`admin.js`, con `PDFDocument.copyPages` de pdf-lib) en vez
+de un zip con un PDF suelto por hoja (issue #31): un solo fichero se manda a
+imprimir de una sola vez, sin tener que descomprimir ni abrir cada hoja por
+separado — cada hoja sigue teniendo su propio `exam_id` (y por tanto su propio
+QR), solo cambia cómo se empaquetan para la descarga.
+
+**Bug real corregido tras la implementación inicial:** `generarPdfRemesa`
+reutilizaba el `ctx` (y por tanto el `PDFDocument` subyacente) cacheado de
+`obtenerManifiesto()` en cada vuelta del bucle — `construirHoja` añade sus
+páginas a `ctx.pdfDoc` y lo vuelca ENTERO con `pdfDoc.save()`, así que la
+hoja i-ésima devolvía también las páginas de las hojas anteriores ya
+generadas en el mismo lote: un pedido de 3 hojas salía con el triple de
+páginas de las que debía (7 páginas/hoja × 3 = 21 esperadas, 42 reales, con
+las primeras hojas repetidas varias veces). Nunca se habría visto solo
+revisando el código (la lógica de "un único PDF" es correcta, el bug está en
+la reutilización del contexto) ni con `npm test` (no había ningún test de
+esta ruta) — se encontró replicando el algoritmo exacto de `admin.js` con
+pdf-lib instalado localmente (`ocr_tests/verificar_pdf_remesa.mjs`, sin
+depender del navegador: Chromium headless no podía cargar pdf-lib desde
+jsdelivr a través del proxy de red de este entorno de desarrollo). Corregido
+creando un contexto (y por tanto un `PDFDocument`) nuevo por hoja dentro del
+bucle — `crearContextoFuentes` reutiliza `PDFLib`/fontkit/los bytes de
+fuente ya cacheados, así que el coste extra es solo volver a incrustar 2
+fuentes en un documento nuevo, no red. `ocr_tests/verificar_pdf_remesa.mjs`
+queda como test de regresión permanente en `npm test` (sin red, rápido y
+determinista: genera 3 hojas y comprueba que el PDF combinado tiene
+exactamente 3× las páginas de una hoja, sin duplicados).
 
 **Estadísticas avanzadas: consola Python en el navegador (sin backend Python).**
 La pestaña "Estadísticas" de más arriba muestra agregados fijos; para explorar
@@ -1177,6 +1201,24 @@ validación de entrada. Esto ataca de raíz el fallo más reportado del
 motor anterior: escribir algo como `"F) 7"` en una casilla de una sola
 letra ya no es una posibilidad estructural para el modelo, no algo que
 dependa de que siga bien la instrucción del prompt.
+
+**Ejemplo de una sola vez (few-shot) en páginas de ítems (issue #31).** Para
+reducir la alucinación en preguntas enteramente en blanco (el modelo
+inventaba una respuesta plausible en vez de reconocer que no había nada
+escrito, medido contra la API real — detalle completo en `ocr_tests/
+README.md`), cada petición que incluye alguna página de tipo `items` manda
+además, ANTES de la página real, un turno `user`+`assistant` con una página
+de ejemplo YA RESUELTA (4 preguntas de contenido distinto al banco real, una
+por formato salvo `clasificar`, pensadas para enseñar justo los casos donde
+seguía fallando: completar una respuesta corta hacia la canónica, inventar
+una letra en blanco, cerrar un hueco en una selección múltiple, rellenar una
+posición sin contestar en "ordenar"). Generado por `ocr_tests/
+generar_one_shot.mjs` — deja los artefactos en `ocr_tests/one_shot_example/`
+(imagen, prompt, respuesta esperada, en texto plano para poder iterar) y
+regenera el módulo que de verdad usa el Worker en producción,
+`worker/src/endpoints/admin/ocrIaEjemplo.ts`
+(`construirMensajesEjemplo`/`ocrIa.ts` lo inyecta). No se manda en páginas de
+demografía (ya en 100% de acierto sin él).
 
 La lectura del **QR** (remesa/`exam_id`/página, §4.9) sigue siendo
 determinista, con jsQR en el propio navegador, sin pasar por ningún modelo —
