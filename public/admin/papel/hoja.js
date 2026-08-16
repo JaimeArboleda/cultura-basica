@@ -58,8 +58,17 @@ const PAGE_H_PT = mmAPt(PAGE_H_MM);
 const PADDING_PT = mmAPt(PADDING_MM);
 const CABECERA_ALTO_PT = mmAPt(CABECERA_ALTO_MM);
 const ANCHO_CONTENIDO_PT = PAGE_W_PT - 2 * PADDING_PT;
-const MARGEN_SEGURIDAD_PT = mmAPt(4);
-const ALTURA_DISPONIBLE_PT = PAGE_H_PT - 2 * PADDING_PT - CABECERA_ALTO_PT - MARGEN_SEGURIDAD_PT;
+// El QR de página (README §4.9) va centrado abajo, pegado al margen inferior,
+// en TODAS las páginas: se reserva su alto + un pequeño hueco de separación
+// para que el flujo de contenido nunca lo invada, sea cual sea la altura que
+// ocupe el último bloque de esa página.
+const GAP_QR_PAGINA_PT = mmAPt(3);
+const ALTURA_RESERVA_QR_PAGINA_PT = mmAPt(QR_PAGINA_SIZE_MM) + GAP_QR_PAGINA_PT;
+// Contenido: desde el final de la cabecera (que ya empieza tras el margen
+// superior, PADDING_MM) hasta el margen inferior, menos la reserva del QR de
+// página — así el margen es PADDING_MM en los 4 lados a la vez (arriba, abajo,
+// izquierda y derecha), simétrico.
+const ALTURA_DISPONIBLE_PT = PAGE_H_PT - 2 * PADDING_PT - CABECERA_ALTO_PT - ALTURA_RESERVA_QR_PAGINA_PT;
 // La página 1 de la sección de demografía reserva además el hueco del QR
 // grande (fijo, README §4.9) antes de que empiece el flujo de bloques.
 const ALTURA_QR_GRANDE_PT = mmAPt(QR_GRANDE_SIZE_MM + 3);
@@ -197,17 +206,16 @@ function construirEnunciado(ctx, numero, texto, anchoPt, config) {
   const lineas = envolverTexto(font, tamanoPt, texto, anchoTexto);
   const altoLinea = altoLineaPt(tamanoPt);
   const alturaTexto = lineas.length * altoLinea;
-  // El círculo (DIAM_PT) es más alto que una sola línea de texto (altoLinea):
-  // si se dibujaran ambos alineados al mismo yTopPt, el texto quedaría
-  // visiblemente más arriba que el centro del círculo (bug real, número y
-  // primera línea del enunciado desalineados). Centrar el texto dentro de la
-  // altura del círculo cuando el texto es más corto que él (caso 1 línea, el
-  // más frecuente); si el texto ocupa más (varias líneas), ya no hace falta
-  // el ajuste, el círculo queda arriba junto a la primera línea.
-  const offsetTextoPt = Math.max(0, (DIAM_PT - alturaTexto) / 2);
+  // Mismo criterio de centrado óptico que el número dentro del círculo (más
+  // abajo: centro - tamanoPt*0.36): antes la primera línea se centraba según
+  // la ALTURA DE LÍNEA tipográfica (factor ~0.64), no según ese mismo
+  // criterio óptico — quedaban a un nivel ligeramente distinto (bug real,
+  // número y primera línea del enunciado a distinta altura). Con la misma
+  // fórmula para los dos, quedan al mismo nivel.
+  const offsetTextoPt = Math.max(0, DIAM_PT / 2 - tamanoPt * 0.36);
   const numeroTxt = String(numero);
   return {
-    altoPt: Math.max(alturaTexto, DIAM_PT) + mmAPt(1.5),
+    altoPt: Math.max(offsetTextoPt + alturaTexto, DIAM_PT) + mmAPt(1.5),
     dibujar(lienzo, xPt, yTopPt) {
       lienzo.circulo(xPt + DIAM_PT / 2, yTopPt + DIAM_PT / 2, DIAM_PT / 2, { color: ctx.colorAcento });
       const tamNumero = 7.5;
@@ -503,9 +511,15 @@ function construirInstruccionesGenerales(ctx, anchoPt) {
 
       const x2 = xPt + LADO_PT + GAP_PT;
       lienzo.rect(x2, yTopPt, LADO_PT, LADO_PT, { borderColor: ctx.colorNegro, borderWidth: CASILLA_BORDE_PT });
-      lienzo.texto(x2 + LADO_PT * 0.42, yTopPt + LADO_PT * 0.3, "a", {
-        font: ctx.fontRegular,
-        tamanoPt: 12,
+      // La "A" del ejemplo incorrecto es la MISMA letra que el ejemplo
+      // correcto (para que la comparación sea directa), pero más grande y a
+      // caballo del borde derecho de la casilla — mitad dentro, mitad fuera —
+      // en vez de simplemente pequeña o minúscula.
+      const tamanoMalPt = 13;
+      const anchoLetraMal = ctx.fontBold.widthOfTextAtSize("A", tamanoMalPt);
+      lienzo.texto(x2 + LADO_PT - anchoLetraMal / 2, yTopPt + LADO_PT / 2 - tamanoMalPt * 0.36, "A", {
+        font: ctx.fontBold,
+        tamanoPt: tamanoMalPt,
         color: ctx.colorNegro,
       });
       lienzo.texto(x2, yTopPt + LADO_PT + mmAPt(0.8), "Mal", { font: ctx.fontBold, tamanoPt: 6, color: colorError });
@@ -823,7 +837,13 @@ function dibujarCabeceraYFiduciales(ctx, page, lienzo, tituloDerecha) {
   ];
   for (const [x, yTop] of esquinas) lienzo.rect(x, yTop, tamFiducial, tamFiducial, { color: ctx.colorNegro });
 
-  lienzo.texto(PADDING_PT, mmAPt(4), "Test de Cultura General — hoja de respuestas", {
+  // El título va DEBAJO del fiducial superior (que ya ocupa los primeros
+  // FIDUCIAL_SIZE_MM del bloque de cabecera, medido desde el margen), no a una
+  // distancia fija del borde de la página — así el margen superior real es
+  // PADDING_MM, igual que el resto de márgenes, y el título nunca se solapa
+  // con el fiducial.
+  const yTitulo = PADDING_PT + mmAPt(FIDUCIAL_SIZE_MM + 2);
+  lienzo.texto(PADDING_PT, yTitulo, "Test de Cultura General — hoja de respuestas", {
     font: ctx.fontBold,
     tamanoPt: 10.5,
     color: ctx.colorAcento,
@@ -831,12 +851,13 @@ function dibujarCabeceraYFiduciales(ctx, page, lienzo, tituloDerecha) {
   if (tituloDerecha) {
     const tamanoPt = 8;
     const ancho = ctx.fontRegular.widthOfTextAtSize(tituloDerecha, tamanoPt);
-    lienzo.texto(PAGE_W_PT - PADDING_PT - ancho, mmAPt(4.3), tituloDerecha, {
+    lienzo.texto(PAGE_W_PT - PADDING_PT - ancho, yTitulo + mmAPt(0.3), tituloDerecha, {
       tamanoPt,
       color: ctx.colorTextoSuave,
     });
   }
-  lienzo.linea(PADDING_PT, mmAPt(CABECERA_ALTO_MM - 1), PAGE_W_PT - PADDING_PT, mmAPt(CABECERA_ALTO_MM - 1), {
+  const yLinea = PADDING_PT + mmAPt(CABECERA_ALTO_MM - 1);
+  lienzo.linea(PADDING_PT, yLinea, PAGE_W_PT - PADDING_PT, yLinea, {
     thickness: mmAPt(0.5),
     color: ctx.colorAcento,
   });
@@ -900,7 +921,7 @@ export async function construirHoja(ctx, items, qr, config = CONFIG_POR_DEFECTO,
       await lienzo.imagenQr(xPt, yPt, ladoPt, codificarPayloadQrPagina({ examId: qr.examId, pagina: numeroPagina }));
     }
 
-    let y = mmAPt(CABECERA_ALTO_MM);
+    let y = PADDING_PT + CABECERA_ALTO_PT;
     if (entrada.tipo === "demografia" && i === 0) y += ALTURA_QR_GRANDE_PT;
     for (const bloque of entrada.bloques) {
       bloque.dibujar(lienzo, PADDING_PT, y);
