@@ -8,7 +8,7 @@
 import { SELF, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { firmarSesionAdmin } from "../src/adminAuth";
-import { construirEsquemaCompleto, construirMensajesEjemplo } from "../src/endpoints/admin/ocrIa";
+import { construirEsquemaCompleto, construirMensajesEjemplo, pareceRespuestaInventada } from "../src/endpoints/admin/ocrIa";
 
 const ADMIN_EMAIL = "admin@example.com";
 
@@ -401,5 +401,57 @@ describe("construirMensajesEjemplo", () => {
     expect(Object.keys(respuesta).sort()).toEqual(["1", "2", "3", "4", "5", "6"]);
     expect(respuesta["2"]).toEqual({ respuesta_inicial: null, correccion: null });
     expect(respuesta["6"]).toEqual({ respuesta_inicial: "SYDNEY", correccion: null });
+  });
+});
+
+// pareceRespuestaInventada (issue #33): guarda determinista contra dos
+// patrones de alucinación de "abierto" observados en dos exámenes reales ya
+// digitalizados (GET /api/resultado/<sesion>) — el modelo, en vez de
+// reconocer una casilla vacía o ilegible y devolver null, reescribió el
+// propio enunciado de la pregunta como si fuera la respuesta manuscrita, o
+// devolvió una frase en inglés describiendo el campo. Los casos de este
+// describe usan los textos reales (ya en mayúsculas, como los devuelve el
+// modelo) capturados de esas dos sesiones.
+describe("pareceRespuestaInventada", () => {
+  it("detecta un eco casi literal del enunciado", () => {
+    expect(pareceRespuestaInventada("QUIÉN PINTÓ LAS MENINAS", "¿Quién pintó Las Meninas?")).toBe(true);
+  });
+
+  it("detecta un eco parafraseado del enunciado (cambia una palabra, quita puntuación)", () => {
+    expect(
+      pareceRespuestaInventada(
+        "CUÁL ES LA MITAD DE 1/3 1/5",
+        "¿Cuánto es la mitad de 1/3 + 1/5? Escribe el resultado como fracción."
+      )
+    ).toBe(true);
+    expect(
+      pareceRespuestaInventada("QUÉ ES CONSIDERADO EL PADRE", "¿Quién es considerado el padre del psicoanálisis?")
+    ).toBe(true);
+  });
+
+  it("detecta una frase en inglés describiendo el campo en vez de transcribir algo", () => {
+    expect(pareceRespuestaInventada("ANSWER SUMMARY IN OPEN FORMAT", "¿Quién es considerado el padre del psicoanálisis?")).toBe(
+      true
+    );
+  });
+
+  it("NO marca una respuesta corta correcta de una sola palabra, aunque comparta alguna letra con el enunciado", () => {
+    expect(pareceRespuestaInventada("VELAZQUEZ", "¿Quién pintó Las Meninas?")).toBe(false);
+    expect(pareceRespuestaInventada("INFLACION", "¿Cómo se denomina en economía al crecimiento sostenido de los precios?")).toBe(
+      false
+    );
+  });
+
+  it("NO marca una respuesta multi-palabra correcta que apenas comparte palabras con el enunciado", () => {
+    expect(
+      pareceRespuestaInventada(
+        "ISABEL DE CASTILLA FERNANDO DE ARAGON",
+        "¿Qué dos monarcas financiaron el viaje de Cristóbal Colón a América?"
+      )
+    ).toBe(false);
+  });
+
+  it("null/blanco no cuenta como inventado (bloqueTieneContenido ya lo trata como vacío)", () => {
+    expect(pareceRespuestaInventada("", "¿Quién pintó Las Meninas?")).toBe(false);
   });
 });

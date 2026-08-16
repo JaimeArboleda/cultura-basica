@@ -34,7 +34,9 @@
 // el propio navegador — aunque con un modelo de visión ya no haría falta en
 // teoría, mantenerlo evita depender de IA para algo que puede resolverse
 // determinista y gratis.
+import { normalizar } from "../../correccion";
 import { error, json } from "../../http";
+import { obtenerItem } from "../../items";
 import { AREA_ESTUDIOS, CCAA, LIBROS_EN_CASA, NIVEL_ESTUDIOS, SEXO } from "../../tipos";
 import type { Env } from "../../tipos";
 import {
@@ -286,7 +288,11 @@ export const SYSTEM_PROMPT_ITEMS =
   "* Abierto: pondrás el texto tal cual está, respetando espacios en blanco si hay. Entre casilla y casilla NO " +
   "hay un espacio en blanco. Los espacios en blanco solo se corresponden a casillas vacías. No incluyas saltos " +
   "de línea aunque haya varias líneas de casillas. Y nunca completes palabras escritas a medias. Tu misión no " +
-  "es interpretar la intención del alumno, sino reflejar fielmente lo consignado en la hoja.\n" +
+  "es interpretar la intención del alumno, sino reflejar fielmente lo consignado en la hoja. Si las casillas de " +
+  "Respuesta o de Corrección están vacías o no consigues distinguir ninguna letra escrita, el valor es null: " +
+  "NUNCA copies ahí el propio enunciado de la pregunta (ni parafraseado) como si fuera lo escrito a mano, y " +
+  "nunca respondas con una frase en inglés describiendo el campo — ninguna de las dos cosas es jamás una " +
+  "respuesta real de quien hizo el test.\n" +
   '* Ordenar y clasificar: pondrás un diccionario con claves de "1" a "N" (N es el número total de elementos a ' +
   'ordenar/clasificar) y las letras consignadas en cada una de las posiciones, con cadenas vacías si hay bloques ' +
   'sin rellenar. Ejemplo: {"1": "B", "2": "", "3": "J"...}. Esos números aparecen encima de las casillas en las ' +
@@ -637,6 +643,43 @@ function letraOVacio(v: unknown): string {
   return typeof v === "string" ? v.trim().toUpperCase() : "";
 }
 
+// Guarda determinista contra dos patrones de alucinación de "abierto"
+// encontrados en producción (issue #33) que el refuerzo del prompt
+// (SYSTEM_PROMPT_ITEMS) por sí solo no evita siempre: en vez de reconocer
+// una casilla vacía o ilegible y devolver null, el modelo a veces (a)
+// reescribe el propio enunciado de la pregunta como si fuera lo escrito a
+// mano (p. ej. "¿Quién pintó Las Meninas?" → "QUIÉN PINTÓ LAS MENINAS", o
+// "¿Cuánto es la mitad de 1/3 + 1/5?" → "CUÁL ES LA MITAD DE 1/3 1/5"), o
+// (b) devuelve una frase genérica en inglés describiendo el campo en vez de
+// transcribir nada ("ANSWER SUMMARY IN OPEN FORMAT"). Ninguna de las dos
+// cosas es jamás una respuesta real de quien hizo el test en español, así
+// que se descartan aquí de forma determinista — mismo criterio que
+// bloqueTieneContenido/precedencia Respuesta/Corrección: no confiar solo en
+// que el modelo siga la instrucción del prompt al pie de la letra.
+const PALABRAS_META_INVALIDAS = ["ANSWER", "QUESTION", "FORMAT", "RESPONSE", "SUMMARY"];
+// Umbral de solapamiento de palabras (normalizadas) con el enunciado a
+// partir del cual un texto de 2+ palabras se considera un eco de la
+// pregunta en vez de una respuesta: una respuesta legítima casi nunca
+// repite la mayoría de las palabras de su propia pregunta (si lo hiciera,
+// el ítem no discriminaría nada), así que un umbral alto (0.6) evita falsos
+// positivos sobre respuestas reales sin dejar de cazar los ecos casi
+// literales observados.
+const UMBRAL_SOLAPAMIENTO_ENUNCIADO = 0.6;
+
+export function pareceRespuestaInventada(texto: string, enunciado: string): boolean {
+  if (PALABRAS_META_INVALIDAS.some((p) => texto.toUpperCase().includes(p))) return true;
+
+  const palabrasTexto = normalizar(texto).split(" ").filter(Boolean);
+  // Una sola palabra nunca se considera eco: es la forma habitual de una
+  // respuesta corta real ("INFLACION", "VELAZQUEZ"...), y comparar una sola
+  // palabra contra el enunciado da demasiados falsos positivos.
+  if (palabrasTexto.length < 2) return false;
+
+  const palabrasEnunciado = new Set(normalizar(enunciado).split(" ").filter(Boolean));
+  const coincidentes = palabrasTexto.filter((p) => palabrasEnunciado.has(p)).length;
+  return coincidentes / palabrasTexto.length >= UMBRAL_SOLAPAMIENTO_ENUNCIADO;
+}
+
 // ¿Tiene contenido este bloque (Respuesta o Corrección) de un ítem? Para
 // ordenar/clasificar (un objeto de posiciones) cuenta como "con contenido"
 // si CUALQUIER posición está rellenada, no solo si lo están todas.
@@ -848,7 +891,20 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
       for (const item of pagina.items!) {
         const pregunta = plano[String(item.numero)];
         const p = typeof pregunta === "object" && pregunta !== null ? (pregunta as Record<string, unknown>) : {};
-        const definitiva = bloqueTieneContenido(p.correccion, item) ? p.correccion : p.respuesta_inicial;
+        let inicial = p.respuesta_inicial;
+        let correccionBloque = p.correccion;
+        // Solo aplica a "abierto": es el único formato con texto libre — el
+        // resto (opcion_multiple, seleccion_multiple, ordenar, clasificar)
+        // ya está restringido a letras válidas por el propio esquema JSON,
+        // así que no puede "ecoar" el enunciado.
+        if (item.formato === "abierto") {
+          const enunciado = obtenerItem(item.id)?.enunciado ?? "";
+          if (typeof inicial === "string" && pareceRespuestaInventada(inicial, enunciado)) inicial = null;
+          if (typeof correccionBloque === "string" && pareceRespuestaInventada(correccionBloque, enunciado)) {
+            correccionBloque = null;
+          }
+        }
+        const definitiva = bloqueTieneContenido(correccionBloque, item) ? correccionBloque : inicial;
         volcarRespuestaItem(textos, item, definitiva);
       }
     }
