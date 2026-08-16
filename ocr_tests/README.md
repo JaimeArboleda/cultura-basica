@@ -137,3 +137,71 @@ Lección de ambos: antes de atribuir un fallo al motor de OCR-IA, comprobar
 primero que la imagen de entrada tiene tinta visible y que la respuesta
 correcta cabía físicamente en la casilla — inspeccionar el JPEG generado
 antes de gastar cuota de la API.
+
+## Rediseño de prompts/esquema para las páginas de ítems (16 de agosto de 2026)
+
+La corrida de referencia de arriba seguía teniendo una tasa de fallo alta
+para tratarse de un banco de solo 25 ítems. Dos sospechas de diseño, no de
+lectura:
+
+1. El esquema JSON exigía como clave `item.id` (p. ej. `"05"`), una
+   numeración que el modelo nunca ve impresa en la hoja — el círculo junto a
+   cada enunciado imprime el número SIN ceros a la izquierda
+   (`hoja.js::construirEnunciado`, `String(numero)`). El modelo tenía que
+   traducir mentalmente "círculo nº5" → clave `"05"` a partir del texto del
+   prompt, un paso indirecto y una fuente de desalineación.
+2. El modelo resolvía él mismo la precedencia Respuesta/Corrección para los
+   ítems (no solo para demografía) — y la corrida anterior ya había cazado
+   un caso reproducible donde lo hacía mal en un `clasificar` con rejilla
+   grande (ver arriba).
+
+Cambio (solo en las páginas de tipo `items`; demografía —100% de acierto—
+no se ha tocado, `worker/src/endpoints/admin/ocrIa.ts::SYSTEM_PROMPT_DEMOGRAFIA`
+sigue siendo literalmente el mismo prompt de antes):
+
+- El esquema y el prompt de usuario ahora piden como clave el número de
+  pregunta que el modelo lee impreso en el círculo (`SYSTEM_PROMPT_ITEMS`,
+  `construirContenidoPagina`, `construirEsquemaCompleto`) — sin traducción.
+- El modelo ya NO resuelve la precedencia: devuelve `respuesta_inicial` y
+  `correccion` por separado para cada pregunta, y la resolución
+  (¿tiene contenido el bloque Corrección? si sí, manda él entero; si no,
+  manda Respuesta) se hace en código, determinista
+  (`bloqueTieneContenido` en `ocrIa.ts`).
+
+**Bug real encontrado y corregido durante esta misma batería** (antes de
+las cifras finales de abajo): la primera versión del prompt para ítems
+`abierto` ("respetando espacios en blanco si hay") hizo que el modelo
+metiera un espacio entre CADA letra de respuestas de varias palabras —
+p. ej. `"D I E G O V E L Á Z Q U E Z"` en vez de `"DIEGO VELÁZQUEZ"` — un
+fallo real (la tolerancia de edición de `corregirAbierto` es 1, muy por
+debajo de la distancia que introduce espaciar cada letra), no solo un
+artefacto de comparación estricta. Corregido añadiendo una frase explícita:
+"Entre casilla y casilla NO hay un espacio. Los espacios solo los dan las
+casillas en blanco."
+
+**Corrida con el nuevo diseño** (`gpt-5-mini`, mismo día, mismas 4
+instancias, contra `wrangler dev` local):
+
+| Instancia | Ítems (antes → ahora) | Demografía |
+|---|---|---|
+| `01-letra-clara` | 20/25 (80%) → **23/25 (92%)** | 7/7 (100%) |
+| `02-con-correcciones` | 18/23 (78%) → **23/23 (100%)** | 7/7 (100%) |
+| `03-valores-invalidos-e-incompletas` | 17/25 (68%) → **21/25 (84%)** | 7/7 (100%) |
+| `04-descuidada-ruidosa` | 15/23 (65%) → **19/23 (83%)** | 6/6 (100%) |
+
+Mejora en las 4 instancias (72.9% → 89.6% de acierto agregado en ítems), sin
+tocar demografía (sigue en 100%). De los fallos que quedan, la mayoría siguen
+siendo el mismo artefacto de siempre (acentos: `igual()` compara con
+igualdad estricta, pero `correccion.ts::normalizar()` ya ignora acentos en
+la puntuación real). Dos casos residuales para vigilar en próximas corridas,
+ninguno de los dos sistemático (aparecen una vez cada uno en 4×25 ítems):
+
+- Una respuesta de dos filas de casillas (solo le pasa hoy al ítem `02`, el
+  único que necesita envolver a una segunda fila) volvió con un `\n` real
+  dentro del string y sin espacio entre palabras — el prompt no dice nada
+  sobre qué hacer al pasar de una fila a la siguiente.
+- En la instancia con texto invertido sin sentido (`04-descuidada-ruidosa`,
+  pensada para cazar que el modelo "corrija" en vez de transcribir), una
+  respuesta volvió como la palabra real en vez de la cadena literal
+  invertida que estaba escrita — la instrucción "reconstruye el texto"
+  puede empujar en esa dirección para cadenas que no son palabras reales.
