@@ -48,6 +48,16 @@ export function casillasAbiertoPara(item: Pick<Item, "formato" | "respuesta_cano
   return Math.max(CASILLAS_ABIERTO_MINIMO, (item.respuesta_canonica?.length ?? 0) + 2);
 }
 
+// Ver ItemPublico.num_correctas: revela cuántas opciones hay que marcar
+// (nunca cuáles) solo cuando nota_parcial_desactivada ya señala que el propio
+// enunciado pide un número concreto — en cualquier otro "seleccion_multiple"
+// se sigue pidiendo "marca TODAS las que correspondan", sin dar ninguna
+// pista sobre el nº de opciones correctas.
+export function numCorrectasPara(item: Pick<Item, "formato" | "nota_parcial_desactivada" | "opciones_correctas">): number | null {
+  if (item.formato !== "seleccion_multiple" || item.nota_parcial_desactivada !== true) return null;
+  return item.opciones_correctas?.length ?? null;
+}
+
 // Única función que produce lo que ve el cliente antes de contestar: nunca debe
 // incluir la respuesta correcta (README §4.3).
 export function paraCliente(item: Item): ItemPublico {
@@ -64,6 +74,7 @@ export function paraCliente(item: Item): ItemPublico {
     categorias: item.formato === "clasificar" ? item.categorias : null,
     nota_parcial_desactivada: item.nota_parcial_desactivada === true,
     casillas_abierto: casillasAbiertoPara(item),
+    num_correctas: numCorrectasPara(item),
   };
 }
 

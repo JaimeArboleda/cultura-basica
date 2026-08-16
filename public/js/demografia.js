@@ -44,7 +44,7 @@ export const CATALOGOS = {
     "No aplica",
   ],
   libros_en_casa: ["0-10", "11-25", "26-100", "101-200", "+200"],
-  sexo: ["Hombre", "Mujer", "Otro", "Prefiero no decirlo"],
+  sexo: ["Hombre", "Mujer", "Otro / Prefiero no decirlo"],
 };
 
 function campoSelect(id, etiqueta, opciones, { opcional = false } = {}) {

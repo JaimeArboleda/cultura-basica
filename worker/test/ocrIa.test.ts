@@ -351,9 +351,9 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     expect(p2.anyOf[0].maxLength).toBe(40);
   });
 
-  it("demografía: catálogo restringido a su propio nº de opciones (sexo tiene 4) — sin cambios respecto al diseño anterior", () => {
+  it("demografía: catálogo restringido a su propio nº de opciones (sexo tiene 3) — sin cambios respecto al diseño anterior", () => {
     const esquema = construirEsquemaCompleto([{ id: "p", imagen: "x", tipo: "demografia", campos: ["sexo"] }]);
-    expect(propiedad(esquema, "p::sexo")).toEqual({ type: "string", enum: ["A", "B", "C", "D"] });
+    expect(propiedad(esquema, "p::sexo")).toEqual({ type: "string", enum: ["A", "B", "C"] });
   });
 
   it("demografía: anio_nacimiento restringido a dígitos, máximo 4", () => {

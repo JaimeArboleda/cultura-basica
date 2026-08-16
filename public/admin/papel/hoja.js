@@ -404,6 +404,37 @@ function construirBloqueCasillas(ctx, etiqueta, n, anchoPt, config, opts) {
   return apilar([titulo, fila], mmAPt(1.5));
 }
 
+// Como construirBloqueCasillas, pero dos bloques de UNA sola casilla cada
+// uno, lado a lado en vez de apilados — usado por "opción única" (item.js,
+// formato opcion_multiple): con una sola casilla por bloque, apilar
+// "Respuesta" encima de "Corrección" gasta el doble de alto del que hace
+// falta; puestos en la misma fila, ocupan la misma altura que un solo bloque.
+function construirBloqueCasillasDoble(ctx, etiquetaIzq, etiquetaDer, anchoPt, config, { valorIzq, valorDer } = {}) {
+  const anchoMitad = (anchoPt - GAP_COLUMNAS_PT) / 2;
+  const bloqueIzq = construirBloqueCasillas(ctx, etiquetaIzq, 1, anchoMitad, config, {
+    valores: valorIzq ? [valorIzq] : undefined,
+  });
+  const bloqueDer = construirBloqueCasillas(ctx, etiquetaDer, 1, anchoMitad, config, {
+    valores: valorDer ? [valorDer] : undefined,
+  });
+  return {
+    altoPt: Math.max(bloqueIzq.altoPt, bloqueDer.altoPt),
+    dibujar(lienzo, xPt, yTopPt) {
+      bloqueIzq.dibujar(lienzo, xPt, yTopPt);
+      bloqueDer.dibujar(lienzo, xPt + anchoMitad + GAP_COLUMNAS_PT, yTopPt);
+    },
+  };
+}
+
+// Números en letras para instrucciones de "selección múltiple con nº fijo"
+// (README, ver ItemPublico.num_correctas): solo aplica al ítem "09" hoy
+// (opciones_correctas.length === 2), pero el mecanismo es genérico por si en
+// el futuro hay otro ítem con esta misma excepción y otro nº de opciones.
+const NUMERO_EN_LETRAS = { 2: "DOS", 3: "TRES", 4: "CUATRO", 5: "CINCO", 6: "SEIS" };
+function numeroEnLetras(n) {
+  return NUMERO_EN_LETRAS[n] ?? String(n);
+}
+
 // Ítem 'abierto': estilo "casillas" (una letra por casilla, más fácil de
 // forzar mayúsculas de imprenta) o "linea" (una raya para escribir en
 // natural, más compacta) — config.estiloAbierto, ver checkpoint de layout.
@@ -566,7 +597,7 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       numCasillasAbierto = casillasAbiertoAjustadas(item.casillas_abierto ?? config.casillasAbierto, anchoPt);
       partes.push(construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config, resp, numCasillasAbierto));
       partes.push(
-        construirRespuestaAbierta(ctx, "Corrección (solo si te equivocaste arriba)", anchoPt, config, corr, numCasillasAbierto)
+        construirRespuestaAbierta(ctx, "Corrección (solo si te equivocaste antes)", anchoPt, config, corr, numCasillasAbierto)
       );
       break;
     }
@@ -574,24 +605,31 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       const letras = item.opciones.map((_, i) => LETRAS[i]);
       partes.push(construirInstruccion(ctx, "Marca UNA sola respuesta: escribe su letra en la casilla.", anchoPt, config));
       partes.push(construirListaEtiquetada(ctx, item.opciones, letras, anchoPt, config));
-      partes.push(construirBloqueCasillas(ctx, "Respuesta", 1, anchoPt, config, { valores: resp ? [resp] : undefined }));
       partes.push(
-        construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste arriba)", 1, anchoPt, config, {
-          valores: corr ? [corr] : undefined,
+        construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", anchoPt, config, {
+          valorIzq: resp,
+          valorDer: corr,
         })
       );
       break;
     }
     case "seleccion_multiple": {
       const letras = item.opciones.map((_, i) => LETRAS[i]);
-      const n = item.opciones.length;
-      partes.push(
-        construirInstruccion(ctx, "Marca TODAS las que correspondan: escribe sus letras, una por casilla.", anchoPt, config)
-      );
+      // Excepción (ItemPublico.num_correctas, worker/src/items.ts): cuando el
+      // propio enunciado ya pide un número concreto (p. ej. ítem "09", "qué
+      // DOS continentes..."), se imprime solo ESE nº de casillas y el texto
+      // lo refleja — en cualquier otro caso, una casilla por opción y "marca
+      // TODAS", sin dar ninguna pista sobre cuántas son correctas.
+      const n = item.num_correctas ?? item.opciones.length;
+      const instruccionTexto =
+        item.num_correctas != null
+          ? `Marca las ${numeroEnLetras(item.num_correctas)} que correspondan: escribe sus letras, una por casilla.`
+          : "Marca TODAS las que correspondan: escribe sus letras, una por casilla.";
+      partes.push(construirInstruccion(ctx, instruccionTexto, anchoPt, config));
       partes.push(construirListaEtiquetada(ctx, item.opciones, letras, anchoPt, config));
       partes.push(construirBloqueCasillas(ctx, "Respuesta", n, anchoPt, config, { valores: resp ? [...resp] : undefined }));
       partes.push(
-        construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste arriba)", n, anchoPt, config, {
+        construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
           valores: corr ? [...corr] : undefined,
         })
       );
@@ -614,7 +652,7 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
         construirBloqueCasillas(ctx, "Respuesta", n, anchoPt, config, { etiquetasCabecera: posiciones, valores: resp })
       );
       partes.push(
-        construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste arriba)", n, anchoPt, config, {
+        construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
           etiquetasCabecera: posiciones,
           valores: corr,
         })
@@ -634,7 +672,7 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
         construirBloqueCasillas(ctx, "Respuesta", n, anchoPt, config, { etiquetasCabecera: numerosElementos, valores: resp })
       );
       partes.push(
-        construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste arriba)", n, anchoPt, config, {
+        construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
           etiquetasCabecera: numerosElementos,
           valores: corr,
         })
@@ -687,7 +725,7 @@ const CAMPOS_DEMOGRAFIA = [
 // fila del siguiente bloque quedaba pegada, a veces solapada, contra el
 // último elemento del anterior (bug real, más visible cuantas más opciones
 // tenía el bloque siguiente en varias columnas).
-const MARGEN_ENTRE_BLOQUES_DEMOGRAFIA_PT = mmAPt(2.5);
+const MARGEN_ENTRE_BLOQUES_DEMOGRAFIA_PT = mmAPt(2);
 
 // sintetico (opcional, ocr_tests/ únicamente): { consentimiento, compromiso_honestidad
 // (booleanos), anio_nacimiento (string 4 dígitos), <campo catálogo>: letra }.

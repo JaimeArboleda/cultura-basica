@@ -60,6 +60,16 @@ export interface ItemPublico {
   // de OCR-IA (worker/src/endpoints/admin/ocrIa.ts, ItemEntrada.numCasillas)
   // para restringir el esquema de salida a la longitud exacta.
   casillas_abierto: number | null;
+  // Solo cuando nota_parcial_desactivada es true en un "seleccion_multiple"
+  // (el propio enunciado ya pide un número concreto, p. ej. data/items/09.json,
+  // "qué DOS continentes..."): nº de opciones_correctas — null en cualquier
+  // otro caso. Revela CUÁNTAS opciones hay que marcar, nunca CUÁLES (eso
+  // seguiría sin exponerse, README §4.3) — lo usa
+  // public/admin/papel/hoja.js para imprimir solo esas casillas ("Marca las
+  // DOS que correspondan") en vez de una por cada opción del enunciado
+  // ("Marca TODAS las que correspondan"), igual que ya hacía el test web al
+  // suprimir la nota genérica de "rellena las que sepas" para este mismo ítem.
+  num_correctas: number | null;
 }
 
 // Vista de un ítem ya respondido pero de una sesión aún en curso (README §3, §8:
@@ -121,7 +131,10 @@ export interface Env {
 // (deben ser compatibles con INE/CINE/PISA) y exige que ccaa_educacion_secundaria sea
 // una de las 19 comunidades/ciudades autónomas (el estudio se limita a España).
 
-export const SEXO = ["Hombre", "Mujer", "Otro", "Prefiero no decirlo"] as const;
+// 3 categorías (antes 4: "Otro" y "Prefiero no decirlo" fusionadas en una
+// sola) — con 4 categorías la hoja en papel (README §4.7) no cabía en una
+// sola página de datos censales.
+export const SEXO = ["Hombre", "Mujer", "Otro / Prefiero no decirlo"] as const;
 
 export const CCAA = [
   "Andalucía",
