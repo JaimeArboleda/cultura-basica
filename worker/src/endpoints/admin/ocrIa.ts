@@ -37,6 +37,11 @@
 import { error, json } from "../../http";
 import { AREA_ESTUDIOS, CCAA, LIBROS_EN_CASA, NIVEL_ESTUDIOS, SEXO } from "../../tipos";
 import type { Env } from "../../tipos";
+import {
+  EJEMPLO_UNO_DISPARO_IMAGEN_DATA_URL,
+  EJEMPLO_UNO_DISPARO_RESPUESTA_JSON,
+  EJEMPLO_UNO_DISPARO_USER_PROMPT,
+} from "./ocrIaEjemplo";
 
 // Mismo alfabeto que public/admin/papel/hoja.js::LETRAS — no se puede
 // importar ese módulo aquí (es cliente, con dependencias de pdf-lib/DOM que
@@ -308,6 +313,33 @@ function construirSystemPrompt(paginas: PaginaEntrada[]): string {
   if (paginas.some((p) => p.tipo === "demografia")) partes.push(SYSTEM_PROMPT_DEMOGRAFIA);
   if (paginas.some((p) => p.tipo === "items")) partes.push(SYSTEM_PROMPT_ITEMS);
   return partes.join("\n\n");
+}
+
+// Ejemplo de una sola vez (few-shot, issue #31 — ver ocr_tests/
+// generar_one_shot.mjs y ocr_tests/one_shot_example/ para el porqué de cada
+// una de sus 4 preguntas): un turno user+assistant adicional, ANTES de la
+// página real, que le muestra al modelo una página YA RESUELTA con los casos
+// donde seguía alucinando pese al refuerzo de SYSTEM_PROMPT_ITEMS —
+// completar una respuesta corta hacia la canónica, inventar una letra en una
+// pregunta en blanco, cerrar un hueco en una selección múltiple o rellenar
+// una posición sin contestar en "ordenar". Solo se añade si la petición trae
+// alguna página de tipo "items" (demografía ya mide 100% de acierto sin él,
+// y el ejemplo no tiene ningún campo censal que enseñar).
+// Exportado únicamente para poder testear la condición de activación sin
+// mockear la API de OpenAI (mismo criterio que construirEsquemaCompleto/
+// construirContenidoPagina más abajo).
+export function construirMensajesEjemplo(paginas: PaginaEntrada[]): Array<Record<string, unknown>> {
+  if (!paginas.some((p) => p.tipo === "items")) return [];
+  return [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: EJEMPLO_UNO_DISPARO_USER_PROMPT },
+        { type: "image_url", image_url: { url: EJEMPLO_UNO_DISPARO_IMAGEN_DATA_URL, detail: "high" } },
+      ],
+    },
+    { role: "assistant", content: EJEMPLO_UNO_DISPARO_RESPUESTA_JSON },
+  ];
 }
 
 function letraMax(n: number): string {
@@ -725,6 +757,7 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
       // with this model").
       messages: [
         { role: "system", content: construirSystemPrompt(paginas) },
+        ...construirMensajesEjemplo(paginas),
         {
           role: "user",
           content: paginas.flatMap((p, i) => construirContenidoPagina(p, i + 1)),

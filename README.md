@@ -1180,6 +1180,24 @@ motor anterior: escribir algo como `"F) 7"` en una casilla de una sola
 letra ya no es una posibilidad estructural para el modelo, no algo que
 dependa de que siga bien la instrucción del prompt.
 
+**Ejemplo de una sola vez (few-shot) en páginas de ítems (issue #31).** Para
+reducir la alucinación en preguntas enteramente en blanco (el modelo
+inventaba una respuesta plausible en vez de reconocer que no había nada
+escrito, medido contra la API real — detalle completo en `ocr_tests/
+README.md`), cada petición que incluye alguna página de tipo `items` manda
+además, ANTES de la página real, un turno `user`+`assistant` con una página
+de ejemplo YA RESUELTA (4 preguntas de contenido distinto al banco real, una
+por formato salvo `clasificar`, pensadas para enseñar justo los casos donde
+seguía fallando: completar una respuesta corta hacia la canónica, inventar
+una letra en blanco, cerrar un hueco en una selección múltiple, rellenar una
+posición sin contestar en "ordenar"). Generado por `ocr_tests/
+generar_one_shot.mjs` — deja los artefactos en `ocr_tests/one_shot_example/`
+(imagen, prompt, respuesta esperada, en texto plano para poder iterar) y
+regenera el módulo que de verdad usa el Worker en producción,
+`worker/src/endpoints/admin/ocrIaEjemplo.ts`
+(`construirMensajesEjemplo`/`ocrIa.ts` lo inyecta). No se manda en páginas de
+demografía (ya en 100% de acierto sin él).
+
 La lectura del **QR** (remesa/`exam_id`/página, §4.9) sigue siendo
 determinista, con jsQR en el propio navegador, sin pasar por ningún modelo —
 mismo mecanismo para cualquier hoja, no depende de IA.

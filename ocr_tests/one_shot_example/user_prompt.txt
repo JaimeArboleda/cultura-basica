@@ -1,0 +1,13 @@
+Este es un EJEMPLO ya resuelto, de una hoja distinta e independiente a la que vas a leer después (con su propia numeración 1-4, sin relación con los números de la página real) — solo sirve para que veas exactamente cómo se transcribe cada caso, incluida la respuesta correcta que sigue en este mismo turno. Fíjate especialmente en:
+- Pregunta 1 (abierto): lo escrito es mucho más corto que la respuesta que "debería" ser (una respuesta canónica larga) — la transcripción es literal, nunca completada hacia lo que parece más correcto.
+- Pregunta 2 (opción múltiple): las dos casillas, Respuesta y Corrección, están COMPLETAMENTE en blanco — la respuesta correcta es null en ambas, nunca una letra inventada.
+- Pregunta 3 (selección múltiple): hay una casilla vacía en medio de la selección, en los dos bloques — se transcribe como un espacio literal en esa posición, sin cerrar el hueco ni añadir la letra que falta.
+- Pregunta 4 (ordenar): la Corrección tiene una posición sin rellenar — su clave en el diccionario es cadena vacía, no la letra "que tocaría" según el resto de la secuencia.
+
+Debes digitalizar esta página EJEMPLO, en el JSON ya especificado, que contiene los siguientes ítems:
+- Pregunta 1: Abierto.
+- Pregunta 2: Opción múltiple, entre A y E.
+- Pregunta 3: Selección múltiple, con opciones entre A y E.
+- Pregunta 4: Ordenar 4 elementos (letras A-D) en las posiciones 1-4.
+
+Para cada pregunta debes transcribir tanto "Respuesta" como "Corrección", exactamente como en la respuesta que sigue a continuación — luego te tocará hacer lo mismo con la página real.

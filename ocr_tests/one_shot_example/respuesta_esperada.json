@@ -1,0 +1,28 @@
+{
+  "1": {
+    "respuesta_inicial": "JUAN",
+    "correccion": "JOSE"
+  },
+  "2": {
+    "respuesta_inicial": null,
+    "correccion": null
+  },
+  "3": {
+    "respuesta_inicial": "A E",
+    "correccion": "A B"
+  },
+  "4": {
+    "respuesta_inicial": {
+      "1": "C",
+      "2": "A",
+      "3": "D",
+      "4": "B"
+    },
+    "correccion": {
+      "1": "A",
+      "2": "B",
+      "3": "",
+      "4": "D"
+    }
+  }
+}

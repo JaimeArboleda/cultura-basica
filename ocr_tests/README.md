@@ -437,14 +437,79 @@ invertido reconstruido como palabra real, algún error de lectura suelto)
 siguen apareciendo igual que en rondas anteriores, sin patrón nuevo
 atribuible a estos cambios.
 
-**Siguiente paso sugerido por el propio issue #31, no implementado en esta
-ronda**: mandar un ejemplo de muestra (few-shot) — una página sintética con
-una pregunta de cada uno de los 5 formatos, pensada para cazar justo estas
-casuísticas (una respuesta abierta corregida, una opción múltiple vacía que
-debe dar `null`, una selección múltiple con más aciertos que la respuesta
-dada, una ordenación con permutación mala e incompleta) — junto con el
-prompt real de cada llamada. Es un cambio de diseño más grande (dónde vive
-la imagen de ejemplo, si se manda en cada petición o solo en las que fallan
-más, el coste añadido de tokens en cada llamada) que merece su propia ronda
-en vez de mezclarse con los cambios de esta — el candidato más claro para
-cuando se quiera seguir bajando la alucinación en preguntas en blanco.
+## Ejemplo de una sola vez (few-shot): 91% → 97-98% en `gpt-5-mini`, alucinación en blanco no reproducida (issue #31, mismo día)
+
+Siguiente paso, ya implementado: mandar un ejemplo de muestra (few-shot)
+junto con el prompt real de cada llamada a una página de tipo `items` —
+generado por `ocr_tests/generar_one_shot.mjs`, artefactos en
+`ocr_tests/one_shot_example/` (`pagina.jpg`, `user_prompt.txt`,
+`respuesta_esperada.json`, `items.json` con la definición de los 4 ítems y
+la tinta sintética) e inyectado en producción por `worker/src/endpoints/
+admin/ocrIa.ts::construirMensajesEjemplo` como un turno `user`+`assistant`
+adicional ANTES de la página real — **solo en peticiones que incluyen alguna
+página de tipo `items`** (demografía ya mide 100% sin él).
+
+**Una sola página, 4 preguntas, contenido distinto al banco real** (issue
+#31: "una página de ejemplo con preguntas diferentes a las del test"),
+numeradas 1-4 en la propia imagen (con aviso explícito en el texto de que es
+un ejemplo aparte, sin relación con la numeración de la página real que
+sigue en el turno siguiente) — cada una ataca un caso concreto de
+alucinación ya documentado arriba:
+
+1. **Abierto**: la respuesta canónica sería "JOSE DE ARIMATEA", pero lo
+   escrito es mucho más corto ("JUAN" en Respuesta, "JOSE" en Corrección) —
+   enseña a transcribir literalmente, nunca a completar hacia la respuesta
+   que "debería" ser.
+2. **Opción múltiple**: Respuesta y Corrección COMPLETAMENTE en blanco —
+   enseña que la salida correcta es `null` en ambas, el caso exacto de
+   alucinación en blanco de la ronda anterior.
+3. **Selección múltiple**: una casilla vacía en medio de la selección
+   ("A E" / "A B", con el hueco preservado como espacio literal) en los dos
+   bloques — enseña a no "cerrar" el hueco ni completar hacia el conjunto
+   que se supone correcto.
+4. **Ordenar**: la Corrección tiene una posición sin rellenar — enseña a
+   dejar esa clave como cadena vacía en el diccionario, no la letra "que
+   tocaría" según el resto de la secuencia.
+
+**Corrida de verificación** (`gpt-5-mini`, el modelo por defecto — mejor
+relación precisión/coste de la comparativa de 5 modelos de arriba —, mismas
+4 instancias, mismo `wrangler dev` local, con el ejemplo activado):
+
+| Instancia | Ítems (sin ejemplo → con ejemplo) | Demografía |
+|---|---|---|
+| `01-letra-clara` | 25/25 (100%) → **25/25 (100%)** | 7/7 (100%) |
+| `02-con-correcciones` | 22/25 (88%) → **25/25 (100%)** | 7/7 (100%) |
+| `03-valores-invalidos-e-incompletas` | 19/25 (76%) → **22/25 (88%)** (88% y 92% en dos corridas repetidas, ítems distintos fallando cada vez) | 7/7 (100%) |
+| `04-descuidada-ruidosa` | 25/25 (100%) → **25/25 (100%)** | 7/7 (100%) |
+
+**91/100 → 97/100 (97%) de acierto agregado en ítems**, demografía sigue en
+28/28 (100%). Más importante que el número agregado: **los dos casos de
+alucinación en preguntas en blanco de la corrida anterior (`02-con-
+correcciones` ítem 01 "SIGMUND FREUD" e ítem 21) NO se reprodujeron en
+ninguna de las dos corridas de verificación** — esa instancia pasó de 22/25
+a 25/25 exactamente por eso. Los fallos que quedan en `03-valores-invalidos-
+e-incompletas` son de los patrones YA documentados y no relacionados con
+blancos: autocompletar una respuesta a medias ("PLUSV" → "PLUSVALIA"), un
+error de lectura suelto en una opción múltiple, y en una corrida una
+respuesta `abierto` deliberadamente incompleta con un dígito de más
+("4/1" → "4/10").
+
+**Coste**: el turno adicional (imagen + texto + respuesta de ejemplo) suma
+~3200 tokens de prompt por llamada de media (4595 → 7768 tokens de prompt
+por página, medido con el mismo `usage` real de la API) — el coste estimado
+de `gpt-5-mini` por 100 exámenes sube de ~$0.92 a **~$1.33**, un incremento
+del 45% sobre una cifra ya muy baja en términos absolutos. Dado que elimina
+justo el patrón de fallo más preocupante (contenido inventado de la nada, no
+solo un error de lectura), el coste adicional parece razonable — decisión
+final del propietario del proyecto.
+
+**No implementado todavía**: no se ha vuelto a probar el ejemplo contra los
+otros 4 modelos de la comparativa (`gpt-4o`, `gpt-5-nano`, `gpt-5.4-nano`,
+`gpt-5.4-mini`) — el propio issue #31 pidió esta ronda solo con el modelo
+por defecto. Si con más volumen de uso real sigue apareciendo alucinación en
+blanco (una sola muestra de 4 instancias no la descarta del todo, solo
+reduce mucho su probabilidad medida), el siguiente paso sugerido es añadir
+un segundo ejemplo centrado específicamente en más casos de `null` (varios
+formatos distintos en blanco, no solo uno) — la propia infraestructura de
+`generar_one_shot.mjs` ya deja los artefactos guardados y editables para
+iterar sobre esto sin tener que rehacer el mecanismo de inyección.

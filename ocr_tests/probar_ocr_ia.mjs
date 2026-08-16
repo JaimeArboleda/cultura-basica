@@ -31,6 +31,7 @@
 //
 // Uso: node ocr_tests/probar_ocr_ia.mjs
 import { readFile, readdir } from "node:fs/promises";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PDFDocument, rgb } from "pdf-lib";
@@ -359,7 +360,19 @@ async function probarInstancia(dir, items, manifiesto, tokenPruebaId) {
 
 async function main() {
   const entradas = await readdir(RAIZ_REPO + "/ocr_tests", { withFileTypes: true });
-  let personasDisponibles = entradas.filter((e) => e.isDirectory() && !e.name.startsWith(".")).map((e) => e.name);
+  const candidatas = entradas.filter((e) => e.isDirectory() && !e.name.startsWith(".")).map((e) => e.name);
+  // Solo carpetas de persona de verdad (con respuestas-esperadas.json) —
+  // ocr_tests/one_shot_example/ vive en el mismo directorio (generada por
+  // generar_one_shot.mjs, issue #31) pero no es una instancia de prueba, es
+  // el ejemplo de una sola vez que se inyecta en cada llamada real: sin este
+  // filtro, el escaneo la trataba como una persona más y crasheaba al no
+  // encontrar ese fichero.
+  let personasDisponibles = [];
+  for (const nombre of candidatas) {
+    if (fs.existsSync(path.join(RAIZ_REPO, "ocr_tests", nombre, "respuestas-esperadas.json"))) {
+      personasDisponibles.push(nombre);
+    }
+  }
   if (process.env.CULTURA_BASICA_PERSONAS) {
     const pedidas = new Set(process.env.CULTURA_BASICA_PERSONAS.split(","));
     personasDisponibles = personasDisponibles.filter((p) => pedidas.has(p));

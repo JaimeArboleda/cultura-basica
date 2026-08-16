@@ -1,0 +1,76 @@
+{
+  "items": [
+    {
+      "id": "ejemplo-abierto",
+      "formato": "abierto",
+      "enunciado": "(EJEMPLO) ¿Quién, según los evangelios, cedió su propia tumba para el entierro de Jesús de Nazaret?",
+      "casillas_abierto": 20
+    },
+    {
+      "id": "ejemplo-opcion-multiple",
+      "formato": "opcion_multiple",
+      "enunciado": "(EJEMPLO) ¿Cuál de estos NO es un océano?",
+      "opciones": [
+        "Pacífico",
+        "Atlántico",
+        "Índico",
+        "Ártico",
+        "Amazonas"
+      ]
+    },
+    {
+      "id": "ejemplo-seleccion-multiple",
+      "formato": "seleccion_multiple",
+      "enunciado": "(EJEMPLO) Marca TODAS las capitales de país entre estas ciudades:",
+      "opciones": [
+        "Madrid",
+        "Lisboa",
+        "Barcelona",
+        "Múnich",
+        "Roma"
+      ],
+      "num_correctas": 3
+    },
+    {
+      "id": "ejemplo-ordenar",
+      "formato": "ordenar",
+      "enunciado": "(EJEMPLO) Ordena estos elementos de ejemplo (sin relación con el banco real):",
+      "elementos": [
+        "Elemento W",
+        "Elemento X",
+        "Elemento Y",
+        "Elemento Z"
+      ]
+    }
+  ],
+  "respuestas_sinteticas": {
+    "items": {
+      "ejemplo-abierto": {
+        "respuesta": "JUAN",
+        "correccion": "JOSE"
+      },
+      "ejemplo-opcion-multiple": {
+        "respuesta": "",
+        "correccion": ""
+      },
+      "ejemplo-seleccion-multiple": {
+        "respuesta": "A E",
+        "correccion": "A B"
+      },
+      "ejemplo-ordenar": {
+        "respuesta": [
+          "C",
+          "A",
+          "D",
+          "B"
+        ],
+        "correccion": [
+          "A",
+          "B",
+          "",
+          "D"
+        ]
+      }
+    }
+  }
+}

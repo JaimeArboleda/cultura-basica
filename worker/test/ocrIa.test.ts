@@ -8,7 +8,7 @@
 import { SELF, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { firmarSesionAdmin } from "../src/adminAuth";
-import { construirEsquemaCompleto } from "../src/endpoints/admin/ocrIa";
+import { construirEsquemaCompleto, construirMensajesEjemplo } from "../src/endpoints/admin/ocrIa";
 
 const ADMIN_EMAIL = "admin@example.com";
 
@@ -365,5 +365,40 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     expect(propiedad(esquema, "p::anio_nacimiento")).toEqual({
       anyOf: [{ type: "string", pattern: "^[0-9]{0,4}$" }, { type: "null" }],
     });
+  });
+});
+
+// El ejemplo de una sola vez (few-shot, issue #31) solo aporta algo en
+// páginas de ítems (es donde se documentó la alucinación) — en demografía
+// solo añadiría coste de tokens sin ningún beneficio medido (ya en 100%).
+describe("construirMensajesEjemplo", () => {
+  const PAGINA_DEMOGRAFIA = { id: "p1", imagen: "x", tipo: "demografia" as const, campos: ["sexo"] };
+  const PAGINA_ITEMS = {
+    id: "p2",
+    imagen: "x",
+    tipo: "items" as const,
+    items: [{ id: "i", formato: "abierto" as const, numero: 1, numCasillas: 5 }],
+  };
+
+  it("no añade nada si ninguna página es de tipo items", () => {
+    expect(construirMensajesEjemplo([PAGINA_DEMOGRAFIA])).toEqual([]);
+  });
+
+  it("añade un turno user+assistant si hay alguna página de tipo items", () => {
+    const mensajes = construirMensajesEjemplo([PAGINA_ITEMS]);
+    expect(mensajes).toHaveLength(2);
+    expect(mensajes[0].role).toBe("user");
+    expect(mensajes[1].role).toBe("assistant");
+  });
+
+  it("añade el ejemplo también en peticiones mixtas (demografía + items)", () => {
+    expect(construirMensajesEjemplo([PAGINA_DEMOGRAFIA, PAGINA_ITEMS])).toHaveLength(2);
+  });
+
+  it("el turno assistant es JSON válido con las 4 preguntas del ejemplo", () => {
+    const [, mensajeAssistant] = construirMensajesEjemplo([PAGINA_ITEMS]);
+    const respuesta = JSON.parse(mensajeAssistant.content as string);
+    expect(Object.keys(respuesta).sort()).toEqual(["1", "2", "3", "4"]);
+    expect(respuesta["2"]).toEqual({ respuesta_inicial: null, correccion: null });
   });
 });
