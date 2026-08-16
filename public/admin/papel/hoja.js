@@ -310,25 +310,39 @@ function dibujarInk(lienzo, ctx, texto, xCasillaPt, yCasillaPt, tamanoPt = 9) {
 // valores (opcional, longitud n, ocr_tests/ únicamente): texto de tinta
 // sintética a dibujar en la casilla i-ésima, o null/undefined para dejarla
 // en blanco.
-function construirFilaCasillas(ctx, n, { etiquetasCabecera, valores } = {}) {
+// anchoPt determina cuántas casillas caben por fila — si n las excede, se
+// envuelve a varias filas (necesario para respuestas abiertas largas, ver
+// construirBloqueItem: un ítem con respuesta_canonica larga pide más
+// casillas de las que caben en una sola línea). El resto de formatos
+// (opción/selección/ordenar/clasificar/año) nunca llegan a necesitarlo — n
+// ahí es como mucho el nº de opciones u elementos del ítem (≤26 letras),
+// siempre cabe en una fila — pero la función es genérica por si acaso.
+function construirFilaCasillas(ctx, n, anchoPt, { etiquetasCabecera, valores } = {}) {
+  const porFila = Math.max(1, Math.floor((anchoPt + CASILLA_GAP_PT) / (CASILLA_W_PT + CASILLA_GAP_PT)));
+  const numFilas = Math.ceil(n / porFila);
   const altoCabecera = etiquetasCabecera ? altoLineaPt(6) : 0;
+  const altoFila = altoCabecera + CASILLA_H_PT;
+  const gapEntreFilas = mmAPt(1.5);
   return {
-    altoPt: altoCabecera + CASILLA_H_PT,
+    altoPt: numFilas * altoFila + (numFilas - 1) * gapEntreFilas,
     dibujar(lienzo, xPt, yTopPt) {
       for (let i = 0; i < n; i++) {
-        const x = xPt + i * (CASILLA_W_PT + CASILLA_GAP_PT);
+        const fila = Math.floor(i / porFila);
+        const col = i % porFila;
+        const x = xPt + col * (CASILLA_W_PT + CASILLA_GAP_PT);
+        const yFila = yTopPt + fila * (altoFila + gapEntreFilas);
         if (etiquetasCabecera) {
-          lienzo.textoCentrado(x + CASILLA_W_PT / 2, yTopPt, etiquetasCabecera[i], {
+          lienzo.textoCentrado(x + CASILLA_W_PT / 2, yFila, etiquetasCabecera[i], {
             font: ctx.fontBold,
             tamanoPt: 6,
             color: ctx.colorAcento,
           });
         }
-        lienzo.rect(x, yTopPt + altoCabecera, CASILLA_W_PT, CASILLA_H_PT, {
+        lienzo.rect(x, yFila + altoCabecera, CASILLA_W_PT, CASILLA_H_PT, {
           borderColor: ctx.colorNegro,
           borderWidth: CASILLA_BORDE_PT,
         });
-        dibujarInk(lienzo, ctx, valores?.[i], x, yTopPt + altoCabecera);
+        dibujarInk(lienzo, ctx, valores?.[i], x, yFila + altoCabecera);
       }
     },
   };
@@ -341,7 +355,7 @@ function construirBloqueCasillas(ctx, etiqueta, n, anchoPt, config, opts) {
     color: ctx.colorTextoSuave,
     margenInferiorPt: mmAPt(0.6),
   });
-  const fila = construirFilaCasillas(ctx, n, opts);
+  const fila = construirFilaCasillas(ctx, n, anchoPt, opts);
   return apilar([titulo, fila], mmAPt(1.5));
 }
 
@@ -349,7 +363,13 @@ function construirBloqueCasillas(ctx, etiqueta, n, anchoPt, config, opts) {
 // forzar mayúsculas de imprenta) o "linea" (una raya para escribir en
 // natural, más compacta) — config.estiloAbierto, ver checkpoint de layout.
 // valorInk (opcional, ocr_tests/ únicamente): texto de tinta sintética.
-function construirRespuestaAbierta(ctx, etiqueta, anchoPt, config, valorInk) {
+// numCasillas (opcional): nº de casillas a dibujar en estilo "casillas" —
+// por defecto config.casillasAbierto, pero construirBloqueItem lo eleva
+// cuando la respuesta_canonica del ítem es más larga que eso (si no, la
+// respuesta correcta y completa no cabría físicamente en la hoja — bug real
+// encontrado con la respuesta canónica del ítem "02", 40 caracteres con
+// espacios contra solo 18 casillas fijas).
+function construirRespuestaAbierta(ctx, etiqueta, anchoPt, config, valorInk, numCasillas = config.casillasAbierto) {
   if (config.estiloAbierto === "linea") {
     const alto = mmAPt(6);
     const titulo = construirParrafo(ctx, etiqueta, config.tamanoInstruccionPt, anchoPt, {
@@ -375,8 +395,8 @@ function construirRespuestaAbierta(ctx, etiqueta, anchoPt, config, valorInk) {
     };
     return apilar([titulo, linea], mmAPt(1.5));
   }
-  const valores = valorInk ? [...valorInk].slice(0, config.casillasAbierto) : undefined;
-  return construirBloqueCasillas(ctx, etiqueta, config.casillasAbierto, anchoPt, config, { valores });
+  const valores = valorInk ? [...valorInk].slice(0, numCasillas) : undefined;
+  return construirBloqueCasillas(ctx, etiqueta, numCasillas, anchoPt, config, { valores });
 }
 
 // ============================================================
@@ -432,8 +452,16 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
 
   switch (item.formato) {
     case "abierto": {
-      partes.push(construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config, resp));
-      partes.push(construirRespuestaAbierta(ctx, "Corrección (solo si te equivocaste arriba)", anchoPt, config, corr));
+      // La respuesta correcta completa tiene que caber físicamente en la
+      // hoja — 18 casillas se quedan cortas para respuestas largas de varias
+      // palabras (p. ej. "Isabel de Castilla y Fernando de Aragón", 40
+      // caracteres con espacios). +2 de margen, nunca menos que el mínimo
+      // por defecto.
+      const numCasillas = Math.max(config.casillasAbierto, (item.respuesta_canonica?.length ?? 0) + 2);
+      partes.push(construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config, resp, numCasillas));
+      partes.push(
+        construirRespuestaAbierta(ctx, "Corrección (solo si te equivocaste arriba)", anchoPt, config, corr, numCasillas)
+      );
       break;
     }
     case "opcion_multiple": {
@@ -584,7 +612,7 @@ function construirBloquesDemografia(ctx, anchoPt, config, sintetico) {
   const anio = apilar([
     construirTitulo(ctx, "Año de nacimiento", anchoPt, config),
     construirInstruccion(ctx, "4 dígitos, en números de imprenta.", anchoPt, config),
-    construirFilaCasillas(ctx, 4, { valores: sintetico?.anio_nacimiento ? [...sintetico.anio_nacimiento] : undefined }),
+    construirFilaCasillas(ctx, 4, anchoPt, { valores: sintetico?.anio_nacimiento ? [...sintetico.anio_nacimiento] : undefined }),
   ]);
   bloques.push({ ...anio, camposDemografia: ["anio_nacimiento"] });
 

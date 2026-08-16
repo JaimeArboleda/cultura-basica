@@ -1016,10 +1016,15 @@ lectura, no el diseño de casillas):**
   la letra de su categoría (las letras SÍ pueden repetirse: varios elementos
   pueden compartir categoría).
 - `abierto`: por defecto, una fila de casillas (una letra por casilla,
-  fuerza mayúsculas de imprenta); `hoja.js::CONFIG_POR_DEFECTO.estiloAbierto`
-  también admite `"linea"` (una raya para escribir en natural, más compacta
-  — ya no hace falta la disciplina de una letra por casilla que necesitaba
-  Tesseract, un modelo de visión lee bien una línea de escritura seguida).
+  fuerza mayúsculas de imprenta) — el nº de casillas se calcula por ítem a
+  partir de la longitud de su `respuesta_canonica` (con margen), nunca
+  menos que `hoja.js::CONFIG_POR_DEFECTO.casillasAbierto` (18), envolviendo
+  a una segunda fila si hace falta: una respuesta correcta y completa
+  siempre tiene que caber físicamente (bug real encontrado y corregido,
+  `ocr_tests/README.md`). `CONFIG_POR_DEFECTO.estiloAbierto` también admite
+  `"linea"` (una raya para escribir en natural, más compacta — ya no hace
+  falta la disciplina de una letra por casilla que necesitaba Tesseract, un
+  modelo de visión lee bien una línea de escritura seguida).
 - Los 6 catálogos de opción única de demografía (sexo, CCAA...) se leen
   igual que cualquier otro campo de esa misma imagen; consentimiento y
   compromiso de honestidad se imprimen en la misma página pero no se piden

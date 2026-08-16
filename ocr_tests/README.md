@@ -96,38 +96,44 @@ las 4 instancias crearon su sesión de extremo a extremo sin fallos:
 
 | Instancia | Ítems | Demografía |
 |---|---|---|
-| `01-letra-clara` | 19/25 (76%) | 7/7 (100%) |
-| `02-con-correcciones` | 17/23 (74%) | 7/7 (100%) |
-| `03-valores-invalidos-e-incompletas` | 19/25 (76%) | 7/7 (100%) |
-| `04-descuidada-ruidosa` | 16/23 (70%) | 6/6 (100%) |
+| `01-letra-clara` | 20/25 (80%) | 7/7 (100%) |
+| `02-con-correcciones` | 18/23 (78%) | 7/7 (100%) |
+| `03-valores-invalidos-e-incompletas` | 17/25 (68%) | 7/7 (100%) |
+| `04-descuidada-ruidosa` | 15/23 (65%) | 6/6 (100%) |
 
-Los fallos que quedan son sobre todo de acento ("PLUSVALIA" en vez de
-"PLUSVALÍA"), de espacios perdidos en respuestas largas de varias palabras
-("ISABELDECASTILLA...") o casos donde el modelo no aplicó bien la
-precedencia Respuesta/Corrección en un `clasificar` — `igual()` en este
-script compara con igualdad estricta, más exigente que la tolerancia de
-edición real de `worker/src/correccion.ts::corregirAbierto`, así que la
-precisión real de puntuación es probablemente algo mayor que estos
-porcentajes.
+Los fallos que quedan son casi todos de acento ("PLUSVALIA" en vez de
+"PLUSVALÍA") o de espacios perdidos en respuestas largas de varias palabras
+("ISABELDECASTILLAYFERNANDODEARAGON...") — `igual()` en este script compara
+con igualdad estricta, más exigente que la tolerancia de edición real de
+`worker/src/correccion.ts::corregirAbierto`, así que la precisión real de
+puntuación es probablemente bastante mayor que estos porcentajes. El resto
+son errores genuinos de lectura, incluido al menos un caso reproducible
+donde el modelo no aplicó la precedencia Respuesta/Corrección en un
+`clasificar` con una rejilla grande (9 casillas) — usó la fila "Respuesta"
+(incorrecta) e ignoró la fila "Corrección" (100% correcta) que estaba justo
+debajo, pese a que el prompt lo pide explícitamente.
 
-**Bug real encontrado con esta batería, ya corregido:** la fuente de tinta
-de `04-descuidada-ruidosa` era `Caveat[wght].ttf`, una fuente VARIABLE —
-`pdf-lib`/`fontkit` subsettean mal sus glifos con
-`embedFont(..., { subset: true })` y casi toda la tinta salía invisible en
-el PDF (una letra suelta, al azar, sí renderizaba). Antes de corregirlo
-esta instancia medía 6/23 (26%) ítems y 3/6 (50%) demografía — no porque el
-modelo leyera mal, sino porque la imagen que se le mandaba estaba casi en
-blanco. Cambiada a Gochi Hand (estática); los números de la tabla ya
-reflejan la fuente corregida. Lección: antes de atribuir un fallo al motor
-de OCR-IA, comprobar primero que la imagen de entrada tiene tinta visible —
-inspeccionar el JPEG generado antes de gastar cuota de la API.
+**Dos bugs reales encontrados con esta batería, ya corregidos** (ninguno
+era el motor de OCR-IA leyendo mal):
 
-**Bug real encontrado y NO corregido todavía** (afecta también a la hoja
-real, no solo a estas fixtures): el ítem `02` tiene `casillasAbierto: 18`
-(constante fija en `hoja.js::CONFIG_POR_DEFECTO`) pero su
-`respuesta_canonica` completa ("Isabel de Castilla y Fernando de Aragón")
-ocupa 40 caracteres con espacios — no cabe físicamente en la fila de
-casillas impresa, ni en la hoja real ni en estas fixtures. Cualquiera que
-escriba la respuesta completa y correcta no puede terminarla. Pendiente de
-decidir el arreglo (más casillas solo para este ítem, cambiar a
-`estiloAbierto: "linea"`, o acortar la respuesta canónica esperada).
+1. La fuente de tinta de `04-descuidada-ruidosa` era `Caveat[wght].ttf`,
+   una fuente VARIABLE — `pdf-lib`/`fontkit` subsettean mal sus glifos con
+   `embedFont(..., { subset: true })` y casi toda la tinta salía invisible
+   en el PDF (una letra suelta, al azar, sí renderizaba). Antes de
+   corregirlo esta instancia medía 6/23 (26%) ítems y 3/6 (50%) demografía
+   — no porque el modelo leyera mal, sino porque la imagen que se le
+   mandaba estaba casi en blanco. Cambiada a Gochi Hand (estática).
+2. El ítem `02` tenía `casillasAbierto: 18` fijo (`hoja.js::
+   CONFIG_POR_DEFECTO`) pero su `respuesta_canonica` completa ("Isabel de
+   Castilla y Fernando de Aragón") ocupa 40 caracteres con espacios — no
+   cabía físicamente en la fila de casillas impresa, **también en la hoja
+   real**, no solo en estas fixtures: cualquiera que escribiera la
+   respuesta completa y correcta no podía terminarla. Corregido calculando
+   el nº de casillas por ítem a partir de la longitud de su
+   `respuesta_canonica` (con margen), envolviendo a una segunda fila si
+   hace falta (`construirFilaCasillas` ahora soporta múltiples filas).
+
+Lección de ambos: antes de atribuir un fallo al motor de OCR-IA, comprobar
+primero que la imagen de entrada tiene tinta visible y que la respuesta
+correcta cabía físicamente en la casilla — inspeccionar el JPEG generado
+antes de gastar cuota de la API.
