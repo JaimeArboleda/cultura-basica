@@ -855,6 +855,28 @@ imprimir de una sola vez, sin tener que descomprimir ni abrir cada hoja por
 separado — cada hoja sigue teniendo su propio `exam_id` (y por tanto su propio
 QR), solo cambia cómo se empaquetan para la descarga.
 
+**Bug real corregido tras la implementación inicial:** `generarPdfRemesa`
+reutilizaba el `ctx` (y por tanto el `PDFDocument` subyacente) cacheado de
+`obtenerManifiesto()` en cada vuelta del bucle — `construirHoja` añade sus
+páginas a `ctx.pdfDoc` y lo vuelca ENTERO con `pdfDoc.save()`, así que la
+hoja i-ésima devolvía también las páginas de las hojas anteriores ya
+generadas en el mismo lote: un pedido de 3 hojas salía con el triple de
+páginas de las que debía (7 páginas/hoja × 3 = 21 esperadas, 42 reales, con
+las primeras hojas repetidas varias veces). Nunca se habría visto solo
+revisando el código (la lógica de "un único PDF" es correcta, el bug está en
+la reutilización del contexto) ni con `npm test` (no había ningún test de
+esta ruta) — se encontró replicando el algoritmo exacto de `admin.js` con
+pdf-lib instalado localmente (`ocr_tests/verificar_pdf_remesa.mjs`, sin
+depender del navegador: Chromium headless no podía cargar pdf-lib desde
+jsdelivr a través del proxy de red de este entorno de desarrollo). Corregido
+creando un contexto (y por tanto un `PDFDocument`) nuevo por hoja dentro del
+bucle — `crearContextoFuentes` reutiliza `PDFLib`/fontkit/los bytes de
+fuente ya cacheados, así que el coste extra es solo volver a incrustar 2
+fuentes en un documento nuevo, no red. `ocr_tests/verificar_pdf_remesa.mjs`
+queda como test de regresión permanente en `npm test` (sin red, rápido y
+determinista: genera 3 hojas y comprueba que el PDF combinado tiene
+exactamente 3× las páginas de una hoja, sin duplicados).
+
 **Estadísticas avanzadas: consola Python en el navegador (sin backend Python).**
 La pestaña "Estadísticas" de más arriba muestra agregados fijos; para explorar
 libremente (correlaciones, regresiones, gráficos ad hoc) sin tener que ir

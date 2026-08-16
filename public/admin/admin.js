@@ -10,9 +10,9 @@
 import { obtenerManifiesto } from "./papel/digitalizar.js";
 import { renderSubirLote } from "./papel/subirLote.js";
 import { renderEditarSesion } from "./editarSesion.js";
-import { obtenerPdfLib, obtenerUpng } from "./papel/comun.js";
+import { cargarFuentesHoja, obtenerFontkit, obtenerPdfLib, obtenerUpng } from "./papel/comun.js";
 import { generarExamId } from "./papel/qr.js";
-import { construirHoja } from "./papel/hoja.js";
+import { construirHoja, crearContextoFuentes } from "./papel/hoja.js";
 
 // API_BASE duplica intencionalmente la constante de ../js/api.js: son despliegues
 // separados y el front-end del test no debe depender del panel ni viceversa.
@@ -720,12 +720,33 @@ function filaToken(t) {
 // onProgreso(hechos, total), opcional, para ir informando mientras se
 // generan (puede tardar unos segundos si son muchas).
 async function generarPdfRemesa(tokenId, cantidad, onProgreso) {
-  const [{ ctx, items }, upng, { PDFDocument }] = await Promise.all([obtenerManifiesto(), obtenerUpng(), obtenerPdfLib()]);
-  ctx.UPNG = upng;
+  const [{ items }, upng, PDFLib, fontkit, fuentes] = await Promise.all([
+    obtenerManifiesto(),
+    obtenerUpng(),
+    obtenerPdfLib(),
+    obtenerFontkit(),
+    cargarFuentesHoja(),
+  ]);
+  const { PDFDocument } = PDFLib;
   const combinado = await PDFDocument.create();
   for (let i = 0; i < cantidad; i++) {
+    // Un contexto (y por tanto un PDFDocument) NUEVO en cada vuelta: el ctx
+    // que devuelve obtenerManifiesto() está cacheado y se comparte con el
+    // resto del panel (digitalizar.js::obtenerContextoFuentes), y
+    // construirHoja añade sus páginas a ctx.pdfDoc y lo vuelca ENTERO con
+    // pdfDoc.save() — si aquí se reutilizara ese mismo ctx en cada vuelta del
+    // bucle, pdfBytes de la hoja i incluiría también las páginas de las
+    // hojas 1..i-1 ya generadas en vueltas anteriores, duplicándolas en el
+    // PDF combinado (bug real: 3 hojas de 7 páginas daban 42 páginas
+    // combinadas en vez de 21, con las primeras hojas repetidas varias
+    // veces — encontrado verificando el algoritmo antes de este fix, issue
+    // #31). crearContextoFuentes reutiliza PDFLib/fontkit/los bytes de
+    // fuente ya cacheados (sin red), así que el coste extra es solo volver a
+    // incrustar las 2 fuentes en un documento nuevo, no volver a descargar
+    // nada.
+    const ctxHoja = await crearContextoFuentes(PDFLib, fontkit, upng, null, fuentes.regular, fuentes.bold);
     const examId = generarExamId();
-    const { pdfBytes } = await construirHoja(ctx, items, { tokenId, examId });
+    const { pdfBytes } = await construirHoja(ctxHoja, items, { tokenId, examId });
     const hoja = await PDFDocument.load(pdfBytes);
     const paginasCopiadas = await combinado.copyPages(hoja, hoja.getPageIndices());
     paginasCopiadas.forEach((pagina) => combinado.addPage(pagina));

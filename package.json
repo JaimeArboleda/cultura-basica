@@ -6,7 +6,8 @@
     "build:items": "node data/build-items.mjs",
     "validate:items": "npm run build:items && node data/validate-items.mjs",
     "test:worker": "cd worker && npm test",
-    "test": "npm run validate:items && npm run test:worker"
+    "test:pdf-remesa": "node ocr_tests/verificar_pdf_remesa.mjs",
+    "test": "npm run validate:items && npm run test:worker && npm run test:pdf-remesa"
   },
   "devDependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
