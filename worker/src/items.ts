@@ -24,6 +24,30 @@ export function obtenerItem(id: string): Item | undefined {
   return itemsPorId.get(id);
 }
 
+// Nº mínimo de casillas para una respuesta "abierto" cuando la canónica es
+// corta — mismo valor que public/admin/papel/hoja.js::CONFIG_POR_DEFECTO.
+// casillasAbierto (duplicado a propósito, mismo motivo que LETRAS/CATALOGOS
+// entre worker/ y public/: hoja.js es código de cliente, no se puede
+// importar aquí).
+const CASILLAS_ABIERTO_MINIMO = 18;
+
+// Nº de casillas que se imprimen de verdad para la respuesta de un ítem
+// "abierto": la respuesta canónica completa tiene que caber físicamente en
+// la hoja (+2 de margen), nunca menos que el mínimo por defecto — mismo
+// cálculo que hacía antes public/admin/papel/hoja.js a partir de
+// item.respuesta_canonica.length, pero ESE campo nunca llega al cliente
+// (ItemPublico no lo incluye, README §4.3), así que en producción la hoja
+// real seguía imprimiendo siempre el mínimo fijo pese a la corrección
+// anterior — bug real, descubierto al construir el esquema de OCR-IA para
+// "abierto" (necesita esta misma longitud EXACTA para restringir el
+// esquema). Se calcula aquí, server-side, donde sí está respuesta_canonica,
+// y se expone como longitud (nunca como el texto) vía
+// ItemPublico.casillas_abierto.
+export function casillasAbiertoPara(item: Pick<Item, "formato" | "respuesta_canonica">): number | null {
+  if (item.formato !== "abierto") return null;
+  return Math.max(CASILLAS_ABIERTO_MINIMO, (item.respuesta_canonica?.length ?? 0) + 2);
+}
+
 // Única función que produce lo que ve el cliente antes de contestar: nunca debe
 // incluir la respuesta correcta (README §4.3).
 export function paraCliente(item: Item): ItemPublico {
@@ -39,6 +63,7 @@ export function paraCliente(item: Item): ItemPublico {
     elementos: item.formato === "ordenar" || item.formato === "clasificar" ? item.elementos : null,
     categorias: item.formato === "clasificar" ? item.categorias : null,
     nota_parcial_desactivada: item.nota_parcial_desactivada === true,
+    casillas_abierto: casillasAbiertoPara(item),
   };
 }
 

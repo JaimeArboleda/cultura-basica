@@ -43,6 +43,20 @@ const UPNG = UPNGmod.default ?? UPNGmod;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ_REPO = path.resolve(__dirname, "..");
 
+// Mismo cálculo que worker/src/items.ts::casillasAbiertoPara (duplicado a
+// propósito, mismo motivo que LETRAS/CATALOGOS entre worker/ y public/: este
+// script carga el banco crudo de data/items.json directamente, sin pasar por
+// paraCliente()/la API, así que tiene que reproducir el mismo cálculo para
+// que la hoja sintética que genera cuadre con lo que dibujaría la hoja real
+// — si no, item.casillas_abierto quedaría ausente y hoja.js caería siempre
+// al mínimo fijo (18), el mismo bug que motivó mover este cálculo al
+// servidor.
+const CASILLAS_ABIERTO_MINIMO = 18;
+function conCasillasAbierto(item) {
+  if (item.formato !== "abierto") return item;
+  return { ...item, casillas_abierto: Math.max(CASILLAS_ABIERTO_MINIMO, (item.respuesta_canonica?.length ?? 0) + 2) };
+}
+
 // ============================================================
 // PRNG determinista (mulberry32) — misma semilla siempre da el mismo plan.
 // ============================================================
@@ -296,7 +310,11 @@ function planDemografia(persona, rng) {
 
   if (!persona.demografiaCompleta && rng() < 0.5) {
     demografia.libros_en_casa = "";
-    definitiva.libros_en_casa = undefined;
+    // null, no undefined: mismo motivo que en construirPlan (más abajo) —
+    // así el campo sigue presente como ground truth ("se esperaba blanco")
+    // en vez de desaparecer sin más de respuestas-esperadas.json al
+    // serializar con JSON.stringify (que omite las claves con undefined).
+    definitiva.libros_en_casa = null;
   }
   return { demografia, definitiva };
 }
@@ -308,7 +326,12 @@ function construirPlan(items, persona, semilla) {
   for (const item of items) {
     const { respuestaInk, correccionInk, definitiva } = planItem(item, persona, rng);
     planItems[item.id] = { respuesta: respuestaInk, correccion: correccionInk };
-    if (definitiva !== undefined) definitivas[item.id] = definitiva;
+    // Siempre se registra una entrada, incluso cuando el ítem cayó en blanco
+    // (definitiva === undefined) — así respuestas-esperadas.json tiene
+    // SIEMPRE los 25 ítems como ground truth (null = "se esperaba blanco"),
+    // en vez de omitir el ítem y dejar que la comparación no cuente ni a
+    // favor ni en contra.
+    definitivas[item.id] = definitiva !== undefined ? definitiva : null;
   }
   const { demografia, definitiva: demografiaDefinitiva } = planDemografia(persona, rng);
   return { planItems, definitivas, demografia, demografiaDefinitiva };
@@ -467,7 +490,7 @@ async function generarPersonas(browser, servidor) {
   const idsBanco = new Set(items.map((it) => it.id));
   const orden = ordenIds.filter((id) => idsBanco.has(id));
   const faltantes = items.map((it) => it.id).filter((id) => !orden.includes(id));
-  const itemsOrdenados = [...orden, ...faltantes].map((id) => porId.get(id));
+  const itemsOrdenados = [...orden, ...faltantes].map((id) => conCasillasAbierto(porId.get(id)));
 
   const fontRegularBytes = await readFile(path.join(RAIZ_REPO, "public/admin/papel/fonts/LiberationSans-Regular.ttf"));
   const fontBoldBytes = await readFile(path.join(RAIZ_REPO, "public/admin/papel/fonts/LiberationSans-Bold.ttf"));

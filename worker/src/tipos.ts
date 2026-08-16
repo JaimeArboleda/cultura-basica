@@ -50,6 +50,16 @@ export interface ItemPublico {
   // Ver Item.nota_parcial_desactivada. Siempre presente (boolean, no opcional)
   // para que el cliente no tenga que distinguir "false" de "ausente".
   nota_parcial_desactivada: boolean;
+  // Solo para formato "abierto": nº de casillas realmente impresas para su
+  // respuesta (worker/src/items.ts::casillasAbiertoPara) — null en cualquier
+  // otro formato. No revela la respuesta correcta (README §4.3: ItemPublico
+  // nunca la incluye), solo su longitud impresa; lo necesitan tanto
+  // public/admin/papel/hoja.js (para dibujar el nº correcto de casillas en la
+  // hoja, antes solo podía calcularlo con la propia respuesta_canonica, que
+  // este tipo nunca expone — ver commit que descubrió el bug) como el motor
+  // de OCR-IA (worker/src/endpoints/admin/ocrIa.ts, ItemEntrada.numCasillas)
+  // para restringir el esquema de salida a la longitud exacta.
+  casillas_abierto: number | null;
 }
 
 // Vista de un ítem ya respondido pero de una sesión aún en curso (README §3, §8:

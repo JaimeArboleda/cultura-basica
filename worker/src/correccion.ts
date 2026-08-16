@@ -38,17 +38,45 @@ export interface ResultadoCorreccion {
   estado_correccion: EstadoCorreccion;
 }
 
+// Todas las variantes de `texto` quitando cualquier subconjunto de sus
+// espacios (2^n variantes para n espacios) — una respuesta abierta a veces
+// pierde o gana algún espacio entre palabras sin que eso deba contar como
+// error, tanto si la escribió a mano quien hizo el test como si la leyó
+// OCR-IA de la hoja en papel (README §4.7/ocr_tests/README.md: un espacio de
+// más o de menos entre "Isabel" y "y" no es un fallo de comprensión).
+// Ejemplo: "isabel y fernando" (2 espacios) también genera "isabely
+// fernando", "isabel yfernando" e "isabelyfernando".
+export function variantesSinEspacios(texto: string): string[] {
+  const posiciones: number[] = [];
+  for (let i = 0; i < texto.length; i++) if (texto[i] === " ") posiciones.push(i);
+  if (posiciones.length === 0) return [texto];
+
+  const variantes = new Set<string>();
+  const totalMascaras = 1 << posiciones.length;
+  for (let mascara = 0; mascara < totalMascaras; mascara++) {
+    const caracteres = [...texto];
+    // De atrás hacia adelante para no desplazar los índices de las
+    // posiciones aún por quitar dentro de esta misma máscara.
+    for (let bit = posiciones.length - 1; bit >= 0; bit--) {
+      if (mascara & (1 << bit)) caracteres.splice(posiciones[bit], 1);
+    }
+    variantes.add(caracteres.join(""));
+  }
+  return [...variantes];
+}
+
 // Compara la respuesta normalizada contra una lista de alias normalizados, aplicando
 // la regla de §1.6: sin tolerancia (igualdad exacta) para respuestas de ≤4 caracteres;
 // distancia de Levenshtein ≤ tolerancia para el resto. Ambas cosas son equivalentes a
 // "Levenshtein con tolerancia 0" bajo 4 caracteres, salvo por coste — se hace explícito
-// aquí para que la regla quede clara sin depender de leer levenshtein().
+// aquí para que la regla quede clara sin depender de leer levenshtein(). Cada alias se
+// expande a todas sus variantes sin espacios (variantesSinEspacios) antes de comparar.
 function matcheaAlgunAlias(normalizada: string, alias: string[], tolerancia: number): boolean {
-  const aliasNormalizados = alias.map(normalizar);
+  const variantesValidas = alias.flatMap((a) => variantesSinEspacios(normalizar(a)));
   if (normalizada.length <= 4) {
-    return aliasNormalizados.includes(normalizada);
+    return variantesValidas.includes(normalizada);
   }
-  return aliasNormalizados.some((a) => levenshtein(normalizada, a) <= tolerancia);
+  return variantesValidas.some((a) => levenshtein(normalizada, a) <= tolerancia);
 }
 
 export function corregirAbierto(item: Item, respuestaCruda: string): ResultadoCorreccion {

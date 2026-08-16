@@ -2,7 +2,7 @@
   "persona": "04-descuidada-ruidosa",
   "descripcion": "Letra descuidada, foto con más ruido/desenfoque, varios campos en blanco",
   "token_id_qr": "TEST-04-descuidada-ruidosa",
-  "exam_id_qr": "T46XF7C8",
+  "exam_id_qr": "TJWQXFMD",
   "paginas": 7,
   "demografia": {
     "anio_nacimiento": 1994,
@@ -10,11 +10,13 @@
     "ccaa_educacion_secundaria": "Comunidad de Madrid",
     "nivel_estudios": "Grado o licenciatura",
     "area_estudios": "Ciencias",
-    "estudios_mayor_progenitor": "Grado o licenciatura"
+    "estudios_mayor_progenitor": "Grado o licenciatura",
+    "libros_en_casa": null
   },
   "respuestas_esperadas": {
     "10": "4/15",
     "11": "ZEUQZÁLEV OGEID",
+    "12": null,
     "13": 0,
     "14": [
       0,
@@ -42,6 +44,7 @@
     ],
     "19": "AÍLAVSULP",
     "20": 1,
+    "21": null,
     "22": {
       "Debussy": "Impresionismo",
       "Palestrina": "Renacimiento",

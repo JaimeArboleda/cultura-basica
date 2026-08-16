@@ -174,6 +174,15 @@ describe("POST /api/admin/ocr-ia", () => {
     expect(res.status).toBe(400);
   });
 
+  it("400 con un ítem 'abierto' sin numCasillas", async () => {
+    const auth = await tokenAdmin();
+    const res = await postOcrIa(
+      { paginas: [{ id: "p1", imagen: IMAGEN_VALIDA, tipo: "items", items: [{ id: "x", formato: "abierto", numero: 1 }] }] },
+      auth
+    );
+    expect(res.status).toBe(400);
+  });
+
   it("400 con página demografia sin campos, con mensaje específico (no genérico)", async () => {
     const auth = await tokenAdmin();
     const res = await postOcrIa({ paginas: [{ id: "p1", imagen: IMAGEN_VALIDA, tipo: "demografia", campos: [] }] }, auth);
@@ -224,14 +233,47 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     return (esquema.properties as Record<string, unknown>)[clave];
   }
 
-  it("opcion_multiple: enum de A a la letra numOpciones-ésima, nada más", () => {
+  // Cada pregunta es {respuesta_inicial, correccion}, ambas con la misma
+  // forma — helper para no repetir el envoltorio en cada test.
+  function bloqueRespuesta(pregunta: unknown, clave: "respuesta_inicial" | "correccion") {
+    return (pregunta as { properties: Record<string, unknown> }).properties[clave];
+  }
+
+  it("los ítems se namespacean por NÚMERO de pregunta impreso, SIN prefijo de página ni item.id", () => {
+    const esquema = construirEsquemaCompleto([
+      {
+        id: "p",
+        imagen: "x",
+        tipo: "items",
+        items: [{ id: "id-interno-cualquiera", formato: "abierto", numero: 7, numCasillas: 5 }],
+      },
+    ]);
+    expect(propiedad(esquema, "7")).toBeDefined();
+    expect(propiedad(esquema, "p::7")).toBeUndefined();
+    expect(propiedad(esquema, "id-interno-cualquiera")).toBeUndefined();
+  });
+
+  it("cada pregunta requiere respuesta_inicial y correccion, nada más", () => {
+    const esquema = construirEsquemaCompleto([
+      { id: "p", imagen: "x", tipo: "items", items: [{ id: "i", formato: "abierto", numero: 1, numCasillas: 5 }] },
+    ]);
+    const pregunta = propiedad(esquema, "1") as { required: string[]; additionalProperties: boolean };
+    expect(pregunta.required.sort()).toEqual(["correccion", "respuesta_inicial"]);
+    expect(pregunta.additionalProperties).toBe(false);
+  });
+
+  it("opcion_multiple: enum de A a la letra numOpciones-ésima más cadena vacía, o null", () => {
     const esquema = construirEsquemaCompleto([
       { id: "p", imagen: "x", tipo: "items", items: [{ id: "i", formato: "opcion_multiple", numero: 1, numOpciones: 3 }] },
     ]);
-    expect(propiedad(esquema, "p::i")).toEqual({ type: "string", enum: ["A", "B", "C"] });
+    const pregunta = propiedad(esquema, "1");
+    expect(bloqueRespuesta(pregunta, "respuesta_inicial")).toEqual({
+      anyOf: [{ type: "string", enum: ["", "A", "B", "C"] }, { type: "null" }],
+    });
+    expect(bloqueRespuesta(pregunta, "correccion")).toEqual(bloqueRespuesta(pregunta, "respuesta_inicial"));
   });
 
-  it("seleccion_multiple: patrón limitado a las letras válidas y a la longitud máxima", () => {
+  it("seleccion_multiple: patrón que admite letras válidas y espacios, sin límite de longitud, o null", () => {
     const esquema = construirEsquemaCompleto([
       {
         id: "p",
@@ -240,16 +282,23 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
         items: [{ id: "i", formato: "seleccion_multiple", numero: 1, numOpciones: 4 }],
       },
     ]);
-    expect(propiedad(esquema, "p::i")).toEqual({ type: "string", pattern: "^[A-D]{0,4}$" });
+    const pregunta = propiedad(esquema, "1");
+    expect(bloqueRespuesta(pregunta, "respuesta_inicial")).toEqual({
+      anyOf: [{ type: "string", pattern: "^[A-D ]*$" }, { type: "null" }],
+    });
   });
 
-  it("ordenar: cada posición restringida a las letras de los propios elementos (n == numOpciones)", () => {
+  it("ordenar: cada posición admite la letra de un elemento propio o cadena vacía (n == numOpciones), o null entero", () => {
     const esquema = construirEsquemaCompleto([
       { id: "p", imagen: "x", tipo: "items", items: [{ id: "i", formato: "ordenar", numero: 1, n: 3 }] },
     ]);
-    const propOrden = propiedad(esquema, "p::i") as { properties: Record<string, unknown> };
-    expect(propOrden.properties["1"]).toEqual({ type: "string", enum: ["A", "B", "C"] });
-    expect(propOrden.properties["3"]).toEqual({ type: "string", enum: ["A", "B", "C"] });
+    const pregunta = propiedad(esquema, "1");
+    const bloque = bloqueRespuesta(pregunta, "respuesta_inicial") as {
+      anyOf: [{ properties: Record<string, unknown> }, { type: string }];
+    };
+    expect(bloque.anyOf[1]).toEqual({ type: "null" });
+    expect(bloque.anyOf[0].properties["1"]).toEqual({ type: "string", pattern: "^[A-C]?$" });
+    expect(bloque.anyOf[0].properties["3"]).toEqual({ type: "string", pattern: "^[A-C]?$" });
   });
 
   it("clasificar: cada elemento restringido a las letras de CATEGORÍA (distinto de n)", () => {
@@ -261,12 +310,48 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
         items: [{ id: "i", formato: "clasificar", numero: 1, n: 5, numCategorias: 2 }],
       },
     ]);
-    const propClasificar = propiedad(esquema, "p::i") as { properties: Record<string, unknown> };
-    expect(Object.keys(propClasificar.properties)).toHaveLength(5); // n=5 elementos
-    expect(propClasificar.properties["1"]).toEqual({ type: "string", enum: ["A", "B"] }); // numCategorias=2
+    const pregunta = propiedad(esquema, "1");
+    const bloque = bloqueRespuesta(pregunta, "respuesta_inicial") as {
+      anyOf: [{ properties: Record<string, unknown> }, { type: string }];
+    };
+    expect(Object.keys(bloque.anyOf[0].properties)).toHaveLength(5); // n=5 elementos
+    expect(bloque.anyOf[0].properties["1"]).toEqual({ type: "string", pattern: "^[A-B]?$" }); // numCategorias=2
   });
 
-  it("demografía: catálogo restringido a su propio nº de opciones (sexo tiene 4)", () => {
+  it("abierto: string con tope de longitud (maxLength=numCasillas, SIN minLength), alfabeto restringido, o null — nunca admite \\n", () => {
+    const esquema = construirEsquemaCompleto([
+      { id: "p", imagen: "x", tipo: "items", items: [{ id: "i", formato: "abierto", numero: 1, numCasillas: 20 }] },
+    ]);
+    const pregunta = propiedad(esquema, "1");
+    // Deliberadamente sin minLength ni patrón de longitud exacta: forzar
+    // exactamente numCasillas caracteres (probado contra la API real) hacía
+    // que el modelo rellenara el resto con basura inventada en vez de
+    // espacios cuando la respuesta real era más corta que las casillas
+    // impresas — ver el comentario junto a esquemaCampoRespuestaItem.
+    expect(bloqueRespuesta(pregunta, "respuesta_inicial")).toEqual({
+      anyOf: [{ type: "string", maxLength: 20, pattern: "^[A-Z0-9ÁÉÍÓÚÜÑ /]{0,20}$" }, { type: "null" }],
+    });
+  });
+
+  it("abierto: el tope de longitud viaja con cada ítem (dos ítems, dos longitudes distintas)", () => {
+    const esquema = construirEsquemaCompleto([
+      {
+        id: "p",
+        imagen: "x",
+        tipo: "items",
+        items: [
+          { id: "i1", formato: "abierto", numero: 1, numCasillas: 4 },
+          { id: "i2", formato: "abierto", numero: 2, numCasillas: 40 },
+        ],
+      },
+    ]);
+    const p1 = bloqueRespuesta(propiedad(esquema, "1"), "respuesta_inicial") as { anyOf: [{ maxLength: number }] };
+    const p2 = bloqueRespuesta(propiedad(esquema, "2"), "respuesta_inicial") as { anyOf: [{ maxLength: number }] };
+    expect(p1.anyOf[0].maxLength).toBe(4);
+    expect(p2.anyOf[0].maxLength).toBe(40);
+  });
+
+  it("demografía: catálogo restringido a su propio nº de opciones (sexo tiene 4) — sin cambios respecto al diseño anterior", () => {
     const esquema = construirEsquemaCompleto([{ id: "p", imagen: "x", tipo: "demografia", campos: ["sexo"] }]);
     expect(propiedad(esquema, "p::sexo")).toEqual({ type: "string", enum: ["A", "B", "C", "D"] });
   });
