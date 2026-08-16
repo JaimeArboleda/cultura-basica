@@ -177,47 +177,47 @@ const RESPUESTA_ESPERADA = {
   6: { respuesta_inicial: "SYDNEY", correccion: null },
 };
 
-// Mismo texto que construirContenidoPagina/describirFormatoItemBreve
-// (worker/src/endpoints/admin/ocrIa.ts) para las páginas reales, pero
-// duplicado a propósito aquí (igual que LETRAS/CATALOGOS entre worker/ y
-// public/, README §2): este script es Node/ESM fuera del Worker y genera el
-// prompt UNA VEZ, guardado en disco — no necesita importar TypeScript en
-// caliente, solo que el texto describa fielmente lo que de verdad dibuja
-// hoja.js para estos 4 ítems concretos.
+// Byte a byte el MISMO texto que construirContenidoPagina produce para una
+// página de ítems real (worker/src/endpoints/admin/ocrIa.ts) — ninguna
+// mención de que sea un "ejemplo", ningún resumen de qué enseña cada
+// pregunta. Cambio deliberado (issue #31): el diseño anterior narraba
+// explícitamente "fíjate en que esta respuesta está cortada a medias..." —
+// puro texto redundante con SYSTEM_PROMPT_ITEMS (que ya explica esas mismas
+// reglas en prosa), y el propio few-shot no necesita que el modelo "sepa"
+// que es un ejemplo: solo tiene que responder al ÚLTIMO turno de usuario, el
+// de la página real — el turno anterior (éste) es simplemente historial de
+// conversación con el patrón a imitar. Duplicado a mano aquí en vez de
+// importar TypeScript en caliente (igual que LETRAS/CATALOGOS entre worker/
+// y public/, README §2): describirFormatoItemBreve/construirContenidoPagina
+// son las funciones reales que hay que mantener sincronizadas si cambia el
+// formato de las páginas reales.
+function describirFormatoItemBreveEjemplo(item) {
+  switch (item.formato) {
+    case "abierto":
+      return "Abierto";
+    case "opcion_multiple":
+      return `Opción múltiple, entre A y ${LETRAS_EJEMPLO[item.opciones.length - 1]}`;
+    case "seleccion_multiple":
+      return `Selección múltiple, con opciones entre A y ${LETRAS_EJEMPLO[item.opciones.length - 1]}`;
+    case "ordenar":
+      return `Ordenar ${item.elementos.length} elementos (letras A-${LETRAS_EJEMPLO[item.elementos.length - 1]}) en las posiciones 1-${item.elementos.length}`;
+    case "clasificar":
+      return `Clasificar ${item.elementos.length} elementos (números 1-${item.elementos.length}) en categorías entre A y ${LETRAS_EJEMPLO[item.categorias.length - 1]}`;
+  }
+}
+const LETRAS_EJEMPLO = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+// numeroPagina=1: igual que vería el modelo en cualquier petición real de
+// una sola página (el modo por defecto del panel, "una llamada por
+// página") — es intencional que pueda coincidir textualmente con "Debes
+// digitalizar la página 1" de la página real que sigue después: response_
+// format con strict:true fuerza que la respuesta final solo pueda traer las
+// claves de ESA página real (additionalProperties:false), así que aunque
+// coincida el texto no hay forma de que el modelo cuele contenido del
+// ejemplo en el JSON de salida.
 const USER_PROMPT_EJEMPLO =
-  "Este es un EJEMPLO ya resuelto, de una hoja distinta e independiente a la que vas a leer después (con su propia " +
-  "numeración 1-6, sin relación con los números de la página real) — solo sirve para que veas exactamente cómo se " +
-  "transcribe cada caso, incluida la respuesta correcta que sigue en este mismo turno. Fíjate especialmente en:\n" +
-  '- Pregunta 1 (abierto): Respuesta lleva un nombre DISTINTO y TAMBIÉN CORTADO A MEDIAS ("JUAN EL BAUTIS", sin ' +
-  'terminar), y Corrección lleva el nombre correcto y COMPLETO ("JOSE DE ARIMATEA") — ninguna de las dos palabras ' +
-  "se completa ni se acorta: la de Respuesta se queda a medias tal cual está, y la de Corrección se transcribe " +
-  "entera tal cual está. La transcripción es SIEMPRE literal, letra a letra, tanto si la palabra está completa " +
-  "como si no — nunca completar lo que está cortado, nunca acortar lo que está entero.\n" +
-  "- Pregunta 2 (opción múltiple): las dos casillas, Respuesta y Corrección, están COMPLETAMENTE en blanco — la " +
-  "respuesta correcta es null en ambas, nunca una letra inventada.\n" +
-  "- Pregunta 3 (selección múltiple): hay una casilla vacía en medio de la selección, en los dos bloques — se " +
-  "transcribe como un espacio literal en esa posición, sin cerrar el hueco ni añadir la letra que falta.\n" +
-  "- Pregunta 4 (ordenar): Respuesta y Corrección son dos secuencias COMPLETAS, pero ninguna de las dos es la " +
-  'ordenación correcta ni coinciden entre sí — se transcribe cada una tal cual está, sin "arreglarla" hacia el ' +
-  "orden que se supone correcto.\n" +
-  "- Pregunta 5 (clasificar): el elemento de la posición 3 (Murciélago) queda SIN clasificar en los DOS bloques — " +
-  "ni Respuesta ni Corrección le asignan ninguna categoría. Esa posición es cadena vacía en el diccionario de las " +
-  "dos respuestas, nunca una categoría inventada — mismo principio que la casilla vacía de la pregunta 3, " +
-  "aplicado aquí a \"clasificar\". El elemento de la posición 4 (Serpiente), en cambio, SÍ tiene una corrección " +
-  "real: Respuesta dice \"B\" (Ave) y Corrección lo cambia a \"C\" (Reptil) — dos valores distintos, cada uno " +
-  "transcrito tal cual está en su propio bloque, sin copiar el valor de uno al otro.\n" +
-  "- Pregunta 6 (abierto): Respuesta tiene contenido pero Corrección está COMPLETAMENTE en blanco — Corrección es " +
-  "null, sin inventar una corrección ni cambiar lo escrito en Respuesta aunque te parezca incorrecto: tu trabajo " +
-  "es transcribir, no corregir.\n\n" +
-  "Debes digitalizar esta página EJEMPLO, en el JSON ya especificado, que contiene los siguientes ítems:\n" +
-  "- Pregunta 1: Abierto.\n" +
-  "- Pregunta 2: Opción múltiple, entre A y E.\n" +
-  "- Pregunta 3: Selección múltiple, con opciones entre A y E.\n" +
-  "- Pregunta 4: Ordenar 4 elementos (letras A-D) en las posiciones 1-4.\n" +
-  "- Pregunta 5: Clasificar 4 elementos (números 1-4) en categorías entre A y C.\n" +
-  "- Pregunta 6: Abierto.\n\n" +
-  'Para cada pregunta debes transcribir tanto "Respuesta" como "Corrección", exactamente como en la respuesta que ' +
-  "sigue a continuación — luego te tocará hacer lo mismo con la página real.";
+  "Debes digitalizar la página 1, en el JSON ya especificado, que contiene los siguientes ítems del test:\n" +
+  ITEMS_EJEMPLO.map((it, i) => `- Pregunta ${i + 1}: ${describirFormatoItemBreveEjemplo(it)}.`).join("\n") +
+  '\n\nPara cada pregunta debes transcribir tanto "Respuesta" como "Corrección".';
 
 async function descargarFuenteInk() {
   const resp = await fetch(FUENTE_INK_URL);
