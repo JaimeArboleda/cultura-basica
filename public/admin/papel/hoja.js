@@ -79,6 +79,14 @@ const CASILLA_GAP_PT = mmAPt(0.8);
 const CASILLA_BORDE_PT = mmAPt(0.35);
 const GAP_COLUMNAS_PT = mmAPt(4);
 
+// Separación entre las columnas "Respuesta"/"Corrección" cuando van lado a
+// lado (construirBloqueCasillasDoble): el equivalente a 2 casillas, para que
+// se lean claramente como dos bloques distintos y no como una fila continua
+// de casillas. Misma separación para TODOS los formatos que usan este
+// layout (opción única, selección múltiple, ordenar, clasificar) — así el
+// hueco entre Respuesta y Corrección no cambia de un formato a otro.
+const GAP_DOBLE_CORRECCION_PT = 2 * (CASILLA_W_PT + CASILLA_GAP_PT);
+
 // Columna reservada para el QR grande + la etiqueta con el token_id, en la
 // cabecera de la página 1 — ancho fijo (en vez de "todo lo que sobre", como
 // antes) para dejar sitio a las instrucciones generales de al lado, a la
@@ -409,19 +417,20 @@ function construirBloqueCasillas(ctx, etiqueta, n, anchoPt, config, opts) {
 // formato opcion_multiple): con una sola casilla por bloque, apilar
 // "Respuesta" encima de "Corrección" gasta el doble de alto del que hace
 // falta; puestos en la misma fila, ocupan la misma altura que un solo bloque.
-function construirBloqueCasillasDoble(ctx, etiquetaIzq, etiquetaDer, anchoPt, config, { valorIzq, valorDer } = {}) {
-  const anchoMitad = (anchoPt - GAP_COLUMNAS_PT) / 2;
-  const bloqueIzq = construirBloqueCasillas(ctx, etiquetaIzq, 1, anchoMitad, config, {
-    valores: valorIzq ? [valorIzq] : undefined,
-  });
-  const bloqueDer = construirBloqueCasillas(ctx, etiquetaDer, 1, anchoMitad, config, {
-    valores: valorDer ? [valorDer] : undefined,
-  });
+// n casillas por lado (no solo 1): usado por opción única (n=1), selección
+// múltiple, ordenar y clasificar — todos salvo "abierto" (que sigue apilado,
+// tiene demasiadas casillas para caber lado a lado sin envolver). opts
+// admite etiquetasCabecera (posiciones/números de ordenar y clasificar), la
+// misma para ambos lados.
+function construirBloqueCasillasDoble(ctx, etiquetaIzq, etiquetaDer, n, anchoPt, config, { valoresIzq, valoresDer, etiquetasCabecera } = {}) {
+  const anchoMitad = (anchoPt - GAP_DOBLE_CORRECCION_PT) / 2;
+  const bloqueIzq = construirBloqueCasillas(ctx, etiquetaIzq, n, anchoMitad, config, { valores: valoresIzq, etiquetasCabecera });
+  const bloqueDer = construirBloqueCasillas(ctx, etiquetaDer, n, anchoMitad, config, { valores: valoresDer, etiquetasCabecera });
   return {
     altoPt: Math.max(bloqueIzq.altoPt, bloqueDer.altoPt),
     dibujar(lienzo, xPt, yTopPt) {
       bloqueIzq.dibujar(lienzo, xPt, yTopPt);
-      bloqueDer.dibujar(lienzo, xPt + anchoMitad + GAP_COLUMNAS_PT, yTopPt);
+      bloqueDer.dibujar(lienzo, xPt + anchoMitad + GAP_DOBLE_CORRECCION_PT, yTopPt);
     },
   };
 }
@@ -606,9 +615,9 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       partes.push(construirInstruccion(ctx, "Marca UNA sola respuesta: escribe su letra en la casilla.", anchoPt, config));
       partes.push(construirListaEtiquetada(ctx, item.opciones, letras, anchoPt, config));
       partes.push(
-        construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", anchoPt, config, {
-          valorIzq: resp,
-          valorDer: corr,
+        construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", 1, anchoPt, config, {
+          valoresIzq: resp ? [resp] : undefined,
+          valoresDer: corr ? [corr] : undefined,
         })
       );
       break;
@@ -627,10 +636,10 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
           : "Marca TODAS las que correspondan: escribe sus letras, una por casilla.";
       partes.push(construirInstruccion(ctx, instruccionTexto, anchoPt, config));
       partes.push(construirListaEtiquetada(ctx, item.opciones, letras, anchoPt, config));
-      partes.push(construirBloqueCasillas(ctx, "Respuesta", n, anchoPt, config, { valores: resp ? [...resp] : undefined }));
       partes.push(
-        construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
-          valores: corr ? [...corr] : undefined,
+        construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
+          valoresIzq: resp ? [...resp] : undefined,
+          valoresDer: corr ? [...corr] : undefined,
         })
       );
       break;
@@ -649,12 +658,10 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       );
       partes.push(construirListaEtiquetada(ctx, item.elementos, letrasElementos, anchoPt, config));
       partes.push(
-        construirBloqueCasillas(ctx, "Respuesta", n, anchoPt, config, { etiquetasCabecera: posiciones, valores: resp })
-      );
-      partes.push(
-        construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
+        construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
           etiquetasCabecera: posiciones,
-          valores: corr,
+          valoresIzq: resp,
+          valoresDer: corr,
         })
       );
       break;
@@ -669,12 +676,10 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       partes.push(construirLeyendaCompacta(ctx, item.categorias, letrasCategorias, anchoPt, config));
       partes.push(construirListaEtiquetada(ctx, item.elementos, numerosElementos, anchoPt, config));
       partes.push(
-        construirBloqueCasillas(ctx, "Respuesta", n, anchoPt, config, { etiquetasCabecera: numerosElementos, valores: resp })
-      );
-      partes.push(
-        construirBloqueCasillas(ctx, "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
+        construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
           etiquetasCabecera: numerosElementos,
-          valores: corr,
+          valoresIzq: resp,
+          valoresDer: corr,
         })
       );
       break;
