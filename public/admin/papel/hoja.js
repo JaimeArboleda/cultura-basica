@@ -30,12 +30,14 @@ import {
 import { altoLineaPt, distribuirEnRejilla, elegirColumnas, envolverTexto, mmAPt } from "./pdfLayout.js";
 import { codificarPayloadQr, codificarPayloadQrPagina, generarMatrizQr, matrizQrAPng } from "./qr.js";
 
-// v1 = burbujas OMR, v2 = casillas de letra + Tesseract/OCR-IA, v3 = este
-// (pdf-lib, 100% OCR-IA) — se sigue mandando en el QR y guardándose en
-// sesiones.version_papel (README §4.9) para poder distinguir en el dataset
-// de qué diseño de hoja viene cada sesión si se vuelve a rediseñar en el
-// futuro, aunque hoy solo exista un pipeline activo.
-export const VERSION_PIPELINE = 3;
+// v1 = burbujas OMR, v2 = casillas de letra + Tesseract/OCR-IA, v3 = pdf-lib +
+// 100% OCR-IA, v4 = este (mismo v3, pero el payload del QR de página pasa de
+// JSON a un string compacto "examId:pagina" — README §4.9, para que quepa en
+// una versión de QR más pequeña y el módulo impreso salga más grande a igual
+// tamaño físico) — se sigue guardando en sesiones.version_papel para poder
+// distinguir en el dataset de qué diseño de hoja viene cada sesión si se
+// vuelve a rediseñar en el futuro, aunque hoy solo exista un pipeline activo.
+export const VERSION_PIPELINE = 4;
 
 export const LETRAS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
