@@ -449,18 +449,27 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
   if (item.texto) partes.push(construirPasaje(ctx, item.texto, anchoPt, config));
   const resp = sintetico?.respuesta;
   const corr = sintetico?.correccion;
+  // Declarado fuera del switch: el bloque itemManifiesto de más abajo (fuera
+  // del switch) también lo necesita para "abierto", para pasárselo al motor
+  // de OCR-IA como numCasillas.
+  let numCasillasAbierto;
 
   switch (item.formato) {
     case "abierto": {
       // La respuesta correcta completa tiene que caber físicamente en la
       // hoja — 18 casillas se quedan cortas para respuestas largas de varias
       // palabras (p. ej. "Isabel de Castilla y Fernando de Aragón", 40
-      // caracteres con espacios). +2 de margen, nunca menos que el mínimo
-      // por defecto.
-      const numCasillas = Math.max(config.casillasAbierto, (item.respuesta_canonica?.length ?? 0) + 2);
-      partes.push(construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config, resp, numCasillas));
+      // caracteres con espacios). item.casillas_abierto lo calcula el
+      // servidor a partir de la longitud de la respuesta canónica (+2 de
+      // margen, nunca menos que el mínimo por defecto) — worker/src/
+      // items.ts::casillasAbiertoPara; ItemPublico nunca expone la propia
+      // respuesta_canonica (README §4.3), así que no se puede calcular aquí
+      // a partir de ella (antes lo intentaba y siempre caía al mínimo fijo:
+      // bug real, la hoja en producción nunca dibujaba más de 18 casillas).
+      numCasillasAbierto = item.casillas_abierto ?? config.casillasAbierto;
+      partes.push(construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config, resp, numCasillasAbierto));
       partes.push(
-        construirRespuestaAbierta(ctx, "Corrección (solo si te equivocaste arriba)", anchoPt, config, corr, numCasillas)
+        construirRespuestaAbierta(ctx, "Corrección (solo si te equivocaste arriba)", anchoPt, config, corr, numCasillasAbierto)
       );
       break;
     }
@@ -555,6 +564,9 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
         numOpciones: item.opciones.length,
       }),
       ...(item.formato === "clasificar" && { numCategorias: item.categorias.length }),
+      // Nº exacto de casillas impresas para "abierto" — el motor de OCR-IA
+      // restringe el esquema de salida a exactamente esa longitud (ocrIa.ts).
+      ...(item.formato === "abierto" && { numCasillas: numCasillasAbierto }),
     },
   };
 }

@@ -205,3 +205,96 @@ ninguno de los dos sistemático (aparecen una vez cada uno en 4×25 ítems):
   respuesta volvió como la palabra real en vez de la cadena literal
   invertida que estaba escrita — la instrucción "reconstruye el texto"
   puede empujar en esa dirección para cadenas que no son palabras reales.
+
+## Segunda ronda: esquema de "abierto" exacto, ground truth completo, tolerancia a espacios/acentos (16 de agosto de 2026)
+
+Tras revisar página a página los fallos de la ronda anterior, varios cambios
+más, todos verificados contra la API real:
+
+1. **`respuestas-esperadas.json` incluye SIEMPRE los 25 ítems** (antes, un
+   ítem que la persona dejaba en blanco se omitía del todo, así que ni
+   sumaba ni restaba — `ocr_tests/generar.mjs::construirPlan`/
+   `planDemografia` ahora escriben `null` en vez de omitir la clave). Esto
+   cambia el denominador de todas las cifras de abajo respecto a la ronda
+   anterior (antes 23 o 23 en vez de 25 para `02`/`04`) y, de paso, sacó a la
+   luz un fallo real que antes quedaba invisible (ver más abajo,
+   "alucinación en preguntas en blanco").
+2. **Los acentos ya no cuentan como fallo** en la comparación de este script
+   (`igual()` en `probar_ocr_ia.mjs`) — antes comparaba con igualdad
+   estricta, más exigente que la puntuación real.
+3. **Tolerancia a espacios de más o de menos entre palabras**, tanto en la
+   puntuación real (`worker/src/correccion.ts::variantesSinEspacios`, nueva)
+   como en la comparación de este script: cada alias se expande a todas sus
+   variantes quitando cualquier subconjunto de sus espacios (2ⁿ variantes
+   para n espacios) antes de comparar — "isabel y fernando" también acepta
+   "isabely fernando", "isabel yfernando" e "isabelyfernando".
+4. **El esquema de "abierto" ahora usa el nº EXACTO de casillas impresas**
+   (`numCasillas`/`item.numCasillas`) en vez de un string libre — de paso se
+   encontró y arregló un bug real independiente de OCR-IA: la hoja en
+   producción (`GET /api/admin/items-impresion` → `paraCliente()`) nunca
+   exponía `respuesta_canonica` al cliente (README §4.3, no debe revelar la
+   respuesta correcta), así que `hoja.js` SIEMPRE caía al mínimo fijo de 18
+   casillas pese a la corrección de la ronda de bugs anterior — el cálculo
+   dinámico solo funcionaba en los scripts de `ocr_tests/`, que cargan el
+   banco crudo directamente. Corregido moviendo el cálculo al servidor
+   (`worker/src/items.ts::casillasAbiertoPara`) y exponiendo solo la
+   LONGITUD (nunca el texto) como `ItemPublico.casillas_abierto`.
+5. **Nomenclatura del prompt de usuario simplificada**: "Debes digitalizar la
+   página 1" en vez de citar el id interno de la página (p. ej.
+   `"01-letra-clara-6"`, sin significado para el modelo).
+6. **Claves del esquema de ítems sin prefijo de página**: `"19"` en vez de
+   `"01-letra-clara-6::19"` — `item.numero` ya es único en todo el examen
+   (posición absoluta 1-25), así que namespacear por página era innecesario
+   (demografía sigue namespaceada, no se ha tocado).
+
+**Bug real encontrado y corregido durante esta misma batería**: la primera
+versión del esquema de "abierto" forzaba la longitud EXACTA
+(`minLength = maxLength = numCasillas`) — contra la API real, esto hizo que
+el modelo, obligado a completar hasta esa longitud, rellenara el resto con
+basura inventada en vez de espacios cuando la respuesta real era más corta
+que las casillas impresas: `"INFLACIÓN   NULL"`, `"AMINOÁCIDOS    A"`,
+`"SODICÁONIMAÑIÑIÑIÑ"` — un efecto secundario real del grammar-constrained
+decoding de Structured Outputs (el modelo no puede simplemente "terminar
+antes"), no una mala lectura. Corregido quitando `minLength` y usando
+`maxLength`/`pattern` con longitud variable (`{0,N}` en vez de `{N}`): el
+modelo ya puede parar de escribir en cuanto termina la respuesta real, sin
+verse obligado a rellenar.
+
+**Corrida final** (`gpt-5-mini`, mismo día, mismas 4 instancias, ground
+truth completo de 25 ítems + 7 campos de demografía en las 4):
+
+| Instancia | Ítems | Demografía |
+|---|---|---|
+| `01-letra-clara` | **25/25 (100%)** | 7/7 (100%) |
+| `02-con-correcciones` | **24/25 (96%)** | 7/7 (100%) |
+| `03-valores-invalidos-e-incompletas` | **22/25 (88%)** | 7/7 (100%) |
+| `04-descuidada-ruidosa` | **23/25 (92%)** | 6/7 (86%) |
+
+**94/100 (94%) de acierto agregado en ítems**, sobre el ground truth
+completo (denominador más exigente que la ronda anterior, que excluía los
+ítems en blanco). Fallos que quedan, todos revisados página a página contra
+el prompt/esquema/salida cruda real:
+
+- **Alucinación en preguntas en blanco** (el hallazgo más relevante de esta
+  ronda, invisible hasta el cambio nº1 de arriba): en dos casos donde el
+  plan dejó una pregunta ENTERAMENTE sin rellenar (ítem `04`, `clasificar`
+  de 9 elementos, en `02-con-correcciones`; el campo `libros_en_casa` en
+  `04-descuidada-ruidosa`), el modelo devolvió una asignación/letra completa
+  y plausible en vez de reconocer que no había nada escrito — no es un
+  problema de espacios ni acentos, es contenido inventado de la nada.
+  Candidato claro para una futura iteración del prompt (algo como "si TODAS
+  las casillas de una pregunta están vacías, no inventes ninguna letra").
+- Autocompletar una respuesta a medias sigue ocurriendo alguna vez pese a la
+  instrucción explícita ("nunca completes palabras escritas a medias"):
+  `"PLUSV"` (deliberadamente incompleta en el plan) volvió como
+  `"PLUSVALIA"` — la instrucción reduce pero no elimina del todo esta
+  tendencia.
+- El espaciado letra a letra reaparece, pero ahora SOLO en la instancia con
+  texto invertido sin sentido (`04-descuidada-ruidosa`) — nunca en texto
+  real (una palabra de verdad, aunque esté mal escrita a mano, siempre salió
+  bien unida en las 4 instancias). Coherente con que sea más difícil de
+  "leer como palabra" un texto que no es una palabra real — caso adversarial
+  a propósito, no representativo de una hoja real.
+- El resto son 2-3 fallos genuinos de lectura sin patrón claro
+  (`03-valores-invalidos-e-incompletas`, la instancia con valores fuera de
+  formato a propósito).

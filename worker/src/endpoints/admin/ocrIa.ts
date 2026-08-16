@@ -83,6 +83,12 @@ interface ItemEntrada {
   // distintas, hace falta este campo aparte para restringir el esquema a las
   // letras de categoría válidas).
   numCategorias?: number;
+  // Nº de casillas realmente impresas para la respuesta — obligatorio para
+  // "abierto" (worker/src/items.ts::casillasAbiertoPara), restringe el
+  // esquema JSON a exactamente esa longitud (minLength/maxLength/pattern):
+  // como son casillas físicas, la transcripción SIEMPRE mide ese nº exacto
+  // de caracteres (huecos = espacio), nunca más ni menos.
+  numCasillas?: number;
 }
 
 interface PaginaEntrada {
@@ -164,6 +170,9 @@ function motivoItemInvalido(it: unknown): string | null {
     !(typeof o.numCategorias === "number" && Number.isInteger(o.numCategorias) && o.numCategorias > 0 && o.numCategorias <= LETRAS.length)
   ) {
     return `formato "clasificar" necesita numCategorias (entero entre 1 y ${LETRAS.length}): ${JSON.stringify(o.numCategorias)}`;
+  }
+  if (o.formato === "abierto" && !(typeof o.numCasillas === "number" && Number.isInteger(o.numCasillas) && o.numCasillas > 0)) {
+    return `formato "abierto" necesita numCasillas (entero > 0): ${JSON.stringify(o.numCasillas)}`;
   }
   return null;
 }
@@ -264,7 +273,9 @@ export const SYSTEM_PROMPT_ITEMS =
   "del tipo de pregunta (se te especificará junto con la imagen de la hoja el tipo de preguntas que contiene) la " +
   "salida debe ir en uno u otro formato:\n" +
   "* Abierto: pondrás el texto tal cual está, respetando espacios en blanco si hay. Entre casilla y casilla NO " +
-  "hay un espacio. Los espacios solo los dan las casillas en blanco.\n" +
+  "hay un espacio en blanco. Los espacios en blanco solo se corresponden a casillas vacías. No incluyas saltos " +
+  "de línea aunque haya varias líneas de casillas. Y nunca completes palabras escritas a medias. Tu misión no " +
+  "es interpretar la intención del alumno, sino reflejar fielmente lo consignado en la hoja.\n" +
   '* Ordenar y clasificar: pondrás un diccionario con claves de "1" a "N" (N es el número total de elementos a ' +
   'ordenar/clasificar) y las letras consignadas en cada una de las posiciones, con cadenas vacías si hay bloques ' +
   'sin rellenar. Ejemplo: {"1": "B", "2": "", "3": "J"...}. Esos números aparecen encima de las casillas en las ' +
@@ -308,7 +319,14 @@ function describirFormatoItemBreve(item: ItemEntrada): string {
   }
 }
 
-export function construirContenidoPagina(pagina: PaginaEntrada): Array<Record<string, unknown>> {
+// numeroPagina: posición (1-based) de esta página dentro de LA PETICIÓN
+// actual (no un id interno) — es lo único que se le muestra al modelo para
+// referirse a "esta página" en el texto del prompt de un ítem; con una sola
+// página por petición (el modo por defecto del panel) siempre vale 1. Antes
+// se usaba aquí pagina.id (p. ej. "pagina-3" en producción o
+// "01-letra-clara-6" en los fixtures de prueba), un identificador interno
+// sin ningún significado para el modelo.
+export function construirContenidoPagina(pagina: PaginaEntrada, numeroPagina = 1): Array<Record<string, unknown>> {
   let texto: string;
   if (pagina.tipo === "demografia") {
     const campos = pagina.campos!;
@@ -336,7 +354,7 @@ export function construirContenidoPagina(pagina: PaginaEntrada): Array<Record<st
     // como clave el id interno del banco de ítems, una numeración que el
     // modelo nunca ve impresa en la hoja).
     texto =
-      `Debes digitalizar la página "${pagina.id}", en el JSON ya especificado, que contiene los siguientes ` +
+      `Debes digitalizar la página ${numeroPagina}, en el JSON ya especificado, que contiene los siguientes ` +
       "ítems del test:\n" +
       pagina.items!.map((it) => `- Pregunta ${it.numero}: ${describirFormatoItemBreve(it)}.`).join("\n") +
       '\n\nPara cada pregunta debes transcribir tanto "Respuesta" como "Corrección".';
@@ -394,10 +412,29 @@ function esquemaPosicionesNullable(numPosiciones: number, numLetrasValidas: numb
 // (esquemaPregunta más abajo), ya que ambos bloques admiten la misma forma.
 function esquemaCampoRespuestaItem(item: ItemEntrada) {
   switch (item.formato) {
-    case "abierto":
-      // Texto libre, transcrito tal cual (README ocr_tests): sin restringir
-      // el alfabeto.
-      return { anyOf: [{ type: "string" }, { type: "null" }] };
+    case "abierto": {
+      // maxLength = nº de casillas realmente impresas (numCasillas): nunca
+      // puede haber más caracteres que casillas físicas. Deliberadamente
+      // SIN minLength ni longitud exacta ({n} en vez de {0,n}) pese a que
+      // las casillas sobrantes se dibujan en blanco en la hoja: probado
+      // contra la API real, exigir longitud EXACTA (minLength=maxLength=n)
+      // hacía que el modelo, forzado a completar hasta n caracteres,
+      // rellenara el resto con basura inventada en vez de espacios
+      // ("INFLACIÓN   NULL", "AMINOÁCIDOS    A", "SODICÁONIMAÑIÑIÑIÑ") — un
+      // efecto secundario real del grammar-constrained decoding de
+      // Structured Outputs, no una interpretación equivocada del prompt.
+      // Con solo un tope máximo el modelo simplemente para de escribir
+      // cuando termina la respuesta real, sin verse obligado a inventar
+      // relleno. El alfabeto cubre mayúsculas, vocales con tilde, Ñ,
+      // dígitos, espacio y "/" (hace falta para respuestas como "4/15",
+      // README ocr_tests) — no letras minúsculas ni signos de puntuación
+      // sueltos, y sin salto de línea posible (\n no pertenece a la clase
+      // de caracteres).
+      const n = item.numCasillas!;
+      return {
+        anyOf: [{ type: "string", maxLength: n, pattern: `^[A-Z0-9ÁÉÍÓÚÜÑ /]{0,${n}}$` }, { type: "null" }],
+      };
+    }
     case "opcion_multiple":
       // "" además de null como formas alternativas de "sin marcar" — el
       // modelo puede devolver cualquiera de las dos, el post-proceso trata
@@ -454,10 +491,15 @@ export function construirEsquemaCompleto(paginas: PaginaEntrada[]) {
       }
     } else {
       // Clave = número de pregunta IMPRESO (el que ve el modelo en el
-      // círculo), no item.id — evita la traducción indirecta que exigía el
-      // diseño anterior (ver el comentario grande junto a SYSTEM_PROMPT_ITEMS).
+      // círculo), sin prefijo de página — a diferencia de demografía
+      // (arriba), no hace falta namespacear por página: item.numero ya es
+      // único en todo el examen (posición absoluta 1-25 en el banco), así
+      // que tampoco puede colisionar entre páginas dentro de una misma
+      // petición ("examen completo"). Evita además la traducción indirecta
+      // que exigía el diseño anterior (ver el comentario grande junto a
+      // SYSTEM_PROMPT_ITEMS).
       for (const item of pagina.items!) {
-        const clave = `${pagina.id}::${item.numero}`;
+        const clave = String(item.numero);
         properties[clave] = esquemaPregunta(item);
         required.push(clave);
       }
@@ -640,7 +682,7 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
         { role: "system", content: construirSystemPrompt(paginas) },
         {
           role: "user",
-          content: paginas.flatMap((p) => construirContenidoPagina(p)),
+          content: paginas.flatMap((p, i) => construirContenidoPagina(p, i + 1)),
         },
       ],
     });
@@ -683,7 +725,7 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
       }
     } else {
       for (const item of pagina.items!) {
-        const pregunta = plano[`${pagina.id}::${item.numero}`];
+        const pregunta = plano[String(item.numero)];
         const p = typeof pregunta === "object" && pregunta !== null ? (pregunta as Record<string, unknown>) : {};
         const definitiva = bloqueTieneContenido(p.correccion, item) ? p.correccion : p.respuesta_inicial;
         volcarRespuestaItem(textos, item, definitiva);

@@ -45,6 +45,19 @@ const API_BASE = process.env.CULTURA_BASICA_API_BASE;
 const ADMIN_TOKEN = process.env.CULTURA_BASICA_ADMIN_TOKEN;
 const MODELO = process.env.CULTURA_BASICA_MODELO || "gpt-5-mini";
 
+// Mismo cálculo que worker/src/items.ts::casillasAbiertoPara (duplicado a
+// propósito: este script carga el banco crudo de data/items.json
+// directamente, sin pasar por paraCliente()/la API, así que tiene que
+// reproducir el mismo cálculo para que el manifiesto (y por tanto el
+// esquema de OCR-IA que arma el propio Worker a partir de él) cuadre con lo
+// que vería un ítem "abierto" real — mismo motivo que LETRAS/CATALOGOS entre
+// worker/ y public/, ver README §2).
+const CASILLAS_ABIERTO_MINIMO = 18;
+function conCasillasAbierto(item) {
+  if (item.formato !== "abierto") return item;
+  return { ...item, casillas_abierto: Math.max(CASILLAS_ABIERTO_MINIMO, (item.respuesta_canonica?.length ?? 0) + 2) };
+}
+
 if (!API_BASE || !ADMIN_TOKEN) {
   console.log(
     "Faltan variables de entorno: CULTURA_BASICA_API_BASE y CULTURA_BASICA_ADMIN_TOKEN.\n" +
@@ -162,7 +175,51 @@ function claveCatalogo(campo) {
   return { sexo: "sexo", ccaa_educacion_secundaria: "ccaa", nivel_estudios: "nivel_estudios", area_estudios: "area_estudios", estudios_mayor_progenitor: "nivel_estudios", libros_en_casa: "libros_en_casa" }[campo];
 }
 
-function igual(a, b) {
+// Duplica worker/src/correccion.ts::normalizar/variantesSinEspacios (mismo
+// motivo que el resto de duplicaciones de este script: no se puede importar
+// TypeScript del Worker desde aquí sin más). Se usan para que este test mida
+// lo mismo que la puntuación real: un acento perdido o un espacio de menos
+// entre palabras no son errores de comprensión, y worker/src/correccion.ts
+// ya no los penaliza — comparar aquí con igualdad estricta daría una imagen
+// más pesimista de la precisión real que la que verá el usuario final.
+function normalizar(s) {
+  return s
+    .normalize("NFD")
+    .replace(/[\p{Mn}\p{Me}]/gu, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function variantesSinEspacios(texto) {
+  const posiciones = [];
+  for (let i = 0; i < texto.length; i++) if (texto[i] === " ") posiciones.push(i);
+  if (posiciones.length === 0) return [texto];
+  const variantes = new Set();
+  const totalMascaras = 1 << posiciones.length;
+  for (let mascara = 0; mascara < totalMascaras; mascara++) {
+    const caracteres = [...texto];
+    for (let bit = posiciones.length - 1; bit >= 0; bit--) {
+      if (mascara & (1 << bit)) caracteres.splice(posiciones[bit], 1);
+    }
+    variantes.add(caracteres.join(""));
+  }
+  return [...variantes];
+}
+function coincideAbierto(obtenida, esperada) {
+  if (typeof obtenida !== "string" || typeof esperada !== "string") return false;
+  const variantesObtenida = new Set(variantesSinEspacios(normalizar(obtenida)));
+  return variantesSinEspacios(normalizar(esperada)).some((v) => variantesObtenida.has(v));
+}
+
+// esperada === null significa "el plan de esta persona dejó el ítem/campo en
+// blanco a propósito" (ocr_tests/generar.mjs) — el ground truth incluye
+// SIEMPRE los 25 ítems (antes se omitían los que caían en blanco, dejando la
+// comparación sin nada que contar ni a favor ni en contra); coincide si la
+// digitalización tampoco devolvió nada para esa clave.
+function igual(a, b, formato) {
+  if (b === null) return a === undefined;
+  if (formato === "abierto") return coincideAbierto(a, b);
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
@@ -221,6 +278,7 @@ async function probarInstancia(dir, items, manifiesto, tokenPruebaId) {
   }
 
   const respuestasDecodificadas = decodificarRespuestas(items, textos);
+  const formatoPorId = new Map(items.map((it) => [it.id, it.formato]));
 
   let aciertos = 0;
   let total = 0;
@@ -228,7 +286,7 @@ async function probarInstancia(dir, items, manifiesto, tokenPruebaId) {
   for (const [itemId, esperada] of Object.entries(esperado.respuestas_esperadas)) {
     total++;
     const obtenida = respuestasDecodificadas[itemId];
-    if (igual(obtenida, esperada)) aciertos++;
+    if (igual(obtenida, esperada, formatoPorId.get(itemId))) aciertos++;
     else fallos.push({ itemId, esperada, obtenida });
   }
 
@@ -304,7 +362,7 @@ async function main() {
   const idsBanco = new Set(items.map((it) => it.id));
   const orden = ordenIds.filter((id) => idsBanco.has(id));
   const faltantes = items.map((it) => it.id).filter((id) => !orden.includes(id));
-  const itemsOrdenados = [...orden, ...faltantes].map((id) => porId.get(id));
+  const itemsOrdenados = [...orden, ...faltantes].map((id) => conCasillasAbierto(porId.get(id)));
 
   const fontRegularBytes = await readFile(path.join(RAIZ_REPO, "public/admin/papel/fonts/LiberationSans-Regular.ttf"));
   const fontBoldBytes = await readFile(path.join(RAIZ_REPO, "public/admin/papel/fonts/LiberationSans-Bold.ttf"));
