@@ -10,7 +10,7 @@
 import { obtenerManifiesto } from "./papel/digitalizar.js";
 import { renderSubirLote } from "./papel/subirLote.js";
 import { renderEditarSesion } from "./editarSesion.js";
-import { obtenerUpng } from "./papel/comun.js";
+import { obtenerPdfLib, obtenerUpng } from "./papel/comun.js";
 import { generarExamId } from "./papel/qr.js";
 import { construirHoja } from "./papel/hoja.js";
 
@@ -711,21 +711,28 @@ function filaToken(t) {
 }
 
 // Genera `cantidad` hojas en blanco para la remesa `tokenId`, cada una con su
-// propio exam_id corto (README §4.9/§4.10) — distinto en cada PDF, usado
-// también en el nombre del fichero, para poder identificar cada hoja física
-// suelta antes de repartirla. onProgreso(hechos, total), opcional, para ir
-// informando mientras se generan (puede tardar unos segundos si son muchas).
-async function generarZipRemesa(tokenId, cantidad, onProgreso) {
-  const [{ ctx, items }, upng] = await Promise.all([obtenerManifiesto(), obtenerUpng()]);
+// propio exam_id corto (README §4.9/§4.10) — distinto por hoja, para poder
+// identificar cada hoja física suelta una vez impresa y separada — pero
+// combinadas en un ÚNICO PDF de salida en vez de un zip con un PDF por hoja:
+// antes cada "Imprimir remesa" se descargaba como zip y había que
+// descomprimirlo e imprimir cada PDF suelto uno a uno; un solo PDF con todas
+// las páginas seguidas se manda a imprimir de una vez (issue #31).
+// onProgreso(hechos, total), opcional, para ir informando mientras se
+// generan (puede tardar unos segundos si son muchas).
+async function generarPdfRemesa(tokenId, cantidad, onProgreso) {
+  const [{ ctx, items }, upng, { PDFDocument }] = await Promise.all([obtenerManifiesto(), obtenerUpng(), obtenerPdfLib()]);
   ctx.UPNG = upng;
-  const archivos = [];
+  const combinado = await PDFDocument.create();
   for (let i = 0; i < cantidad; i++) {
     const examId = generarExamId();
     const { pdfBytes } = await construirHoja(ctx, items, { tokenId, examId });
-    archivos.push({ nombre: `hoja-${examId}.pdf`, contenido: new Uint8Array(pdfBytes) });
+    const hoja = await PDFDocument.load(pdfBytes);
+    const paginasCopiadas = await combinado.copyPages(hoja, hoja.getPageIndices());
+    paginasCopiadas.forEach((pagina) => combinado.addPage(pagina));
     onProgreso?.(i + 1, cantidad);
   }
-  return construirZip(archivos);
+  const bytesCombinados = await combinado.save();
+  return new Blob([bytesCombinados], { type: "application/pdf" });
 }
 
 async function renderTokens(contenedor, recargar) {
@@ -826,7 +833,7 @@ async function renderTokens(contenedor, recargar) {
       const textoOriginal = boton.textContent;
       boton.disabled = true;
       try {
-        const blob = await generarZipRemesa(tokenId, cantidad, (hechos, total) => {
+        const blob = await generarPdfRemesa(tokenId, cantidad, (hechos, total) => {
           boton.textContent = `Generando… (${hechos}/${total})`;
         });
         const url = URL.createObjectURL(blob);
@@ -836,7 +843,7 @@ async function renderTokens(contenedor, recargar) {
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-|-$/g, "");
         enlace.href = url;
-        enlace.download = `hojas-${sufijoDescripcion || tokenId}.zip`;
+        enlace.download = `hojas-${sufijoDescripcion || tokenId}.pdf`;
         enlace.click();
         URL.revokeObjectURL(url);
       } catch (e) {

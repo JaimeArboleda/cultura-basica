@@ -2,7 +2,7 @@
   "persona": "03-valores-invalidos-e-incompletas",
   "descripcion": "Escribe valores fuera de formato en casillas de opción (p. ej. \"F) 7\" en vez de \"F\") y respuestas abiertas a medias",
   "token_id_qr": "TEST-03-valores-invalidos-e-incompletas",
-  "exam_id_qr": "T3WHN2KF",
+  "exam_id_qr": "T8KZ9BQP",
   "paginas": 6,
   "demografia": {
     "anio_nacimiento": 1950,

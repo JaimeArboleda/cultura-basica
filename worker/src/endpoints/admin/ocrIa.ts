@@ -236,26 +236,28 @@ function motivoPaginaInvalida(p: unknown, indice: number): string | null {
 //   y la traducción a item.id se hace después, en código.
 // ============================================================
 
+// A diferencia de las páginas de ítems (SYSTEM_PROMPT_ITEMS), la página de
+// datos/demografía (public/admin/papel/hoja.js::construirBloquesDemografia)
+// NUNCA imprime un bloque "Corrección" para estos campos — cada uno tiene un
+// único bloque "Respuesta" (una casilla para año de nacimiento, o una sola
+// letra para el resto). El prompt anterior describía un bloque "Corrección"
+// que no existe en absoluto en esta página (sí existe en las páginas de
+// ítems, de donde se copió por error) — inventarle al modelo una precedencia
+// que resolver sobre algo que no está impreso es puro ruido, así que se
+// retiró (issue #31).
 export const SYSTEM_PROMPT_DEMOGRAFIA =
-  "Eres un asistente que digitaliza hojas de examen en papel escaneadas y ya enderezadas. Cada pregunta tiene un " +
-  'bloque "Respuesta" (una o varias casillas donde se escribió la respuesta a mano) y, debajo, un bloque ' +
-  '"Corrección" más pequeño y separado por una línea discontinua, que solo se rellena si la persona quiso corregir ' +
-  'lo que puso en "Respuesta". Para cada pregunta debes dar la RESPUESTA DEFINITIVA: si el bloque "Corrección" ' +
-  'tiene algo escrito, esa es la respuesta definitiva (ignora "Respuesta"); si "Corrección" está en blanco, la ' +
-  'respuesta definitiva es lo que haya en "Respuesta". Todo el texto está en MAYÚSCULAS de imprenta, una letra o ' +
-  "dígito por casilla. Si una pregunta entera está en blanco o no se distingue nada, su respuesta definitiva es " +
-  "cadena vacía.\n" +
-  "En las casillas de una sola letra (opción única, selección múltiple, ordenar, clasificar, catálogos de datos " +
-  'personales), a veces alguien escribe algo más que la letra dentro o junto a la casilla — p. ej. "F) 7" o "B. La ' +
-  'presión" en vez de simplemente "F" o "B". En esos casos, identifica cuál es la LETRA de la opción marcada e ' +
-  "ignora cualquier otro carácter, número o palabra que la acompañe: la respuesta es solo esa letra, nunca la letra " +
-  "más texto adicional.\n" +
-  "En las respuestas de texto libre, transcribe exactamente lo que esté escrito, aunque parezca incompleto, mal " +
-  "escrito o abreviado — no la dejes en blanco solo porque no es la respuesta completa o \"perfecta\" que " +
-  "esperarías; una respuesta parcial transcrita fielmente vale más que un campo vacío. Deja la respuesta vacía " +
-  "ÚNICAMENTE si de verdad no hay nada escrito en la casilla.\n" +
-  "Responde SIEMPRE a todos los campos e ítems que se te piden, uno por uno, sin saltarte ninguno aunque su casilla " +
-  "esté en blanco (en ese caso, cadena vacía). Devuelve siempre JSON, nunca prosa ni markdown.";
+  "Eres un asistente que digitaliza hojas de examen en papel escaneadas y ya enderezadas. Cada campo tiene un único " +
+  'bloque "Respuesta": una casilla, o varias para el año de nacimiento, donde se escribió a mano una letra de ' +
+  "opción o un dígito, en MAYÚSCULAS de imprenta. No hay ningún bloque de corrección en esta página: transcribe " +
+  "tal cual lo consignado en Respuesta, sin resolver ninguna precedencia.\n" +
+  "En las casillas de una sola letra (catálogos de datos personales), a veces alguien escribe algo más que la " +
+  'letra dentro o junto a la casilla — p. ej. "F) 7" o "B. La presión" en vez de simplemente "F" o "B". En esos ' +
+  "casos, identifica cuál es la LETRA de la opción marcada e ignora cualquier otro carácter, número o palabra que " +
+  "la acompañe: la respuesta es solo esa letra, nunca la letra más texto adicional.\n" +
+  "Si un campo está en blanco o es absolutamente indistinguible, su valor es null — no inventes una letra o dígito " +
+  "plausible.\n" +
+  "Responde SIEMPRE a todos los campos que se te piden, uno por uno, sin saltarte ninguno. Devuelve siempre JSON, " +
+  "nunca prosa ni markdown.";
 
 export const SYSTEM_PROMPT_ITEMS =
   "Eres un asistente que digitaliza hojas de examen en papel escaneadas. Cada pregunta tiene un bloque " +
@@ -289,8 +291,12 @@ export const SYSTEM_PROMPT_ITEMS =
   '"BJ A". Si hay espacios entre medias, los dejas, para transcribir fielmente lo consignado (luego los ' +
   "quitaremos en post-proceso).\n" +
   "En todas las respuestas, tanto en respuesta_inicial como en correccion usarás null en los casos en los que no " +
-  "hay nada o es indistinguible.\n" +
-  "En resumen, se espera de ti una transcripción estructurada y fiel, sin interpretaciones.";
+  "hay nada o es indistinguible. Si una pregunta entera está en blanco (ninguna casilla de ese bloque tiene nada " +
+  "escrito), su valor es null — no inventes una letra, palabra o posición plausible solo porque el resto de la " +
+  "hoja parece coherente con alguna.\n" +
+  "En resumen, se espera de ti una transcripción estructurada y fiel, sin interpretaciones. Sobre todo, **nunca " +
+  "modifiques** lo consignado: no te inventes la respuesta si no está, ni añadas o completes palabras u opciones. " +
+  "Tu misión no es corregir, sino digitalizar de manera absolutamente exacta lo que hay en el papel.";
 
 // Combina los prompts de sistema según qué tipos de página trae ESTA
 // petición — en el modo por defecto del panel ("una llamada por página",
@@ -335,7 +341,9 @@ export function construirContenidoPagina(pagina: PaginaEntrada, numeroPagina = 1
   if (pagina.tipo === "demografia") {
     const campos = pagina.campos!;
     const catalogos = campos.filter((c) => c !== "anio_nacimiento");
-    const partes: string[] = [`Página "${pagina.id}": es (una parte de) la página de datos de la hoja (demografía).`];
+    const partes: string[] = [
+      `Debes digitalizar la página ${numeroPagina}: es (una parte de) la página de datos de la hoja (demografía).`,
+    ];
     if (catalogos.length > 0) {
       const conRango = catalogos.map((c) => {
         const n = LONGITUD_CATALOGO[c as (typeof CAMPOS_DEMOGRAFIA_CATALOGO)[number]];
@@ -486,10 +494,18 @@ export function construirEsquemaCompleto(paginas: PaginaEntrada[]) {
         if (campo === "anio_nacimiento") {
           // Solo dígitos, como mucho 4 (una casilla por dígito impreso) — no
           // impide una respuesta incompleta (2 dígitos escritos, 2 en
-          // blanco), pero sí cualquier carácter que no sea un dígito.
-          properties[clave] = { type: "string", pattern: "^[0-9]{0,4}$" };
+          // blanco), pero sí cualquier carácter que no sea un dígito. También
+          // admite null (campo en blanco del todo, SYSTEM_PROMPT_DEMOGRAFIA;
+          // letraOVacio más abajo trata null igual que cadena vacía).
+          properties[clave] = { anyOf: [{ type: "string", pattern: "^[0-9]{0,4}$" }, { type: "null" }] };
         } else {
-          properties[clave] = esquemaLetraEnum(LONGITUD_CATALOGO[campo as (typeof CAMPOS_DEMOGRAFIA_CATALOGO)[number]]);
+          // El esquema anterior no admitía null (solo las letras del
+          // catálogo), pese a que SYSTEM_PROMPT_DEMOGRAFIA sí le pide null
+          // para un campo en blanco — reflejamos aquí las opciones reales del
+          // catálogo (issue #31) MÁS la posibilidad de null.
+          properties[clave] = {
+            anyOf: [esquemaLetraEnum(LONGITUD_CATALOGO[campo as (typeof CAMPOS_DEMOGRAFIA_CATALOGO)[number]]), { type: "null" }],
+          };
         }
         required.push(clave);
       }
@@ -523,6 +539,32 @@ const BACKOFF_BASE_MS = 2000;
 
 async function esperar(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Preferencia de valores de bajo esfuerzo de razonamiento, de más a menos
+// barato/rápido — distintas generaciones de modelos gpt-5 soportan conjuntos
+// distintos: gpt-5/gpt-5-mini/gpt-5-nano aceptan "minimal" (el valor más
+// barato); gpt-5.4-* ya NO lo soportan y lo han renombrado a "none" (probado
+// contra la API real, issue #31: "Unsupported value: 'reasoning_effort' does
+// not support 'minimal' with this model. Supported values are: 'none',
+// 'low', 'medium', 'high', and 'xhigh'."). En vez de mantener a mano un mapa
+// modelo→valor soportado (se quedaría desactualizado con cada modelo nuevo),
+// se prueba "minimal" primero y, si la API lo rechaza, se relee su propio
+// mensaje de error para elegir el valor más barato que SÍ soporte y
+// reintentar una vez — más robusto ante modelos futuros que este mismo caso
+// ya demostró que hace falta.
+const PREFERENCIA_REASONING_EFFORT = ["none", "minimal", "low", "medium", "high", "xhigh"];
+
+// Extrae los valores soportados del mensaje 400 de OpenAI para
+// `reasoning_effort` (p. ej. "Supported values are: 'none', 'low', 'medium',
+// 'high', and 'xhigh'.") y devuelve el más barato de esa lista, o null si el
+// mensaje no tiene la forma esperada (entonces no merece la pena reintentar).
+function elegirReasoningEffortDesdeError(mensaje: string): string | null {
+  if (!mensaje.includes("reasoning_effort")) return null;
+  const valores = [...mensaje.matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
+  if (valores.length === 0) return null;
+  const soportados = new Set(valores);
+  return PREFERENCIA_REASONING_EFFORT.find((v) => soportados.has(v)) ?? valores[0];
 }
 
 async function llamarChatCompletions(env: Env, body: unknown): Promise<Response> {
@@ -661,23 +703,22 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
   // Los modelos gpt-5 son "de razonamiento": por defecto dedican tokens
   // internos a "pensar" antes de responder, lo que añade varios segundos por
   // llamada aunque la tarea (leer una hoja y devolver JSON) no necesite ese
-  // razonamiento. `reasoning_effort: "minimal"` lo reduce al mínimo — mucho
-  // más rápido, sin afectar a la calidad de lectura. Es un parámetro que solo
-  // aceptan los modelos de razonamiento (gpt-5*, no gpt-4o-mini, que ni
-  // siquiera lo soporta), así que solo se manda si el modelo empieza por
-  // "gpt-5" — mismo motivo que la ausencia de `temperature` más abajo: un
-  // parámetro que un modelo no soporta responde 400, no se ignora en silencio.
+  // razonamiento. `reasoning_effort` lo reduce al mínimo — mucho más rápido,
+  // sin afectar a la calidad de lectura. Es un parámetro que solo aceptan los
+  // modelos de razonamiento (gpt-5*, no gpt-4o-mini, que ni siquiera lo
+  // soporta), así que solo se manda si el modelo empieza por "gpt-5" — mismo
+  // motivo que la ausencia de `temperature` más abajo: un parámetro que un
+  // modelo no soporta responde 400, no se ignora en silencio.
   const esModeloDeRazonamiento = /^gpt-5/.test(modelo);
 
-  let respuestaOpenAI: Response;
-  try {
-    respuestaOpenAI = await llamarChatCompletions(env, {
+  function cuerpoPeticion(reasoningEffort: string | null) {
+    return {
       model: modelo,
       response_format: {
         type: "json_schema",
         json_schema: { name: "respuestas_definitivas", strict: true, schema: construirEsquemaCompleto(paginas) },
       },
-      ...(esModeloDeRazonamiento ? { reasoning_effort: "minimal" } : {}),
+      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
       // Sin `temperature`: los modelos de la familia gpt-5 (a diferencia de
       // gpt-4o-mini) rechazan con 400 cualquier valor que no sea el 1 por
       // defecto ("Unsupported value: 'temperature' does not support 0.0
@@ -689,7 +730,26 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
           content: paginas.flatMap((p, i) => construirContenidoPagina(p, i + 1)),
         },
       ],
-    });
+    };
+  }
+
+  let respuestaOpenAI: Response;
+  try {
+    respuestaOpenAI = await llamarChatCompletions(env, cuerpoPeticion(esModeloDeRazonamiento ? "minimal" : null));
+    // "minimal" no lo soportan todas las generaciones de modelos gpt-5 (p.
+    // ej. gpt-5.4-nano/gpt-5.4-mini, probado contra la API real: "Unsupported
+    // value: 'reasoning_effort' does not support 'minimal' with this model" —
+    // issue #31). Un único reintento con el valor de menor esfuerzo que el
+    // propio mensaje de error diga que sí soporta, en vez de fallar la
+    // petición entera por un parámetro de afinado de latencia.
+    if (respuestaOpenAI.status === 400 && esModeloDeRazonamiento) {
+      const detalle = await respuestaOpenAI.clone().text().catch(() => "");
+      const alternativa = elegirReasoningEffortDesdeError(detalle);
+      if (alternativa) {
+        console.log("[ocr-ia] reintentando con reasoning_effort alternativo", { modelo, alternativa });
+        respuestaOpenAI = await llamarChatCompletions(env, cuerpoPeticion(alternativa));
+      }
+    }
   } catch (e) {
     return error(env, 502, `No se pudo contactar con la API de OpenAI: ${(e as Error).message}`);
   }
@@ -701,12 +761,17 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
 
   const cuerpo = (await respuestaOpenAI.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
+    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
   };
   const contenido = cuerpo.choices?.[0]?.message?.content;
   if (!contenido) {
     return error(env, 502, "La API de OpenAI no devolvió contenido reconocible");
   }
   console.log("[ocr-ia] respuesta cruda del modelo", contenido);
+  // Solo para observabilidad/depuración (p. ej. estimar coste por página con
+  // `wrangler tail`, ocr_tests/README.md) — no forma parte del contrato con
+  // el cliente, que nunca lo lee.
+  console.log("[ocr-ia] uso", { modelo, ...cuerpo.usage });
 
   let plano: Record<string, unknown>;
   try {

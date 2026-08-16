@@ -191,10 +191,23 @@ function normalizar(s) {
     .replace(/\s+/g, " ")
     .trim();
 }
+// Tope de espacios antes de expandir combinatoriamente (2^n variantes): a
+// diferencia de worker/src/correccion.ts::variantesSinEspacios (que solo se
+// aplica a los alias FIJOS y cortos del banco de ítems), aquí también se
+// aplica a `obtenida`, la respuesta cruda del modelo — sin límite, texto
+// alucinado con espaciado letra a letra en una respuesta larga (visto contra
+// la API real, issue #31) puede tener más de 30 espacios y hacer explotar el
+// Set (RangeError: Set maximum size exceeded), tumbando todo el lote de
+// pruebas por un solo fallo ya evidente. Con más de este tope se renuncia a
+// la expansión completa y solo se compara sin espacios en absoluto: una
+// respuesta así de espaciada ya es un fallo claro de todas formas.
+const TOPE_ESPACIOS_PARA_EXPANDIR = 16;
+
 function variantesSinEspacios(texto) {
   const posiciones = [];
   for (let i = 0; i < texto.length; i++) if (texto[i] === " ") posiciones.push(i);
   if (posiciones.length === 0) return [texto];
+  if (posiciones.length > TOPE_ESPACIOS_PARA_EXPANDIR) return [texto, texto.replace(/ /g, "")];
   const variantes = new Set();
   const totalMascaras = 1 << posiciones.length;
   for (let mascara = 0; mascara < totalMascaras; mascara++) {

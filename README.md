@@ -847,11 +847,13 @@ blanco para una misma remesa, cada una con su propio `exam_id` corto (README
 por hoja (mismo `hoja.js::construirHoja` que el resto del pipeline) enteramente
 en el navegador del admin, sin pasar por el Worker: no hace falta registrar
 los `exam_id` de antemano porque `examenes_papel` (§4.10) ya se crea de forma
-perezosa, con la primera página que se sube de cada hoja. Los PDFs se agrupan
-en un único `.zip` (mismo `construirZip` — formato PKZIP, sin comprimir — que
-usa "Descargar CSV (.zip)" más arriba) con nombre de fichero
-`hoja-<exam_id>.pdf` por hoja, para poder identificar cada una suelta antes de
-repartirla.
+perezosa, con la primera página que se sube de cada hoja. Las páginas de todas
+las hojas se combinan en un ÚNICO PDF de descarga (`hojas-<descripción>.pdf`,
+`generarPdfRemesa`/`admin.js`, con `PDFDocument.copyPages` de pdf-lib) en vez
+de un zip con un PDF suelto por hoja (issue #31): un solo fichero se manda a
+imprimir de una sola vez, sin tener que descomprimir ni abrir cada hoja por
+separado — cada hoja sigue teniendo su propio `exam_id` (y por tanto su propio
+QR), solo cambia cómo se empaquetan para la descarga.
 
 **Estadísticas avanzadas: consola Python en el navegador (sin backend Python).**
 La pestaña "Estadísticas" de más arriba muestra agregados fijos; para explorar

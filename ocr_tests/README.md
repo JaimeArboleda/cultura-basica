@@ -349,3 +349,102 @@ correcciones` ítem 01, "SIGMUND FREUD" donde el plan dejaba la pregunta en
 blanco; `04-descuidada-ruidosa` demografía.libros_en_casa, "0-10" también
 sobre un campo en blanco) y autocompletar una respuesta a medias
 ("PLUSV" → ya contaba como fallo esperado en el plan) — ninguno nuevo.
+
+## Refuerzo anti-alucinación + comparativa de 5 modelos (issue #31, 16 de agosto de 2026)
+
+Cambios de esta ronda, los tres verificados contra la API real:
+
+1. **`SYSTEM_PROMPT_ITEMS` refuerza explícitamente "no inventes"** — añadido
+   un párrafo final ("nunca modifiques lo consignado: no te inventes la
+   respuesta si no está... tu misión no es corregir, sino digitalizar de
+   manera absolutamente exacta") y una frase específica para el caso ya
+   documentado arriba (pregunta entera en blanco → `null`, nunca una
+   respuesta plausible inventada).
+2. **`SYSTEM_PROMPT_DEMOGRAFIA` deja de describir un bloque "Corrección" que
+   nunca existió en esa página.** Comparado el prompt contra
+   `public/admin/papel/hoja.js::construirBloquesDemografia`: los campos de
+   demografía (catálogos + año de nacimiento) imprimen un único bloque
+   "Respuesta", nunca un bloque "Corrección" — a diferencia de las páginas de
+   ítems. El prompt anterior (copiado por error del diseño de ítems) le pedía
+   al modelo resolver una precedencia sobre un bloque que no está impreso en
+   ningún sitio: puro ruido. Simplificado para describir solo lo que hay
+   realmente en la hoja. De paso, el texto del prompt de usuario de esta
+   página ya no cita el id interno de la página (p. ej. una cadena como
+   `"01-letra-clara-1"`, sin significado para el modelo) sino el mismo
+   "Debes digitalizar la página N" que ya usaban las páginas de ítems.
+3. **El esquema JSON de demografía ahora admite `null` explícitamente**
+   (antes solo el enum de letras válidas, o el patrón de dígitos, sin
+   posibilidad real de "no hay nada" pese a que el prompt ya se lo pedía).
+4. **Bug real encontrado y corregido contra la API real, no de lectura sino
+   de compatibilidad**: `gpt-5.4-nano`/`gpt-5.4-mini` (probados por primera
+   vez en esta ronda) rechazan con 400 el valor `reasoning_effort: "minimal"`
+   que el Worker manda siempre a cualquier modelo `gpt-5*`
+   ("Unsupported value: 'reasoning_effort' does not support 'minimal' with
+   this model. Supported values are: 'none', 'low', 'medium', 'high', and
+   'xhigh'." — esta generación lo renombró a `"none"`). En vez de mantener a
+   mano una tabla modelo→valor soportado (se habría quedado desactualizada
+   con el próximo modelo), `postOcrIa` ahora reintenta una vez leyendo del
+   propio mensaje de error qué valores soporta ese modelo y eligiendo el más
+   barato de la lista (`elegirReasoningEffortDesdeError`,
+   `worker/src/endpoints/admin/ocrIa.ts`).
+
+**Corrida comparativa de 5 modelos** (mismas 4 instancias de siempre, mismo
+prompt/esquema ya con los cambios de arriba, contra `wrangler dev` local):
+
+| Modelo | Ítems (100 totales) | Demografía (28 totales) | Coste estimado / 100 exámenes* |
+|---|---|---|---|
+| `gpt-4o` | 69/100 (69%) | 21/28 (75%) | ~$4.29 |
+| `gpt-5-nano` | 45/100 (45%) | 23/28 (82%) | ~$0.19 |
+| `gpt-5.4-nano` | 78/100 (78%) | 26/28 (93%) | ~$0.60 |
+| `gpt-5-mini` | 91/100 (91%) | 28/28 (100%) | ~$0.92 |
+| `gpt-5.4-mini` | **92/100 (92%)** | 26/28 (93%) | ~$2.15 |
+
+\* Estimado a partir del `usage` real devuelto por la API en esta misma
+corrida (`prompt_tokens`/`completion_tokens` medios por página, ver
+`console.log("[ocr-ia] uso", ...)` en `ocrIa.ts`), extrapolado a 6
+páginas/examen (el manifiesto actual: 1 de datos + 5 de ítems) × 100
+exámenes, con el precio estándar por token de cada modelo en la propia
+documentación de OpenAI (agosto de 2026) — no incluye el margen de la API de
+imágenes de OpenAI si difiriera del recuento de tokens que ya reporta
+`usage`, ni reintentos por 429/5xx.
+
+**Conclusión: `gpt-5-mini` (el modelo por defecto actual, `OPENAI_MODEL` en
+`wrangler.toml`) sigue siendo la mejor relación precisión/coste** — acierto
+prácticamente idéntico a `gpt-5.4-mini` (91% vs 92%, dentro del ruido de 4
+instancias) a menos de la mitad de coste, y muy por delante de `gpt-4o`
+(-22 puntos de acierto en ítems por 4.7× más caro) y de ambos modelos
+`nano` (demasiado fallo en ítems para un banco de solo 25 preguntas). No se
+ha cambiado el modelo por defecto del Worker como consecuencia de esta
+corrida — la decisión es del propietario del proyecto.
+
+**Alucinación en preguntas en blanco: reducida, no eliminada**, pese al
+refuerzo del prompt (punto 1 de arriba) — sigue apareciendo, con distinta
+frecuencia según el modelo:
+- `gpt-5-mini`: 2 casos en 100 ítems + 28 campos de demografía (`02-con-
+  correcciones` ítem 01 "SIGMUND FREUD" e ítem 21, ambos con la pregunta
+  realmente en blanco en el plan).
+- `gpt-4o`: 1 caso (mismo ítem 01 de `02-con-correcciones`, "FREUD").
+- `gpt-5.4-mini`: 1 caso (mismo ítem 01, "SIGMUND FREUD" — parece ser el caso
+  más "atractivo" para alucinar del set: es el primer ítem del banco y una
+  respuesta plausible y célebre, "Freud", encaja con varias preguntas de
+  psicología cercanas en la hoja).
+- `gpt-5-nano`/`gpt-5.4-nano`: no se observó ningún caso nuevo en esta
+  corrida, pero ambos modelos ya fallan tanto en lectura normal que un caso
+  aislado de alucinación no se distingue del ruido de fondo.
+
+Los demás patrones de fallo (autocompletar una respuesta a medias, texto
+invertido reconstruido como palabra real, algún error de lectura suelto)
+siguen apareciendo igual que en rondas anteriores, sin patrón nuevo
+atribuible a estos cambios.
+
+**Siguiente paso sugerido por el propio issue #31, no implementado en esta
+ronda**: mandar un ejemplo de muestra (few-shot) — una página sintética con
+una pregunta de cada uno de los 5 formatos, pensada para cazar justo estas
+casuísticas (una respuesta abierta corregida, una opción múltiple vacía que
+debe dar `null`, una selección múltiple con más aciertos que la respuesta
+dada, una ordenación con permutación mala e incompleta) — junto con el
+prompt real de cada llamada. Es un cambio de diseño más grande (dónde vive
+la imagen de ejemplo, si se manda en cada petición o solo en las que fallan
+más, el coste añadido de tokens en cada llamada) que merece su propia ronda
+en vez de mezclarse con los cambios de esta — el candidato más claro para
+cuando se quiera seguir bajando la alucinación en preguntas en blanco.
