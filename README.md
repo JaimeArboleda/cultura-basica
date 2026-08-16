@@ -1160,7 +1160,15 @@ imágenes pequeñas: más simple, más barato y más preciso que recortar (un
 recorte obliga al modelo a decidir a ciegas sin ver el resto de la pregunta).
 
 **Selectores del panel:**
-- **Modelo**: `gpt-5-mini` / `gpt-5-nano` (más barato, menos capaz).
+- **Modelo — retirado, siempre `gpt-5-mini` (issue #31):** el panel llegó a
+  ofrecer elegir entre `gpt-5-mini` y `gpt-5-nano` (`subirLote.js`), pero la
+  comparativa contra la API real con los 5 modelos candidatos (`gpt-4o`,
+  `gpt-5-mini`, `gpt-5-nano`, `gpt-5.4-nano`, `gpt-5.4-mini`, `ocr_tests/
+  README.md`) mostró que `gpt-5-mini` es, con diferencia, la mejor relación
+  precisión/coste — dar a elegir solo invitaba a un resultado peor sin
+  ningún beneficio real, así que se quitó el selector: `POST /api/admin/
+  ocr-ia` ya no recibe `modelo` desde el panel y usa siempre el valor por
+  defecto del Worker (`OPENAI_MODEL` en `wrangler.toml`, hoy `gpt-5-mini`).
 - **Agrupación — retirada, siempre "una llamada por página" (histórico):** el
   flujo secuencial original ("Digitalizar tests", retirado, ver más abajo)
   llegó a ofrecer también "una sola llamada con todas las páginas juntas al

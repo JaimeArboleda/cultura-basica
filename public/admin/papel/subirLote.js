@@ -148,7 +148,7 @@ function pedirTokenManualmente(contenedor, { examId, tokens, motivoFallback }) {
 // resuelve a mano.
 // ============================================================
 
-async function procesarUnidad(unidad, { tokens, zonaIntervencion, log, modeloIA, manifiesto }) {
+async function procesarUnidad(unidad, { tokens, zonaIntervencion, log, manifiesto }) {
   log("Detectando esquinas…");
   const detectados = detectarFiduciales(unidad.canvas);
   let esquinas = detectados;
@@ -223,7 +223,12 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log, modeloIA,
 
   log(`Leyendo contenido con IA (examen ${examId}, página ${pagina})…`);
   const entradaIA = construirEntradaPaginaIA(paginaManifiesto, warp, `${examId}-${pagina}`);
-  const { resultados } = await api.ocrIa({ modelo: modeloIA, paginas: [entradaIA] });
+  // Sin `modelo`: el Worker usa siempre su modelo por defecto (gpt-5-mini,
+  // wrangler.toml OPENAI_MODEL) — el panel ya no ofrece elegir otro (issue
+  // #31): la comparativa contra la API real mostró que es la mejor relación
+  // precisión/coste con diferencia, así que dar a elegir solo invitaba a un
+  // resultado peor sin ningún beneficio real.
+  const { resultados } = await api.ocrIa({ paginas: [entradaIA] });
   const textos = resultados[entradaIA.id] ?? {};
 
   log("Guardando…");
@@ -447,13 +452,6 @@ export async function renderSubirLote(contenedorRaiz) {
         se va colocando en su sitio. Si un PDF ya trae todas las páginas de una hoja, mejor: se procesa de
         una vez. Cuando un examen tenga todas sus páginas, aparece abajo listo para "Finalizar".
       </p>
-      <label class="campo">
-        <span>Modelo de OCR-IA</span>
-        <select id="select-modelo-ia-lote">
-          <option value="gpt-5-mini" selected>gpt-5-mini</option>
-          <option value="gpt-5-nano">gpt-5-nano (más barato, menos capaz)</option>
-        </select>
-      </label>
       <input type="file" id="campo-archivos-lote" accept="image/*,application/pdf,application/zip,.zip" multiple />
       <div id="zona-intervencion-lote" class="escaneo-paso" hidden></div>
       <ul id="lista-progreso-lote" class="lista-progreso"></ul>
@@ -466,7 +464,6 @@ export async function renderSubirLote(contenedorRaiz) {
   const zonaIntervencion = contenedorRaiz.querySelector("#zona-intervencion-lote");
   const listaProgreso = contenedorRaiz.querySelector("#lista-progreso-lote");
   const zonaExamenes = contenedorRaiz.querySelector("#zona-examenes-lote");
-  const selectModeloIA = contenedorRaiz.querySelector("#select-modelo-ia-lote");
 
   const { items, manifiesto } = await obtenerManifiesto();
 
@@ -502,7 +499,6 @@ export async function renderSubirLote(contenedorRaiz) {
           tokens,
           zonaIntervencion,
           log: (msg) => (unidad.item.textContent = `${unidad.etiqueta}: ${msg}`),
-          modeloIA: selectModeloIA.value,
           manifiesto,
         });
         unidad.item.textContent = `${unidad.etiqueta}: ✓ examen ${resultado.examId}, página ${resultado.pagina}`;
