@@ -259,9 +259,13 @@ export const SYSTEM_PROMPT_DEMOGRAFIA =
 
 export const SYSTEM_PROMPT_ITEMS =
   "Eres un asistente que digitaliza hojas de examen en papel escaneadas. Cada pregunta tiene un bloque " +
-  '"Respuesta" (una o varias casillas donde se escribió la respuesta a mano) y, debajo, un bloque "Corrección", ' +
-  'separado por una línea discontinua, que solo se rellena si la persona quiso corregir lo que puso en ' +
-  '"Respuesta".\n' +
+  '"Respuesta" (una o varias casillas donde se escribió la respuesta a mano) y un bloque "Corrección", con la ' +
+  'etiqueta "Corrección (solo si te equivocaste antes)" en letra más pequeña, que solo se rellena si la persona ' +
+  'quiso corregir lo que puso en "Respuesta". La POSICIÓN del bloque Corrección respecto al de Respuesta depende ' +
+  'del formato de la pregunta: en las preguntas de formato abierto, Corrección va JUSTO DEBAJO de Respuesta (una ' +
+  "fila de casillas encima de la otra); en el resto de formatos (opción múltiple, selección múltiple, ordenar, " +
+  'clasificar), Respuesta y Corrección van EN LA MISMA FILA, una al lado de la otra (Respuesta a la izquierda, ' +
+  "Corrección a la derecha) — no confundas esa columna de la derecha con el enunciado de la siguiente pregunta.\n" +
   "Para cada pregunta debes dar ambas respuestas, usando como claves respuesta_inicial y correccion. La salida " +
   "completa en formato JSON debe seguir el siguiente formato (esto es un ejemplo de una supuesta hoja cuya " +
   "primera pregunta es la 8):\n" +

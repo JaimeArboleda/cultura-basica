@@ -2,8 +2,8 @@
   "persona": "01-letra-clara",
   "descripcion": "Letra clara, casi sin correcciones — todos los campos censales deben leerse bien",
   "token_id_qr": "TEST-01-letra-clara",
-  "exam_id_qr": "TWHBE9F8",
-  "paginas": 7,
+  "exam_id_qr": "TREQ27QU",
+  "paginas": 6,
   "demografia": {
     "anio_nacimiento": 1984,
     "sexo": "Hombre",
@@ -14,7 +14,7 @@
     "libros_en_casa": "26-100"
   },
   "respuestas_esperadas": {
-    "10": "4/1",
+    "10": "4/15",
     "11": "DIEGO VELÁZQUEZ",
     "12": 4,
     "13": 5,
@@ -83,6 +83,7 @@
       1
     ],
     "02": "ISABEL DE CASTILLA Y FERNANDO DE ARAGÓN",
+    "08": "INFLACIÓN",
     "07": "AMINOÁCIDOS",
     "04": {
       "El entierro del Conde Orgaz": "El Greco",
@@ -95,7 +96,6 @@
       "La Regenta": "Leopoldo Alas \"Clarín\"",
       "Analectas": "Confucio"
     },
-    "06": "FOTOSÍNTESIS",
-    "08": "INFLACIÓN"
+    "06": "FOTOSÍNTESIS"
   }
 }

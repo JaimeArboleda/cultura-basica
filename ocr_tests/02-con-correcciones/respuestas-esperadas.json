@@ -2,10 +2,10 @@
   "persona": "02-con-correcciones",
   "descripcion": "Se equivoca a menudo y corrige la mayoría — prueba la precedencia Respuesta/Corrección",
   "token_id_qr": "TEST-02-con-correcciones",
-  "exam_id_qr": "TVUPFQR8",
-  "paginas": 7,
+  "exam_id_qr": "T35SPSP6",
+  "paginas": 6,
   "demografia": {
-    "anio_nacimiento": 1981,
+    "anio_nacimiento": 1956,
     "sexo": "Hombre",
     "ccaa_educacion_secundaria": "Comunidad de Madrid",
     "nivel_estudios": "Grado o licenciatura",
@@ -14,7 +14,7 @@
     "libros_en_casa": "26-100"
   },
   "respuestas_esperadas": {
-    "10": "4/15",
+    "10": "51/4",
     "11": "DIEGO VELÁZQUEZ",
     "12": 4,
     "13": 5,
@@ -45,7 +45,7 @@
     ],
     "19": "AÍLAVSULP",
     "20": 1,
-    "21": 5,
+    "21": null,
     "22": {
       "Debussy": "Impresionismo",
       "Palestrina": "Renacimiento",
@@ -84,9 +84,19 @@
       1
     ],
     "02": "ISABEL DE CASTILLA Y FERNANDO DE ARAGÓN",
+    "08": "INFLACIÓN",
     "07": "AMINOÁCIDOS",
-    "04": null,
-    "06": "FOTOSÍNTESIS",
-    "08": "INFLACIÓN"
+    "04": {
+      "El entierro del Conde Orgaz": "El Greco",
+      "Ana Karenina": "Lev Tolstói",
+      "La Divina Comedia": "Dante Alighieri",
+      "La maja desnuda": "Francisco de Goya",
+      "Macbeth": "William Shakespeare",
+      "La Piedad": "Miguel Ángel",
+      "Las señoritas de Avignon": "Pablo Picasso",
+      "La Regenta": "Leopoldo Alas \"Clarín\"",
+      "Analectas": "Confucio"
+    },
+    "06": "FOTOSÍNTESIS"
   }
 }
