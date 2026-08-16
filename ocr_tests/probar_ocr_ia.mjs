@@ -45,6 +45,11 @@ const RAIZ_REPO = path.resolve(__dirname, "..");
 const API_BASE = process.env.CULTURA_BASICA_API_BASE;
 const ADMIN_TOKEN = process.env.CULTURA_BASICA_ADMIN_TOKEN;
 const MODELO = process.env.CULTURA_BASICA_MODELO || "gpt-5-mini";
+// Override opcional de reasoning_effort (issue #31): solo para comparar
+// contra la API real si subir el esfuerzo de razonamiento por encima de
+// "minimal" (el valor por defecto del Worker) mejora algún fallo concreto —
+// nunca lo manda el panel de admin real.
+const REASONING_EFFORT = process.env.CULTURA_BASICA_REASONING_EFFORT || undefined;
 
 // Mismo cálculo que worker/src/items.ts::casillasAbiertoPara (duplicado a
 // propósito: este script carga el banco crudo de data/items.json
@@ -270,7 +275,7 @@ async function probarInstancia(dir, items, manifiesto, tokenPruebaId) {
   for (const pagina of paginasEntrada) {
     const { resultados } = await peticion("/api/admin/ocr-ia", {
       method: "POST",
-      body: JSON.stringify({ modelo: MODELO, paginas: [pagina] }),
+      body: JSON.stringify({ modelo: MODELO, ...(REASONING_EFFORT ? { reasoning_effort: REASONING_EFFORT } : {}), paginas: [pagina] }),
     });
     const textosPagina = resultados[pagina.id] ?? {};
     if (pagina.tipo === "demografia") {

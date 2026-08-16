@@ -742,6 +742,12 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
   // motivo que la ausencia de `temperature` más abajo: un parámetro que un
   // modelo no soporta responde 400, no se ignora en silencio.
   const esModeloDeRazonamiento = /^gpt-5/.test(modelo);
+  // Override opcional por petición (mismo criterio que `modelo` arriba) —
+  // solo para poder comparar el efecto de más esfuerzo de razonamiento contra
+  // la API real (ocr_tests/probar_ocr_ia.mjs, issue #31); el panel de admin
+  // nunca lo manda, así que en producción real siempre se usa "minimal".
+  const reasoningEffortPorDefecto =
+    typeof b.reasoning_effort === "string" && b.reasoning_effort ? b.reasoning_effort : "minimal";
 
   function cuerpoPeticion(reasoningEffort: string | null) {
     return {
@@ -768,7 +774,10 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
 
   let respuestaOpenAI: Response;
   try {
-    respuestaOpenAI = await llamarChatCompletions(env, cuerpoPeticion(esModeloDeRazonamiento ? "minimal" : null));
+    respuestaOpenAI = await llamarChatCompletions(
+      env,
+      cuerpoPeticion(esModeloDeRazonamiento ? reasoningEffortPorDefecto : null)
+    );
     // "minimal" no lo soportan todas las generaciones de modelos gpt-5 (p.
     // ej. gpt-5.4-nano/gpt-5.4-mini, probado contra la API real: "Unsupported
     // value: 'reasoning_effort' does not support 'minimal' with this model" —
@@ -794,7 +803,17 @@ export async function postOcrIa(request: Request, env: Env): Promise<Response> {
 
   const cuerpo = (await respuestaOpenAI.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
-    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+      // Desglose de completion_tokens: cuánto de eso fue "pensar" (tokens
+      // internos de razonamiento, gpt-5*) frente a la respuesta final —
+      // solo para poder comparar el coste de subir reasoning_effort por
+      // encima de "minimal" (issue #31, ocr_tests/README.md), nunca se lee
+      // en el flujo normal.
+      completion_tokens_details?: { reasoning_tokens?: number };
+    };
   };
   const contenido = cuerpo.choices?.[0]?.message?.content;
   if (!contenido) {
