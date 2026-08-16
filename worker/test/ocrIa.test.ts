@@ -395,10 +395,11 @@ describe("construirMensajesEjemplo", () => {
     expect(construirMensajesEjemplo([PAGINA_DEMOGRAFIA, PAGINA_ITEMS])).toHaveLength(2);
   });
 
-  it("el turno assistant es JSON válido con las 4 preguntas del ejemplo", () => {
+  it("el turno assistant es JSON válido con las 6 preguntas del ejemplo", () => {
     const [, mensajeAssistant] = construirMensajesEjemplo([PAGINA_ITEMS]);
     const respuesta = JSON.parse(mensajeAssistant.content as string);
-    expect(Object.keys(respuesta).sort()).toEqual(["1", "2", "3", "4"]);
+    expect(Object.keys(respuesta).sort()).toEqual(["1", "2", "3", "4", "5", "6"]);
     expect(respuesta["2"]).toEqual({ respuesta_inicial: null, correccion: null });
+    expect(respuesta["6"]).toEqual({ respuesta_inicial: "SYDNEY", correccion: null });
   });
 });

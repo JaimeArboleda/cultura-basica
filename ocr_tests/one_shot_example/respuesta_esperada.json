@@ -1,7 +1,7 @@
 {
   "1": {
     "respuesta_inicial": "JUAN",
-    "correccion": "JOSE"
+    "correccion": "JOSE DE ARIMAT"
   },
   "2": {
     "respuesta_inicial": null,
@@ -14,15 +14,33 @@
   "4": {
     "respuesta_inicial": {
       "1": "C",
-      "2": "A",
-      "3": "D",
-      "4": "B"
+      "2": "D",
+      "3": "B",
+      "4": "A"
     },
     "correccion": {
-      "1": "A",
-      "2": "B",
-      "3": "",
-      "4": "D"
+      "1": "D",
+      "2": "A",
+      "3": "C",
+      "4": "B"
     }
+  },
+  "5": {
+    "respuesta_inicial": {
+      "1": "B",
+      "2": "A",
+      "3": "B",
+      "4": "A"
+    },
+    "correccion": {
+      "1": "B",
+      "2": "A",
+      "3": "A",
+      "4": "B"
+    }
+  },
+  "6": {
+    "respuesta_inicial": "SYDNEY",
+    "correccion": null
   }
 }

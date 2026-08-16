@@ -1,15 +1,15 @@
 {
   "items": [
     {
-      "id": "ejemplo-abierto",
+      "id": "ejemplo-abierto-1",
       "formato": "abierto",
-      "enunciado": "(EJEMPLO) ¿Quién, según los evangelios, cedió su propia tumba para el entierro de Jesús de Nazaret?",
+      "enunciado": "¿Quién, según los evangelios, cedió su propia tumba para el entierro de Jesús de Nazaret?",
       "casillas_abierto": 20
     },
     {
       "id": "ejemplo-opcion-multiple",
       "formato": "opcion_multiple",
-      "enunciado": "(EJEMPLO) ¿Cuál de estos NO es un océano?",
+      "enunciado": "¿Cuál de estos NO es un océano?",
       "opciones": [
         "Pacífico",
         "Atlántico",
@@ -21,7 +21,7 @@
     {
       "id": "ejemplo-seleccion-multiple",
       "formato": "seleccion_multiple",
-      "enunciado": "(EJEMPLO) Marca TODAS las capitales de país entre estas ciudades:",
+      "enunciado": "Marca TODAS las capitales de país entre estas ciudades:",
       "opciones": [
         "Madrid",
         "Lisboa",
@@ -34,20 +34,41 @@
     {
       "id": "ejemplo-ordenar",
       "formato": "ordenar",
-      "enunciado": "(EJEMPLO) Ordena estos elementos de ejemplo (sin relación con el banco real):",
+      "enunciado": "Ordena estos países de mayor a menor superficie:",
       "elementos": [
-        "Elemento W",
-        "Elemento X",
-        "Elemento Y",
-        "Elemento Z"
+        "Rusia",
+        "Canadá",
+        "España",
+        "Francia"
       ]
+    },
+    {
+      "id": "ejemplo-clasificar",
+      "formato": "clasificar",
+      "enunciado": "Clasifica estos animales según si son mamíferos o aves:",
+      "elementos": [
+        "Águila",
+        "Delfín",
+        "Murciélago",
+        "Avestruz"
+      ],
+      "categorias": [
+        "Mamífero",
+        "Ave"
+      ]
+    },
+    {
+      "id": "ejemplo-abierto-2",
+      "formato": "abierto",
+      "enunciado": "¿Cuál es la capital de Australia?",
+      "casillas_abierto": 16
     }
   ],
   "respuestas_sinteticas": {
     "items": {
-      "ejemplo-abierto": {
+      "ejemplo-abierto-1": {
         "respuesta": "JUAN",
-        "correccion": "JOSE"
+        "correccion": "JOSE DE ARIMAT"
       },
       "ejemplo-opcion-multiple": {
         "respuesta": "",
@@ -60,16 +81,34 @@
       "ejemplo-ordenar": {
         "respuesta": [
           "C",
-          "A",
           "D",
-          "B"
+          "B",
+          "A"
         ],
         "correccion": [
+          "D",
+          "A",
+          "C",
+          "B"
+        ]
+      },
+      "ejemplo-clasificar": {
+        "respuesta": [
+          "B",
           "A",
           "B",
-          "",
-          "D"
+          "A"
+        ],
+        "correccion": [
+          "B",
+          "A",
+          "A",
+          "B"
         ]
+      },
+      "ejemplo-abierto-2": {
+        "respuesta": "SYDNEY",
+        "correccion": ""
       }
     }
   }

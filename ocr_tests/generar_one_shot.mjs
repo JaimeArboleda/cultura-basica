@@ -1,16 +1,19 @@
 // Genera el EJEMPLO de una sola vez (one-shot / few-shot) que se manda junto
 // al prompt real en cada llamada de OCR-IA a páginas de tipo "items" (issue
 // #31, sección "Si hay todavía alucinaciones, podemos probar a mandar un
-// ejemplo de muestra"): una página ficticia con 4 preguntas, una de cada
-// formato salvo "clasificar", pensada para enseñarle al modelo — con un
-// ejemplo YA RESUELTO, no solo con texto — los casos concretos donde seguía
-// alucinando pese al refuerzo del prompt (ver ocr_tests/README.md, ronda
-// anterior de este mismo issue):
+// ejemplo de muestra"): una página ficticia con 6 preguntas — abierto,
+// opción múltiple, selección múltiple, ordenar, clasificar y un segundo
+// abierto — pensada para enseñarle al modelo, con un ejemplo YA RESUELTO, no
+// solo con texto, los casos concretos donde seguía alucinando pese al
+// refuerzo del prompt (ver ocr_tests/README.md para el historial completo de
+// rondas de este mismo issue):
 //
-//   1. Abierto: la respuesta canónica sería "JOSE DE ARIMATEA", pero lo
-//      escrito es mucho más corto ("JUAN" en Respuesta, "JOSE" en
-//      Corrección) — enseña a transcribir literalmente lo escrito, nunca a
-//      "completar" hacia lo que se supone que debería decir.
+//   1. Abierto: la respuesta canónica sería "JOSE DE ARIMATEA", pero
+//      Respuesta lleva un nombre corto y distinto ("JUAN") y Corrección lleva
+//      la palabra CORTADA A MEDIAS ("JOSE DE ARIMAT", sin terminar en "-EA")
+//      — el mismo patrón que "PLUSV" → "PLUSVALIA" en las corridas reales
+//      (README): enseña a transcribir la palabra tal cual está cortada,
+//      nunca a completarla aunque sea evidente cuál sería la palabra entera.
 //   2. Opción múltiple: ambos bloques (Respuesta y Corrección) están
 //      COMPLETAMENTE en blanco — enseña que la salida correcta es null en
 //      los dos, nunca una letra inventada (el patrón de alucinación más
@@ -19,18 +22,30 @@
 //      ambos bloques — enseña a transcribir el espacio literal en vez de
 //      "cerrar el hueco" o completar hacia el conjunto que se supone
 //      correcto.
-//   4. Ordenar: la Corrección tiene una posición sin rellenar — enseña a
-//      dejar esa clave como cadena vacía en el diccionario, no a rellenarla
-//      con la letra "que tocaría".
+//   4. Ordenar: Respuesta y Corrección son dos secuencias COMPLETAS pero
+//      ambas incorrectas y distintas entre sí — enseña a transcribir cada
+//      secuencia tal cual está, sin intentar "arreglarla" hacia el orden que
+//      se supone correcto.
+//   5. Clasificar: Respuesta y Corrección son dos clasificaciones COMPLETAS
+//      y distintas entre sí (sin ninguna casilla en blanco) — refuerza que
+//      cada bloque se transcribe de forma independiente y literal, sin
+//      copiar valores de un bloque a otro ni "promediarlos".
+//   6. Abierto (segundo): Respuesta tiene contenido pero Corrección está
+//      COMPLETAMENTE en blanco — enseña que correccion es null cuando no hay
+//      nada escrito ahí, sin inventar una corrección ni "arreglar" lo que
+//      dice Respuesta aunque parezca incorrecto.
 //
-// Las 4 preguntas usan contenido DISTINTO al banco real (data/items.json,
+// Las 6 preguntas usan contenido DISTINTO al banco real (data/items.json,
 // issue #31: "una página de ejemplo con preguntas diferentes a las del
-// test") y se numeran 1-4 en la propia imagen — números que SÍ coinciden con
-// los de una página real del examen, pero el texto de acompañamiento dice
-// explícitamente que es un ejemplo aparte (mismo patrón de separación por
-// turnos de conversación que cualquier few-shot: ver
-// worker/src/endpoints/admin/ocrIaEjemplo.ts, que es quien realmente lo
-// inyecta en la llamada a la API).
+// test") y se numeran 1-6 en la propia imagen — números que SÍ coinciden con
+// los de una página real del examen, pero el texto de acompañamiento
+// (USER_PROMPT_EJEMPLO, el mensaje que rodea la imagen, no lo que está
+// impreso en ella) dice explícitamente que es un ejemplo aparte (mismo
+// patrón de separación por turnos de conversación que cualquier few-shot:
+// ver worker/src/endpoints/admin/ocrIaEjemplo.ts, que es quien realmente lo
+// inyecta en la llamada a la API). Los enunciados NO llevan ninguna etiqueta
+// "(EJEMPLO)" ni aclaración de ese estilo IMPRESA en la página — cuanto más
+// se parezca a una página real, mejor transfiere el ejemplo.
 //
 // Este script deja los artefactos en ocr_tests/one_shot_example/ (imagen,
 // prompt de usuario, respuesta esperada, definición de los ítems) para poder
@@ -66,47 +81,63 @@ const FUENTE_INK_URL =
   "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/architectsdaughter/ArchitectsDaughter-Regular.ttf";
 
 // ============================================================
-// Las 4 preguntas del ejemplo (ver cabecera del fichero para el porqué de
+// Las 6 preguntas del ejemplo (ver cabecera del fichero para el porqué de
 // cada una) — contenido deliberadamente distinto al banco real.
 // ============================================================
 const ITEMS_EJEMPLO = [
   {
-    id: "ejemplo-abierto",
+    id: "ejemplo-abierto-1",
     formato: "abierto",
-    enunciado: "(EJEMPLO) ¿Quién, según los evangelios, cedió su propia tumba para el entierro de Jesús de Nazaret?",
+    enunciado: "¿Quién, según los evangelios, cedió su propia tumba para el entierro de Jesús de Nazaret?",
     casillas_abierto: 20,
   },
   {
     id: "ejemplo-opcion-multiple",
     formato: "opcion_multiple",
-    enunciado: "(EJEMPLO) ¿Cuál de estos NO es un océano?",
+    enunciado: "¿Cuál de estos NO es un océano?",
     opciones: ["Pacífico", "Atlántico", "Índico", "Ártico", "Amazonas"],
   },
   {
     id: "ejemplo-seleccion-multiple",
     formato: "seleccion_multiple",
-    enunciado: "(EJEMPLO) Marca TODAS las capitales de país entre estas ciudades:",
+    enunciado: "Marca TODAS las capitales de país entre estas ciudades:",
     opciones: ["Madrid", "Lisboa", "Barcelona", "Múnich", "Roma"],
     num_correctas: 3, // A=Madrid, B=Lisboa, E=Roma — el alumno del ejemplo no acierta el conjunto completo en ninguno de los dos bloques (ver más abajo), a propósito.
   },
   {
     id: "ejemplo-ordenar",
     formato: "ordenar",
-    enunciado: "(EJEMPLO) Ordena estos elementos de ejemplo (sin relación con el banco real):",
-    elementos: ["Elemento W", "Elemento X", "Elemento Y", "Elemento Z"],
+    enunciado: "Ordena estos países de mayor a menor superficie:",
+    elementos: ["Rusia", "Canadá", "España", "Francia"],
+  },
+  {
+    id: "ejemplo-clasificar",
+    formato: "clasificar",
+    enunciado: "Clasifica estos animales según si son mamíferos o aves:",
+    elementos: ["Águila", "Delfín", "Murciélago", "Avestruz"],
+    categorias: ["Mamífero", "Ave"],
+  },
+  {
+    id: "ejemplo-abierto-2",
+    formato: "abierto",
+    enunciado: "¿Cuál es la capital de Australia?",
+    casillas_abierto: 16,
   },
 ];
 
 // sintetico.respuesta/correccion: string para abierto/opcion_multiple/
 // seleccion_multiple (se expande carácter a carácter, un espacio = casilla
-// en blanco), array para ordenar (una entrada por posición, "" = en blanco)
-// — misma forma que ocr_tests/generar.mjs, ver hoja.js::construirBloqueItem.
+// en blanco), array para ordenar/clasificar (una entrada por posición/
+// elemento, "" = en blanco) — misma forma que ocr_tests/generar.mjs, ver
+// hoja.js::construirBloqueItem.
 const RESPUESTAS_SINTETICAS = {
   items: {
-    "ejemplo-abierto": { respuesta: "JUAN", correccion: "JOSE" },
+    "ejemplo-abierto-1": { respuesta: "JUAN", correccion: "JOSE DE ARIMAT" },
     "ejemplo-opcion-multiple": { respuesta: "", correccion: "" },
     "ejemplo-seleccion-multiple": { respuesta: "A E", correccion: "A B" },
-    "ejemplo-ordenar": { respuesta: ["C", "A", "D", "B"], correccion: ["A", "B", "", "D"] },
+    "ejemplo-ordenar": { respuesta: ["C", "D", "B", "A"], correccion: ["D", "A", "C", "B"] },
+    "ejemplo-clasificar": { respuesta: ["B", "A", "B", "A"], correccion: ["B", "A", "A", "B"] },
+    "ejemplo-abierto-2": { respuesta: "SYDNEY", correccion: "" },
   },
 };
 
@@ -116,13 +147,18 @@ const RESPUESTAS_SINTETICAS = {
 // admin/ocrIa.ts). Construida a mano (no desde RESPUESTAS_SINTETICAS) para
 // que quede explícito y auditable qué se le está enseñando al modelo.
 const RESPUESTA_ESPERADA = {
-  1: { respuesta_inicial: "JUAN", correccion: "JOSE" },
+  1: { respuesta_inicial: "JUAN", correccion: "JOSE DE ARIMAT" },
   2: { respuesta_inicial: null, correccion: null },
   3: { respuesta_inicial: "A E", correccion: "A B" },
   4: {
-    respuesta_inicial: { 1: "C", 2: "A", 3: "D", 4: "B" },
-    correccion: { 1: "A", 2: "B", 3: "", 4: "D" },
+    respuesta_inicial: { 1: "C", 2: "D", 3: "B", 4: "A" },
+    correccion: { 1: "D", 2: "A", 3: "C", 4: "B" },
   },
+  5: {
+    respuesta_inicial: { 1: "B", 2: "A", 3: "B", 4: "A" },
+    correccion: { 1: "B", 2: "A", 3: "A", 4: "B" },
+  },
+  6: { respuesta_inicial: "SYDNEY", correccion: null },
 };
 
 // Mismo texto que construirContenidoPagina/describirFormatoItemBreve
@@ -134,21 +170,32 @@ const RESPUESTA_ESPERADA = {
 // hoja.js para estos 4 ítems concretos.
 const USER_PROMPT_EJEMPLO =
   "Este es un EJEMPLO ya resuelto, de una hoja distinta e independiente a la que vas a leer después (con su propia " +
-  "numeración 1-4, sin relación con los números de la página real) — solo sirve para que veas exactamente cómo se " +
+  "numeración 1-6, sin relación con los números de la página real) — solo sirve para que veas exactamente cómo se " +
   "transcribe cada caso, incluida la respuesta correcta que sigue en este mismo turno. Fíjate especialmente en:\n" +
-  '- Pregunta 1 (abierto): lo escrito es mucho más corto que la respuesta que "debería" ser (una respuesta ' +
-  "canónica larga) — la transcripción es literal, nunca completada hacia lo que parece más correcto.\n" +
+  "- Pregunta 1 (abierto): Respuesta lleva un nombre corto y distinto del que se esperaría, y Corrección lleva una " +
+  'PALABRA CORTADA A MEDIAS ("JOSE DE ARIMAT", sin terminar) — ninguna de las dos se completa ni se corrige hacia ' +
+  "lo que parece más correcto, por muy evidente que sea cuál sería la palabra o el nombre completo: la " +
+  "transcripción es SIEMPRE literal, letra a letra, tal cual está escrito, aunque la palabra se quede a medias.\n" +
   "- Pregunta 2 (opción múltiple): las dos casillas, Respuesta y Corrección, están COMPLETAMENTE en blanco — la " +
   "respuesta correcta es null en ambas, nunca una letra inventada.\n" +
   "- Pregunta 3 (selección múltiple): hay una casilla vacía en medio de la selección, en los dos bloques — se " +
   "transcribe como un espacio literal en esa posición, sin cerrar el hueco ni añadir la letra que falta.\n" +
-  "- Pregunta 4 (ordenar): la Corrección tiene una posición sin rellenar — su clave en el diccionario es cadena " +
-  'vacía, no la letra "que tocaría" según el resto de la secuencia.\n\n' +
+  "- Pregunta 4 (ordenar): Respuesta y Corrección son dos secuencias COMPLETAS, pero ninguna de las dos es la " +
+  'ordenación correcta ni coinciden entre sí — se transcribe cada una tal cual está, sin "arreglarla" hacia el ' +
+  "orden que se supone correcto.\n" +
+  "- Pregunta 5 (clasificar): Respuesta y Corrección son dos clasificaciones completas y distintas entre sí — cada " +
+  "bloque se lee y se transcribe de forma independiente, nunca copiando ni mezclando valores de un bloque con el " +
+  "otro.\n" +
+  "- Pregunta 6 (abierto): Respuesta tiene contenido pero Corrección está COMPLETAMENTE en blanco — Corrección es " +
+  "null, sin inventar una corrección ni cambiar lo escrito en Respuesta aunque te parezca incorrecto: tu trabajo " +
+  "es transcribir, no corregir.\n\n" +
   "Debes digitalizar esta página EJEMPLO, en el JSON ya especificado, que contiene los siguientes ítems:\n" +
   "- Pregunta 1: Abierto.\n" +
   "- Pregunta 2: Opción múltiple, entre A y E.\n" +
   "- Pregunta 3: Selección múltiple, con opciones entre A y E.\n" +
-  "- Pregunta 4: Ordenar 4 elementos (letras A-D) en las posiciones 1-4.\n\n" +
+  "- Pregunta 4: Ordenar 4 elementos (letras A-D) en las posiciones 1-4.\n" +
+  "- Pregunta 5: Clasificar 4 elementos (números 1-4) en categorías entre A y B.\n" +
+  "- Pregunta 6: Abierto.\n\n" +
   'Para cada pregunta debes transcribir tanto "Respuesta" como "Corrección", exactamente como en la respuesta que ' +
   "sigue a continuación — luego te tocará hacer lo mismo con la página real.";
 

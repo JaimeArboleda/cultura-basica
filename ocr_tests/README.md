@@ -506,10 +506,51 @@ final del propietario del proyecto.
 **No implementado todavía**: no se ha vuelto a probar el ejemplo contra los
 otros 4 modelos de la comparativa (`gpt-4o`, `gpt-5-nano`, `gpt-5.4-nano`,
 `gpt-5.4-mini`) — el propio issue #31 pidió esta ronda solo con el modelo
-por defecto. Si con más volumen de uso real sigue apareciendo alucinación en
-blanco (una sola muestra de 4 instancias no la descarta del todo, solo
-reduce mucho su probabilidad medida), el siguiente paso sugerido es añadir
-un segundo ejemplo centrado específicamente en más casos de `null` (varios
-formatos distintos en blanco, no solo uno) — la propia infraestructura de
-`generar_one_shot.mjs` ya deja los artefactos guardados y editables para
-iterar sobre esto sin tener que rehacer el mecanismo de inyección.
+por defecto.
+
+## Amplía el ejemplo a 6 preguntas — intento de eliminar el autocompletado (issue #31, mismo día)
+
+Segunda iteración sobre el ejemplo de una sola vez: de 4 a 6 preguntas
+(añadidas `clasificar`, con dos clasificaciones completas y distintas entre
+Respuesta y Corrección; y un segundo `abierto` con Respuesta rellena y
+Corrección completamente en blanco → `null`), el antiguo ítem 4 de
+`ordenar` (elementos ficticios "Elemento W/X/Y/Z") sustituido por una
+pregunta con contenido real pero ajeno al banco (ordenar países por
+superficie), y — el cambio dirigido directamente al fallo de autocompletado
+— la Corrección del ítem 1 (`abierto`) pasa de "JOSE" (un nombre corto pero
+completo) a **"JOSE DE ARIMAT"**, la palabra cortada literalmente a medias,
+mucho más parecida al patrón real que seguía fallando ("PLUSV" →
+"PLUSVALIA"). También se quitaron las etiquetas "(EJEMPLO)" y la aclaración
+"(sin relación con el banco real)" que se imprimían en la propia página —
+ahora es visualmente indistinguible de una página real, la aclaración de que
+es un ejemplo vive solo en el texto que acompaña a la imagen (fuera de lo
+impreso).
+
+**Corrida de verificación** (`gpt-5-mini`, mismas 4 instancias):
+
+| Instancia | Ítems |
+|---|---|
+| `01-letra-clara` | 25/25 (100%) |
+| `02-con-correcciones` | 25/25 (100%) |
+| `03-valores-invalidos-e-incompletas` | 23/25 (92%) |
+| `04-descuidada-ruidosa` | 25/25 (100%) |
+
+**98/100 (98%)**, demografía 28/28 (100%) — se mantiene la mejora de la
+ronda anterior (ningún caso de alucinación en blanco) y sube un punto más
+sobre el 97% anterior.
+
+**El autocompletado de "PLUSV" NO se resolvió** — sigue siendo el único
+fallo sistemático que queda. Repetido 5 veces seguidas solo la instancia
+`03-valores-invalidos-e-incompletas` (mismo ítem 19 cada vez, mismo plan
+determinista): falló 4 de 5 veces, exactamente igual que "PLUSVALIA" (antes
+"PLUSVALÍA", el acento no cuenta como fallo). El refuerzo del ejemplo
+(Corrección cortada a medias en la pregunta 1) no cambió esta tasa de forma
+apreciable — parece un sesgo del modelo especialmente fuerte para ESTE caso
+concreto ("PLUSV" es una compleción casi inequívoca hacia una palabra muy
+común en español, "PLUSVALÍA"), no un problema general de autocompletado que
+el ejemplo pueda corregir con un solo caso de refuerzo. Candidatos para una
+tercera ronda, ninguno probado todavía: un ejemplo dedicado exclusivamente a
+este patrón (una palabra española muy reconocible cortada a la mitad, sin
+compartir turno con otras 5 preguntas que puedan diluir la lección) o
+aceptar que este caso concreto es un límite práctico del enfoque de prompt/
+few-shot con este modelo.
