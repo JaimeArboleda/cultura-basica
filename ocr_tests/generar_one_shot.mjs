@@ -8,12 +8,15 @@
 // refuerzo del prompt (ver ocr_tests/README.md para el historial completo de
 // rondas de este mismo issue):
 //
-//   1. Abierto: la respuesta canónica sería "JOSE DE ARIMATEA", pero
-//      Respuesta lleva un nombre corto y distinto ("JUAN") y Corrección lleva
-//      la palabra CORTADA A MEDIAS ("JOSE DE ARIMAT", sin terminar en "-EA")
-//      — el mismo patrón que "PLUSV" → "PLUSVALIA" en las corridas reales
-//      (README): enseña a transcribir la palabra tal cual está cortada,
-//      nunca a completarla aunque sea evidente cuál sería la palabra entera.
+//   1. Abierto: la respuesta correcta es "JOSE DE ARIMATEA", pero Respuesta
+//      lleva un nombre DISTINTO y TAMBIÉN CORTADO A MEDIAS ("JUAN EL
+//      BAUTIS", sin terminar en "-TA") — el mismo patrón que "PLUSV" →
+//      "PLUSVALIA" en las corridas reales (README) — mientras que Corrección
+//      lleva el nombre correcto y COMPLETO ("JOSE DE ARIMATEA"). El
+//      contraste entre los dos bloques (uno cortado, el otro entero) refuerza
+//      que la transcripción es SIEMPRE literal carácter a carácter, tanto si
+//      la palabra está completa como si no — nunca completar lo que está a
+//      medias, nunca acortar lo que está entero.
 //   2. Opción múltiple: ambos bloques (Respuesta y Corrección) están
 //      COMPLETAMENTE en blanco — enseña que la salida correcta es null en
 //      los dos, nunca una letra inventada (el patrón de alucinación más
@@ -26,10 +29,14 @@
 //      ambas incorrectas y distintas entre sí — enseña a transcribir cada
 //      secuencia tal cual está, sin intentar "arreglarla" hacia el orden que
 //      se supone correcto.
-//   5. Clasificar: Respuesta y Corrección son dos clasificaciones COMPLETAS
-//      y distintas entre sí (sin ninguna casilla en blanco) — refuerza que
-//      cada bloque se transcribe de forma independiente y literal, sin
-//      copiar valores de un bloque a otro ni "promediarlos".
+//   5. Clasificar: un elemento (posición 3) queda SIN clasificar en los DOS
+//      bloques (ni Respuesta ni Corrección le asignan categoría) — enseña
+//      que un elemento salteado es cadena vacía en esa posición del
+//      diccionario, no una letra inventada, mismo principio que la pregunta
+//      3 (selección múltiple) pero aplicado a "clasificar". Otro elemento
+//      (posición 4) SÍ tiene una corrección real y distinta entre bloques
+//      (Ave -> Reptil), para que el ejemplo también enseñe una corrección
+//      genuina en este formato, no solo blancos o coincidencias.
 //   6. Abierto (segundo): Respuesta tiene contenido pero Corrección está
 //      COMPLETAMENTE en blanco — enseña que correccion es null cuando no hay
 //      nada escrito ahí, sin inventar una corrección ni "arreglar" lo que
@@ -113,9 +120,9 @@ const ITEMS_EJEMPLO = [
   {
     id: "ejemplo-clasificar",
     formato: "clasificar",
-    enunciado: "Clasifica estos animales según si son mamíferos o aves:",
-    elementos: ["Águila", "Delfín", "Murciélago", "Avestruz"],
-    categorias: ["Mamífero", "Ave"],
+    enunciado: "Clasifica estos animales según su clase: mamífero, ave o reptil:",
+    elementos: ["Águila", "Delfín", "Murciélago", "Serpiente"],
+    categorias: ["Mamífero", "Ave", "Reptil"],
   },
   {
     id: "ejemplo-abierto-2",
@@ -132,11 +139,20 @@ const ITEMS_EJEMPLO = [
 // hoja.js::construirBloqueItem.
 const RESPUESTAS_SINTETICAS = {
   items: {
-    "ejemplo-abierto-1": { respuesta: "JUAN", correccion: "JOSE DE ARIMAT" },
+    "ejemplo-abierto-1": { respuesta: "JUAN EL BAUTIS", correccion: "JOSE DE ARIMATEA" },
     "ejemplo-opcion-multiple": { respuesta: "", correccion: "" },
     "ejemplo-seleccion-multiple": { respuesta: "A E", correccion: "A B" },
     "ejemplo-ordenar": { respuesta: ["C", "D", "B", "A"], correccion: ["D", "A", "C", "B"] },
-    "ejemplo-clasificar": { respuesta: ["B", "A", "B", "A"], correccion: ["B", "A", "A", "B"] },
+    // Águila y Delfín coinciden en ambos bloques (Ave/Mamífero, sin cambios);
+    // Murciélago (posición 3) queda SIN clasificar en los dos bloques
+    // (elemento salteado, no un error a corregir) — enseña que un elemento
+    // sin clasificar es cadena vacía, no una letra inventada, igual que una
+    // casilla vacía en medio de una selección múltiple (pregunta 3).
+    // Serpiente (posición 4) SÍ tiene una corrección real y distinta entre
+    // bloques (Ave -> Reptil) — para que el ejemplo también muestre una
+    // corrección genuina en "clasificar", no solo casos que coinciden o que
+    // quedan en blanco.
+    "ejemplo-clasificar": { respuesta: ["B", "A", "", "B"], correccion: ["B", "A", "", "C"] },
     "ejemplo-abierto-2": { respuesta: "SYDNEY", correccion: "" },
   },
 };
@@ -147,7 +163,7 @@ const RESPUESTAS_SINTETICAS = {
 // admin/ocrIa.ts). Construida a mano (no desde RESPUESTAS_SINTETICAS) para
 // que quede explícito y auditable qué se le está enseñando al modelo.
 const RESPUESTA_ESPERADA = {
-  1: { respuesta_inicial: "JUAN", correccion: "JOSE DE ARIMAT" },
+  1: { respuesta_inicial: "JUAN EL BAUTIS", correccion: "JOSE DE ARIMATEA" },
   2: { respuesta_inicial: null, correccion: null },
   3: { respuesta_inicial: "A E", correccion: "A B" },
   4: {
@@ -155,8 +171,8 @@ const RESPUESTA_ESPERADA = {
     correccion: { 1: "D", 2: "A", 3: "C", 4: "B" },
   },
   5: {
-    respuesta_inicial: { 1: "B", 2: "A", 3: "B", 4: "A" },
-    correccion: { 1: "B", 2: "A", 3: "A", 4: "B" },
+    respuesta_inicial: { 1: "B", 2: "A", 3: "", 4: "B" },
+    correccion: { 1: "B", 2: "A", 3: "", 4: "C" },
   },
   6: { respuesta_inicial: "SYDNEY", correccion: null },
 };
@@ -172,10 +188,11 @@ const USER_PROMPT_EJEMPLO =
   "Este es un EJEMPLO ya resuelto, de una hoja distinta e independiente a la que vas a leer después (con su propia " +
   "numeración 1-6, sin relación con los números de la página real) — solo sirve para que veas exactamente cómo se " +
   "transcribe cada caso, incluida la respuesta correcta que sigue en este mismo turno. Fíjate especialmente en:\n" +
-  "- Pregunta 1 (abierto): Respuesta lleva un nombre corto y distinto del que se esperaría, y Corrección lleva una " +
-  'PALABRA CORTADA A MEDIAS ("JOSE DE ARIMAT", sin terminar) — ninguna de las dos se completa ni se corrige hacia ' +
-  "lo que parece más correcto, por muy evidente que sea cuál sería la palabra o el nombre completo: la " +
-  "transcripción es SIEMPRE literal, letra a letra, tal cual está escrito, aunque la palabra se quede a medias.\n" +
+  '- Pregunta 1 (abierto): Respuesta lleva un nombre DISTINTO y TAMBIÉN CORTADO A MEDIAS ("JUAN EL BAUTIS", sin ' +
+  'terminar), y Corrección lleva el nombre correcto y COMPLETO ("JOSE DE ARIMATEA") — ninguna de las dos palabras ' +
+  "se completa ni se acorta: la de Respuesta se queda a medias tal cual está, y la de Corrección se transcribe " +
+  "entera tal cual está. La transcripción es SIEMPRE literal, letra a letra, tanto si la palabra está completa " +
+  "como si no — nunca completar lo que está cortado, nunca acortar lo que está entero.\n" +
   "- Pregunta 2 (opción múltiple): las dos casillas, Respuesta y Corrección, están COMPLETAMENTE en blanco — la " +
   "respuesta correcta es null en ambas, nunca una letra inventada.\n" +
   "- Pregunta 3 (selección múltiple): hay una casilla vacía en medio de la selección, en los dos bloques — se " +
@@ -183,9 +200,12 @@ const USER_PROMPT_EJEMPLO =
   "- Pregunta 4 (ordenar): Respuesta y Corrección son dos secuencias COMPLETAS, pero ninguna de las dos es la " +
   'ordenación correcta ni coinciden entre sí — se transcribe cada una tal cual está, sin "arreglarla" hacia el ' +
   "orden que se supone correcto.\n" +
-  "- Pregunta 5 (clasificar): Respuesta y Corrección son dos clasificaciones completas y distintas entre sí — cada " +
-  "bloque se lee y se transcribe de forma independiente, nunca copiando ni mezclando valores de un bloque con el " +
-  "otro.\n" +
+  "- Pregunta 5 (clasificar): el elemento de la posición 3 (Murciélago) queda SIN clasificar en los DOS bloques — " +
+  "ni Respuesta ni Corrección le asignan ninguna categoría. Esa posición es cadena vacía en el diccionario de las " +
+  "dos respuestas, nunca una categoría inventada — mismo principio que la casilla vacía de la pregunta 3, " +
+  "aplicado aquí a \"clasificar\". El elemento de la posición 4 (Serpiente), en cambio, SÍ tiene una corrección " +
+  "real: Respuesta dice \"B\" (Ave) y Corrección lo cambia a \"C\" (Reptil) — dos valores distintos, cada uno " +
+  "transcrito tal cual está en su propio bloque, sin copiar el valor de uno al otro.\n" +
   "- Pregunta 6 (abierto): Respuesta tiene contenido pero Corrección está COMPLETAMENTE en blanco — Corrección es " +
   "null, sin inventar una corrección ni cambiar lo escrito en Respuesta aunque te parezca incorrecto: tu trabajo " +
   "es transcribir, no corregir.\n\n" +
@@ -194,7 +214,7 @@ const USER_PROMPT_EJEMPLO =
   "- Pregunta 2: Opción múltiple, entre A y E.\n" +
   "- Pregunta 3: Selección múltiple, con opciones entre A y E.\n" +
   "- Pregunta 4: Ordenar 4 elementos (letras A-D) en las posiciones 1-4.\n" +
-  "- Pregunta 5: Clasificar 4 elementos (números 1-4) en categorías entre A y B.\n" +
+  "- Pregunta 5: Clasificar 4 elementos (números 1-4) en categorías entre A y C.\n" +
   "- Pregunta 6: Abierto.\n\n" +
   'Para cada pregunta debes transcribir tanto "Respuesta" como "Corrección", exactamente como en la respuesta que ' +
   "sigue a continuación — luego te tocará hacer lo mismo con la página real.";

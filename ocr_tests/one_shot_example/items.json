@@ -45,16 +45,17 @@
     {
       "id": "ejemplo-clasificar",
       "formato": "clasificar",
-      "enunciado": "Clasifica estos animales según si son mamíferos o aves:",
+      "enunciado": "Clasifica estos animales según su clase: mamífero, ave o reptil:",
       "elementos": [
         "Águila",
         "Delfín",
         "Murciélago",
-        "Avestruz"
+        "Serpiente"
       ],
       "categorias": [
         "Mamífero",
-        "Ave"
+        "Ave",
+        "Reptil"
       ]
     },
     {
@@ -67,8 +68,8 @@
   "respuestas_sinteticas": {
     "items": {
       "ejemplo-abierto-1": {
-        "respuesta": "JUAN",
-        "correccion": "JOSE DE ARIMAT"
+        "respuesta": "JUAN EL BAUTIS",
+        "correccion": "JOSE DE ARIMATEA"
       },
       "ejemplo-opcion-multiple": {
         "respuesta": "",
@@ -96,14 +97,14 @@
         "respuesta": [
           "B",
           "A",
-          "B",
-          "A"
+          "",
+          "B"
         ],
         "correccion": [
           "B",
           "A",
-          "A",
-          "B"
+          "",
+          "C"
         ]
       },
       "ejemplo-abierto-2": {

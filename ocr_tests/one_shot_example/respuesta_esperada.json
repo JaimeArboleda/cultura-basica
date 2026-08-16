@@ -1,7 +1,7 @@
 {
   "1": {
-    "respuesta_inicial": "JUAN",
-    "correccion": "JOSE DE ARIMAT"
+    "respuesta_inicial": "JUAN EL BAUTIS",
+    "correccion": "JOSE DE ARIMATEA"
   },
   "2": {
     "respuesta_inicial": null,
@@ -29,14 +29,14 @@
     "respuesta_inicial": {
       "1": "B",
       "2": "A",
-      "3": "B",
-      "4": "A"
+      "3": "",
+      "4": "B"
     },
     "correccion": {
       "1": "B",
       "2": "A",
-      "3": "A",
-      "4": "B"
+      "3": "",
+      "4": "C"
     }
   },
   "6": {
