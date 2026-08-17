@@ -148,7 +148,7 @@ function pedirTokenManualmente(contenedor, { examId, tokens, motivoFallback }) {
 // resuelve a mano.
 // ============================================================
 
-async function procesarUnidad(unidad, { tokens, zonaIntervencion, log, manifiesto }) {
+async function procesarUnidad(unidad, { tokens, zonaIntervencion, log, manifiesto, geometriaCasillas }) {
   log("Detectando esquinas…");
   const detectados = detectarFiduciales(unidad.canvas);
   let esquinas = detectados;
@@ -222,7 +222,7 @@ async function procesarUnidad(unidad, { tokens, zonaIntervencion, log, manifiest
   }
 
   log(`Leyendo contenido con IA (examen ${examId}, página ${pagina})…`);
-  const entradaIA = construirEntradaPaginaIA(paginaManifiesto, warp, `${examId}-${pagina}`);
+  const entradaIA = construirEntradaPaginaIA(paginaManifiesto, warp, `${examId}-${pagina}`, geometriaCasillas[pagina - 1]);
   // Sin `modelo`: el Worker usa siempre su modelo por defecto (gpt-5-mini,
   // wrangler.toml OPENAI_MODEL) — el panel ya no ofrece elegir otro (issue
   // #31): la comparativa contra la API real mostró que es la mejor relación
@@ -465,7 +465,7 @@ export async function renderSubirLote(contenedorRaiz) {
   const listaProgreso = contenedorRaiz.querySelector("#lista-progreso-lote");
   const zonaExamenes = contenedorRaiz.querySelector("#zona-examenes-lote");
 
-  const { items, manifiesto } = await obtenerManifiesto();
+  const { items, manifiesto, geometriaCasillas } = await obtenerManifiesto();
 
   async function refrescarExamenes() {
     zonaExamenes.innerHTML = "<p>Cargando…</p>";
@@ -500,6 +500,7 @@ export async function renderSubirLote(contenedorRaiz) {
           zonaIntervencion,
           log: (msg) => (unidad.item.textContent = `${unidad.etiqueta}: ${msg}`),
           manifiesto,
+          geometriaCasillas,
         });
         unidad.item.textContent = `${unidad.etiqueta}: ✓ examen ${resultado.examId}, página ${resultado.pagina}`;
         unidad.item.className = "progreso-ok";

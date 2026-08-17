@@ -554,3 +554,199 @@ este patrón (una palabra española muy reconocible cortada a la mitad, sin
 compartir turno con otras 5 preguntas que puedan diluir la lección) o
 aceptar que este caso concreto es un límite práctico del enfoque de prompt/
 few-shot con este modelo.
+
+## Detección determinista de tinta por casilla para "ordenar"/"clasificar" con huecos (issue #35, 17 de agosto de 2026)
+
+Seguimiento del fallo de #33 (una o varias casillas sin rellenar en medio de
+la rejilla de `ordenar`/`clasificar`: el modelo, al no saber de antemano
+cuáles están vacías, desplaza las letras siguientes para rellenar el hueco en
+vez de dejar esa posición como cadena vacía). El propio issue #33 ya había
+verificado que forzar en el esquema JSON las posiciones ya sabidas en blanco
+arregla el fallo (4/4), pero faltaba la mitad determinista: ¿se puede saber
+de antemano, sin LLM, qué casillas están vacías, con la fidelidad suficiente
+para restringir el esquema sin riesgo de borrar contenido real?
+
+**Paso 1 — verificación pura de imagen, sin ningún LLM de por medio.**
+`hoja.js::calcularGeometriaCasillas` (nuevo) expone la posición exacta de
+cada casilla de ordenar/clasificar sin generar ningún PDF, reutilizando los
+mismos bloques que ya calcula `calcularManifiesto` para saber dónde cae cada
+ítem. `ocr_tests/verificar_casillas_vacias.mjs` (nuevo) endereza cada
+`pagina-NN.jpg` con el mismo mecanismo que usa producción
+(`comun.js::detectarFiduciales`+`warpearImagen`), muestrea la densidad de
+tinta del interior de cada casilla (22% de margen para no coger el borde
+impreso ni tinta de la vecina) y compara contra el ground truth exacto de
+`generar.mjs::construirPlan` (reproducible sin volver a generar imágenes:
+`generar.mjs` ahora exporta `PERSONAS`/`construirPlan`/`hashCadena` y protege
+su `main()` tras un guard de punto de entrada).
+
+**Resultado: separación limpia.** En las 312 casillas de las 4 instancias
+(78 casillas × 4 personas), la casilla "con tinta" más tenue midió 8.1 de
+densidad media; la "en blanco" más oscura (ruido/JPEG) midió 4.5. Cualquier
+umbral en ese hueco de +3.5 puntos da 0 falsos positivos y 0 falsos
+negativos — `comun.js::detectarTintaCasillas` (umbral 8, mismo inset 22%,
+exportado para producción y para el propio test) acierta 312/312.
+
+**Bug real encontrado y corregido de camino, bloqueante para esta
+verificación**: `comun.js::detectarFiduciales` buscaba el fiducial en el 8%
+del encuadre de la foto, un valor que quedó desactualizado desde que
+`FIDUCIAL_INSET_MM` pasó de 3mm a `PADDING_MM` (15mm) en un cambio de layout
+anterior — el fiducial cae ahora al 8.3% de la página YA SIN contar ningún
+margen de encuadre real, así que con cualquier foto real (confirmado 11-12%/
+8-9% del encuadre incluso con solo un 3% de margen simulado) la autodetección
+de esquinas fallaba siempre, cayendo en silencio al selector manual. Subido a
+20%.
+
+**Paso 2 — implementación completa** (cliente + servidor + esquema, issue
+#35 trabajo pendiente #1-#2, y el diff server-side ya prototipado en el
+propio issue):
+
+- `hoja.js`: `calcularGeometriaCasillas` (arriba) + método `casillas()` en
+  paralelo a `dibujar()` en los builders de casillas.
+- `comun.js`: `detectarTintaCasillas(canvasEnderezado, casillas)`, umbral e
+  inset calibrados arriba.
+- `digitalizar.js`/`subirLote.js`: `obtenerManifiesto()` calcula también
+  `geometriaCasillas`; `construirEntradaPaginaIA` muestrea la tinta del
+  `warpCanvas` ya enderezado y enriquece cada ítem ordenar/clasificar con
+  `posicionesEnBlancoRespuesta`/`posicionesEnBlancoCorreccion` (1-based, solo
+  si hay alguna) antes de mandarlo a OCR-IA.
+- `worker/src/endpoints/admin/ocrIa.ts`: `ItemEntrada` acepta esos dos
+  campos; `esquemaPosicionesNullable` fuerza esas posiciones a `enum: [""]`
+  en vez del patrón normal; `esquemaPregunta` construye Respuesta/Corrección
+  por separado cuando el ítem los trae (antes compartían el mismo esquema).
+  Validación explícita en `motivoItemInvalido` (solo válido en ordenar/
+  clasificar, posiciones entre 1 y n). 6 tests nuevos en `ocrIa.test.ts`
+  (198/198 en total, sin regresiones).
+- `probar_ocr_ia.mjs`: antes mandaba la foto cruda (sin enderezar) a OCR-IA
+  para CUALQUIER formato — nunca ejercía el paso de enderezado que sí corre
+  siempre en producción. Ahora, solo para páginas con ordenar/clasificar (las
+  únicas que necesitan esta detección), endereza con el mecanismo real y
+  calcula `posicionesEnBlanco*` muestreando la tinta — igual que hará el
+  cliente real, nunca a partir del ground truth. El resto de páginas se sigue
+  mandando cruda (cambiar eso afectaría a todos los números históricos de
+  este README para otros formatos, fuera de alcance de este issue).
+
+**Verificación end-to-end contra la API real** (`gpt-5-mini`, `wrangler dev`
+local, mismo día): para los 4 casos ya documentados en #33/generar.mjs
+(`HUECOS_CLASIFICAR`, un hueco deliberado en el ítem `04`/`22` de cada
+persona), comparando la MISMA llamada con y sin las posiciones detectadas
+automáticamente (nunca el ground truth):
+
+| Instancia / ítem | Sin fix (baseline) | Con fix (posiciones detectadas) |
+|---|---|---|
+| `01-letra-clara` / `04` | FALLO (desplazó elementos tras el hueco) | OK |
+| `02-con-correcciones` / `22` | OK (no reprodujo el fallo esta vez) | OK |
+| `03-valores-invalidos-e-incompletas` / `04` | FALLO (mismo patrón) | OK |
+| `04-descuidada-ruidosa` / `22` | FALLO (mismo patrón) | OK |
+
+**4/4 con el fix**, 3/4 reproduciendo el fallo exacto descrito en el issue
+sin él (el 4º no lo reprodujo esta vez concreta — el issue ya documentaba
+~50% de fallo, no 100%). A continuación, la batería completa de las 4
+instancias con `probar_ocr_ia.mjs` ya actualizado (enderezado + detección
+real en las páginas que lo necesitan):
+
+| Instancia | Ítems | Demografía |
+|---|---|---|
+| `01-letra-clara` | **25/25 (100%)** | 7/7 (100%) |
+| `02-con-correcciones` | **24/25 (96%)** | 7/7 (100%) |
+| `03-valores-invalidos-e-incompletas` | **23/25 (92%)** | 7/7 (100%) |
+| `04-descuidada-ruidosa` | **24/25 (96%)** | 7/7 (100%) |
+
+**96/100 (96%) de acierto agregado en ítems**, 28/28 (100%) demografía. Los 4
+fallos que quedan son los dos patrones YA documentados arriba, ninguno nuevo
+y ninguno relacionado con huecos en ordenar/clasificar: el ítem `19`
+("PLUSV"/texto invertido, `02-con-correcciones` y el propio patrón
+"PLUSVALIA" ya conocido) y dos errores de lectura sueltos en
+`03-valores-invalidos-e-incompletas` (ítems `12`/`23`, opción única).
+
+**Qué falta** (issue #35 trabajo pendiente #3-#4, no cubierto por esta
+ronda): calibrar el umbral contra fotos/escaneos reales de calidad muy
+distinta (móvil con mala luz, escáner de sobremesa, papel con sombras) — esta
+verificación es 100% contra las 4 fixtures sintéticas de `ocr_tests/`, con un
+efecto de escaneo/foto ya simulado (rotación, ruido, desenfoque) pero nunca
+sustituto perfecto de una foto real. El margen de separación (8.1 vs 4.5) da
+bastante colchón, pero sigue siendo trabajo pendiente antes de confiar en
+esto contra el piloto real sin supervisión.
+
+## Ampliación a los 5 formatos, y un hallazgo real sobre techos exactos (issue #35, mismo día)
+
+Con la detección de tinta funcionando tan bien en ordenar/clasificar, se
+amplió a los otros 3 formatos:
+
+- `hoja.js::calcularGeometriaCasillas` ya no se limita a ordenar/clasificar —
+  cada builder de casillas (`construirFilaCasillas`/`construirBloqueCasillas`/
+  `construirBloqueCasillasDoble`) ya exponía `.casillas()` genéricamente desde
+  la primera ronda; solo faltaba enganchar los 3 formatos restantes en
+  `construirBloqueItem` (abierto necesita dos bloques con `lado` etiquetado a
+  mano, Respuesta/Corrección van apilados, no lado a lado como el resto).
+- `digitalizar.js::conDeteccionDeTinta` calcula, según formato: posiciones en
+  blanco (ordenar/clasificar/opcion_multiple, reutilizando el mismo mecanismo
+  — opcion_multiple tiene una única casilla, así que "en blanco" ahí es "todo
+  el bloque vacío"), nº de casillas con tinta (seleccion_multiple) o longitud
+  del tramo con tinta (abierto, primera a última casilla inkada).
+- `ocrIa.ts`: `ItemEntrada` gana `numSeleccionadasRespuesta/Correccion` y
+  `longitudDetectadaRespuesta/Correccion`, con su propia validación de rango.
+
+**Hallazgo real durante la verificación end-to-end** (contra la API real, las
+4 instancias completas): el primer diseño para `seleccion_multiple` forzaba
+el nº EXACTO de letras detectadas con tinta. En la instancia
+`01-letra-clara`, el ítem `18` (3 opciones correctas realmente marcadas) bajó
+de 25/25 a 24/25 — la 3ª casilla midió una densidad de **7.9, justo por
+debajo del umbral 8** (`comun.js::UMBRAL_TINTA_CASILLA`), el detector contó 2
+en vez de 3, y el esquema forzó exactamente 2 letras: el modelo, aunque
+probablemente veía la 3ª marca, no tenía forma de reportarla — Structured
+Outputs no le deja "desobedecer" el esquema.
+
+A diferencia de forzar posiciones individuales a cadena vacía (ordenar/
+clasificar/opcion_multiple, donde un fallo puntual del detector solo afecta a
+ESA casilla, nunca bloquea el resto del ítem), un **techo exacto sobre un
+conteo agregado es un único punto de fallo**: basta con que UNA casilla caiga
+del lado equivocado del umbral para volver inexpresable una respuesta
+correcta entera. Corregido en dos frentes:
+
+1. **`seleccion_multiple`** ya no fuerza ningún nº exacto de letras — solo usa
+   la detección para "0 casillas con tinta → `null`" (la única señal
+   verdaderamente inequívoca: requiere fallar TODAS las casillas del bloque a
+   la vez, no solo una). Con una o más, el patrón queda tan libre como antes
+   de esta ronda.
+2. **`abierto`** mantiene el techo de longitud (es la mitigación directa del
+   patrón "PLUSV" → "PLUSVALIA"), pero le suma un margen de seguridad fijo
+   (`MARGEN_SEGURIDAD_TECHO = 2` casillas) al tramo detectado antes de usarlo
+   como `maxLength`, para absorber exactamente este mismo tipo de casilla
+   borderline sin arriesgar truncar una respuesta real.
+
+**Corrida de verificación tras el fix** (`gpt-5-mini`, mismo día, mismas 4
+instancias, `probar_ocr_ia.mjs` ahora enderezando y detectando tinta en
+CUALQUIER página de tipo `items`, no solo las de ordenar/clasificar):
+
+| Instancia | Ítems | Demografía |
+|---|---|---|
+| `01-letra-clara` | **25/25 (100%)** | 7/7 (100%) |
+| `02-con-correcciones` | **25/25 (100%)** | 7/7 (100%) |
+| `03-valores-invalidos-e-incompletas` | **23/25 (92%)** | 7/7 (100%) |
+| `04-descuidada-ruidosa` | **24/25 (96%)** | 7/7 (100%) |
+
+**97/100 (97%) de acierto agregado en ítems**, 28/28 (100%) demografía —
+mejora sobre el 96% de la ronda anterior (solo ordenar/clasificar) y el ítem
+`18` que había regresionado con el diseño de techo exacto vuelve a acertar.
+Los 3 fallos que quedan, revisados uno a uno contra el plan/imagen real, son
+errores de lectura genuinos sin relación con la detección de tinta:
+
+- Ítem `10` (`03-valores-invalidos-e-incompletas`, `abierto`): la persona
+  escribió literalmente "4/1" (respuesta deliberadamente incompleta, 3
+  caracteres — `tasaAbiertaIncompleta`), el modelo devolvió "4/" (perdió el
+  último dígito). El esquema permitía hasta 5 caracteres (3 detectados + 2 de
+  margen) — sobraba margen de sobra para los 3 reales, así que NO es un
+  truncamiento del esquema, es una lectura incompleta del propio modelo.
+- Ítem `23` (`03-valores-invalidos-e-incompletas`, `opcion_multiple`): letra
+  incorrecta, sin relación con ningún bloque en blanco.
+- Ítem `22` (`04-descuidada-ruidosa`, `clasificar`): una única categoría mal
+  asignada (Liszt → Impresionismo en vez de Romanticismo) en una posición que
+  el detector correctamente identificó CON tinta — error de lectura, no de
+  huecos.
+
+Ningún fallo de los 3 corresponde a una casilla forzada incorrectamente ni a
+un truncamiento — la lección de este hallazgo (techos exactos son frágiles,
+suelos/posiciones individuales son seguros) queda documentada en los propios
+comentarios de `esquemaCampoRespuestaItemLado` (`worker/src/endpoints/admin/ocrIa.ts`)
+para la próxima vez que se considere restringir el esquema con una señal
+determinista.

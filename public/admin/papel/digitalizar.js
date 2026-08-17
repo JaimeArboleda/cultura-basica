@@ -8,9 +8,9 @@
 // página entera) y la pantalla de confirmación al crear la sesión.
 import { api, escaparHtml } from "../admin.js";
 import { bloqueCamposDemografia, leerDemografiaDelFormulario, renderEditarSesion } from "../editarSesion.js";
-import { cargarFuentesHoja, obtenerFontkit, obtenerPdfLib } from "./comun.js";
+import { cargarFuentesHoja, detectarTintaCasillas, obtenerFontkit, obtenerPdfLib } from "./comun.js";
 import { CATALOGOS } from "../../js/demografia.js";
-import { calcularManifiesto, crearContextoFuentes, VERSION_PIPELINE } from "./hoja.js";
+import { calcularGeometriaCasillas, calcularManifiesto, crearContextoFuentes, VERSION_PIPELINE } from "./hoja.js";
 
 // [campo del objeto Demografia (worker/src/tipos.ts), clave en CATALOGOS
 // (public/js/demografia.js)] — necesario para traducir la letra que devolvió
@@ -57,10 +57,16 @@ export function obtenerManifiesto() {
       const ctx = await obtenerContextoFuentes();
       const { items } = await api.itemsImpresion();
       const manifiesto = calcularManifiesto(ctx, items);
+      // geometriaCasillas: array paralelo a `manifiesto` (una entrada por
+      // página) con la posición de cada casilla de ordenar/clasificar — issue
+      // #35, para la detección determinista de tinta en
+      // construirEntradaPaginaIA más abajo.
+      const geometriaCasillas = calcularGeometriaCasillas(ctx, items);
       return {
         ctx,
         items,
         manifiesto,
+        geometriaCasillas,
         itemsPorId: new Map(items.map((it) => [it.id, it])),
         numeroPorId: new Map(items.map((it, i) => [it.id, i + 1])),
       };
@@ -274,11 +280,73 @@ export function renderConfirmacionYCrear(
 // worker/src/endpoints/admin/digitalizacion.ts.
 // ============================================================
 
-export function construirEntradaPaginaIA(paginaManifiesto, warpCanvas, paginaId) {
+// casillasPagina (opcional): la entrada de geometriaCasillas (obtenerManifiesto)
+// correspondiente a ESTA página. issue #35 (ampliado a los 5 formatos): antes
+// de mandar la página a OCR-IA, se muestrea la tinta de cada casilla sobre el
+// propio warpCanvas (ya enderezado) y se manda al Worker lo que ya se sabe
+// con certeza por cada lado (Respuesta/Corrección), en la forma que necesita
+// cada formato:
+//   - ordenar/clasificar/opcion_multiple: qué posiciones concretas están sin
+//     tinta (1-based) — el Worker las fuerza a cadena vacía en el esquema en
+//     vez de dejar que el modelo decida, la causa raíz del fallo de #33 (con
+//     un hueco en medio de la rejilla, el modelo desplazaba las letras
+//     siguientes en vez de dejar la posición vacía). opcion_multiple tiene
+//     una única casilla por lado, así que "en blanco" == "el bloque entero
+//     está vacío", fuerza null.
+//   - seleccion_multiple: cuántas casillas tienen tinta — el Worker fuerza
+//     esa MISMA cantidad de letras válidas en la respuesta (ni más ni menos),
+//     0 fuerza null.
+//   - abierto: cuántas casillas hay entre la primera y la última con tinta
+//     (incluye huecos intermedios: son los espacios entre palabras) — el
+//     Worker acota la longitud máxima a ese tramo en vez de al nº total de
+//     casillas impresas, para reducir el autocompletado ("PLUSV" →
+//     "PLUSVALIA"); 0 (ninguna casilla con tinta) fuerza null.
+function conDeteccionDeTinta(itemManifiesto, warpCanvas, casillasPagina) {
+  const casillasItem = casillasPagina.filter((c) => c.itemId === itemManifiesto.id);
+  if (casillasItem.length === 0) return itemManifiesto;
+  const conTinta = detectarTintaCasillas(warpCanvas, casillasItem);
+
+  switch (itemManifiesto.formato) {
+    case "ordenar":
+    case "clasificar":
+    case "opcion_multiple": {
+      const posicionesEnBlancoRespuesta = conTinta.filter((c) => c.lado === "respuesta" && !c.tieneTinta).map((c) => c.posicion + 1);
+      const posicionesEnBlancoCorreccion = conTinta.filter((c) => c.lado === "correccion" && !c.tieneTinta).map((c) => c.posicion + 1);
+      return {
+        ...itemManifiesto,
+        ...(posicionesEnBlancoRespuesta.length > 0 && { posicionesEnBlancoRespuesta }),
+        ...(posicionesEnBlancoCorreccion.length > 0 && { posicionesEnBlancoCorreccion }),
+      };
+    }
+    case "seleccion_multiple": {
+      const numSeleccionadasRespuesta = conTinta.filter((c) => c.lado === "respuesta" && c.tieneTinta).length;
+      const numSeleccionadasCorreccion = conTinta.filter((c) => c.lado === "correccion" && c.tieneTinta).length;
+      return { ...itemManifiesto, numSeleccionadasRespuesta, numSeleccionadasCorreccion };
+    }
+    case "abierto": {
+      const longitudDetectada = (lado) => {
+        const inkadas = conTinta.filter((c) => c.lado === lado && c.tieneTinta).map((c) => c.posicion);
+        if (inkadas.length === 0) return 0;
+        return Math.max(...inkadas) - Math.min(...inkadas) + 1;
+      };
+      return {
+        ...itemManifiesto,
+        longitudDetectadaRespuesta: longitudDetectada("respuesta"),
+        longitudDetectadaCorreccion: longitudDetectada("correccion"),
+      };
+    }
+    default:
+      return itemManifiesto;
+  }
+}
+
+export function construirEntradaPaginaIA(paginaManifiesto, warpCanvas, paginaId, casillasPagina = []) {
+  const items =
+    paginaManifiesto.tipo === "items" ? paginaManifiesto.items.map((it) => conDeteccionDeTinta(it, warpCanvas, casillasPagina)) : undefined;
   return {
     id: paginaId,
     imagen: warpCanvas.toDataURL("image/jpeg", 0.85),
     tipo: paginaManifiesto.tipo,
-    ...(paginaManifiesto.tipo === "demografia" ? { campos: paginaManifiesto.campos } : { items: paginaManifiesto.items }),
+    ...(paginaManifiesto.tipo === "demografia" ? { campos: paginaManifiesto.campos } : { items }),
   };
 }

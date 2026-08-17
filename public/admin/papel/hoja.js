@@ -372,20 +372,27 @@ function casillasAbiertoAjustadas(n, anchoPt) {
   return porFila * numFilas;
 }
 
+// posicionCasilla: geometría compartida entre dibujar() y casillas() — misma
+// aritmética, una sola vez (issue #35: la lectura necesita las mismas
+// coordenadas que la impresión, nunca una segunda fuente de verdad).
 function construirFilaCasillas(ctx, n, anchoPt, { etiquetasCabecera, valores } = {}) {
   const porFila = casillasPorFila(anchoPt);
   const numFilas = Math.ceil(n / porFila);
   const altoCabecera = etiquetasCabecera ? altoLineaPt(6) : 0;
   const altoFila = altoCabecera + CASILLA_H_PT;
   const gapEntreFilas = mmAPt(1.5);
+  function posicionCasilla(i, xPt, yTopPt) {
+    const fila = Math.floor(i / porFila);
+    const col = i % porFila;
+    const x = xPt + col * (CASILLA_W_PT + CASILLA_GAP_PT);
+    const yFila = yTopPt + fila * (altoFila + gapEntreFilas);
+    return { x, yFila };
+  }
   return {
     altoPt: numFilas * altoFila + (numFilas - 1) * gapEntreFilas,
     dibujar(lienzo, xPt, yTopPt) {
       for (let i = 0; i < n; i++) {
-        const fila = Math.floor(i / porFila);
-        const col = i % porFila;
-        const x = xPt + col * (CASILLA_W_PT + CASILLA_GAP_PT);
-        const yFila = yTopPt + fila * (altoFila + gapEntreFilas);
+        const { x, yFila } = posicionCasilla(i, xPt, yTopPt);
         if (etiquetasCabecera) {
           lienzo.textoCentrado(x + CASILLA_W_PT / 2, yFila, etiquetasCabecera[i], {
             font: ctx.fontBold,
@@ -400,6 +407,17 @@ function construirFilaCasillas(ctx, n, anchoPt, { etiquetasCabecera, valores } =
         dibujarInk(lienzo, ctx, valores?.[i], x, yFila + altoCabecera);
       }
     },
+    // Geometría de cada casilla en pt absolutos (mismo sistema de coordenadas
+    // que dibujar: origen arriba-izquierda de la PÁGINA), reutilizable al leer
+    // (calcularGeometriaCasillas más abajo) sin tener que generar ningún PDF.
+    casillas(xPt, yTopPt) {
+      const resultado = [];
+      for (let i = 0; i < n; i++) {
+        const { x, yFila } = posicionCasilla(i, xPt, yTopPt);
+        resultado.push({ xPt: x, yTopPt: yFila + altoCabecera, wPt: CASILLA_W_PT, hPt: CASILLA_H_PT, posicion: i });
+      }
+      return resultado;
+    },
   };
 }
 
@@ -411,7 +429,15 @@ function construirBloqueCasillas(ctx, etiqueta, n, anchoPt, config, opts) {
     margenInferiorPt: mmAPt(0.6),
   });
   const fila = construirFilaCasillas(ctx, n, anchoPt, opts);
-  return apilar([titulo, fila], mmAPt(1.5));
+  return {
+    ...apilar([titulo, fila], mmAPt(1.5)),
+    // apilar([titulo, fila]) coloca fila justo debajo de titulo, sin hueco
+    // entre ambos (el margen de apilar se aplica DESPUÉS de fila) — por eso
+    // el offset de fila es exactamente titulo.altoPt.
+    casillas(xPt, yTopPt) {
+      return fila.casillas(xPt, yTopPt + titulo.altoPt);
+    },
+  };
 }
 
 // Como construirBloqueCasillas, pero dos bloques de UNA sola casilla cada
@@ -433,6 +459,16 @@ function construirBloqueCasillasDoble(ctx, etiquetaIzq, etiquetaDer, n, anchoPt,
     dibujar(lienzo, xPt, yTopPt) {
       bloqueIzq.dibujar(lienzo, xPt, yTopPt);
       bloqueDer.dibujar(lienzo, xPt + anchoMitad + GAP_DOBLE_CORRECCION_PT, yTopPt);
+    },
+    // lado: "respuesta"/"correccion" — issue #35, para que el detector de
+    // tinta determinista sepa a qué bloque (y por tanto a qué campo del
+    // esquema de OCR-IA, posicionesEnBlancoRespuesta/posicionesEnBlancoCorreccion)
+    // pertenece cada casilla.
+    casillas(xPt, yTopPt) {
+      return [
+        ...bloqueIzq.casillas(xPt, yTopPt).map((c) => ({ ...c, lado: "respuesta" })),
+        ...bloqueDer.casillas(xPt + anchoMitad + GAP_DOBLE_CORRECCION_PT, yTopPt).map((c) => ({ ...c, lado: "correccion" })),
+      ];
     },
   };
 }
@@ -592,6 +628,21 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
   // del switch) también lo necesita para "abierto", para pasárselo al motor
   // de OCR-IA como numCasillas.
   let numCasillasAbierto;
+  // Acumula, para CUALQUIER formato, cada sub-bloque de casillas que aparece
+  // en el ítem junto con el desplazamiento vertical (relativo al origen del
+  // ítem) al que quedó — es el único momento en que se conoce ese offset,
+  // antes de que `partes` se apile en un solo bloque (issue #35, ampliado de
+  // ordenar/clasificar a los 5 formatos: la detección determinista de tinta
+  // necesita la geometría de cualquier casilla, no solo las de posiciones).
+  // `lado` solo hace falta para "abierto" (Respuesta/Corrección son dos
+  // bloques SEPARADOS, apilados, cada uno sin lado propio) — para el resto
+  // de formatos ya viene incluido en las casillas que devuelve el propio
+  // construirBloqueCasillasDoble (bloqueIzq/bloqueDer con lado "respuesta"/
+  // "correccion"), así que aquí se deja sin definir y no se pisa nada.
+  const bloquesCasillas = []; // { bloque, offsetPt, lado? }
+  function offsetActualPt() {
+    return partes.reduce((s, p) => s + p.altoPt, 0);
+  }
 
   switch (item.formato) {
     case "abierto": {
@@ -606,22 +657,37 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       // a partir de ella (antes lo intentaba y siempre caía al mínimo fijo:
       // bug real, la hoja en producción nunca dibujaba más de 18 casillas).
       numCasillasAbierto = casillasAbiertoAjustadas(item.casillas_abierto ?? config.casillasAbierto, anchoPt);
-      partes.push(construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config, resp, numCasillasAbierto));
-      partes.push(
-        construirRespuestaAbierta(ctx, "Corrección (solo si te equivocaste antes)", anchoPt, config, corr, numCasillasAbierto)
+      const offsetResp = offsetActualPt();
+      const bloqueResp = construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config, resp, numCasillasAbierto);
+      partes.push(bloqueResp);
+      // Sin casillas() en estilo "linea" (config.estiloAbierto): no hay
+      // casillas discretas que muestrear, solo una raya continua.
+      if (bloqueResp.casillas) bloquesCasillas.push({ bloque: bloqueResp, offsetPt: offsetResp, lado: "respuesta" });
+
+      const offsetCorr = offsetActualPt();
+      const bloqueCorr = construirRespuestaAbierta(
+        ctx,
+        "Corrección (solo si te equivocaste antes)",
+        anchoPt,
+        config,
+        corr,
+        numCasillasAbierto
       );
+      partes.push(bloqueCorr);
+      if (bloqueCorr.casillas) bloquesCasillas.push({ bloque: bloqueCorr, offsetPt: offsetCorr, lado: "correccion" });
       break;
     }
     case "opcion_multiple": {
       const letras = item.opciones.map((_, i) => LETRAS[i]);
       partes.push(construirInstruccion(ctx, "Marca UNA sola respuesta: escribe su letra en la casilla.", anchoPt, config));
       partes.push(construirListaEtiquetada(ctx, item.opciones, letras, anchoPt, config));
-      partes.push(
-        construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", 1, anchoPt, config, {
-          valoresIzq: resp ? [resp] : undefined,
-          valoresDer: corr ? [corr] : undefined,
-        })
-      );
+      const offset = offsetActualPt();
+      const bloqueDoble = construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", 1, anchoPt, config, {
+        valoresIzq: resp ? [resp] : undefined,
+        valoresDer: corr ? [corr] : undefined,
+      });
+      partes.push(bloqueDoble);
+      bloquesCasillas.push({ bloque: bloqueDoble, offsetPt: offset });
       break;
     }
     case "seleccion_multiple": {
@@ -638,12 +704,13 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
           : "Marca TODAS las que correspondan: escribe sus letras, una por casilla.";
       partes.push(construirInstruccion(ctx, instruccionTexto, anchoPt, config));
       partes.push(construirListaEtiquetada(ctx, item.opciones, letras, anchoPt, config));
-      partes.push(
-        construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
-          valoresIzq: resp ? [...resp] : undefined,
-          valoresDer: corr ? [...corr] : undefined,
-        })
-      );
+      const offset = offsetActualPt();
+      const bloqueDoble = construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
+        valoresIzq: resp ? [...resp] : undefined,
+        valoresDer: corr ? [...corr] : undefined,
+      });
+      partes.push(bloqueDoble);
+      bloquesCasillas.push({ bloque: bloqueDoble, offsetPt: offset });
       break;
     }
     case "ordenar": {
@@ -659,13 +726,18 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
         )
       );
       partes.push(construirListaEtiquetada(ctx, item.elementos, letrasElementos, anchoPt, config));
-      partes.push(
-        construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
-          etiquetasCabecera: posiciones,
-          valoresIzq: resp,
-          valoresDer: corr,
-        })
+      const offset = offsetActualPt();
+      const bloqueDoble = construirBloqueCasillasDoble(
+        ctx,
+        "Respuesta",
+        "Corrección (solo si te equivocaste antes)",
+        n,
+        anchoPt,
+        config,
+        { etiquetasCabecera: posiciones, valoresIzq: resp, valoresDer: corr }
       );
+      partes.push(bloqueDoble);
+      bloquesCasillas.push({ bloque: bloqueDoble, offsetPt: offset });
       break;
     }
     case "clasificar": {
@@ -677,13 +749,18 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       );
       partes.push(construirLeyendaCompacta(ctx, item.categorias, letrasCategorias, anchoPt, config));
       partes.push(construirListaEtiquetada(ctx, item.elementos, numerosElementos, anchoPt, config));
-      partes.push(
-        construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
-          etiquetasCabecera: numerosElementos,
-          valoresIzq: resp,
-          valoresDer: corr,
-        })
+      const offset = offsetActualPt();
+      const bloqueDoble = construirBloqueCasillasDoble(
+        ctx,
+        "Respuesta",
+        "Corrección (solo si te equivocaste antes)",
+        n,
+        anchoPt,
+        config,
+        { etiquetasCabecera: numerosElementos, valoresIzq: resp, valoresDer: corr }
       );
+      partes.push(bloqueDoble);
+      bloquesCasillas.push({ bloque: bloqueDoble, offsetPt: offset });
       break;
     }
   }
@@ -710,6 +787,20 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       // restringe el esquema de salida a exactamente esa longitud (ocrIa.ts).
       ...(item.formato === "abierto" && { numCasillas: numCasillasAbierto }),
     },
+    // Geometría de TODAS las casillas del ítem, cualquiera que sea su formato
+    // (issue #35: detección determinista de tinta por casilla, previa a
+    // OCR-IA). xPt/yTopPt son absolutos de PÁGINA (mismo origen que dibujar):
+    // el llamador (calcularGeometriaCasillas) solo tiene que sumar el offset
+    // vertical acumulado de los bloques anteriores de la página, el resto
+    // (offset dentro del ítem, lado respuesta/corrección) ya está resuelto
+    // aquí.
+    ...(bloquesCasillas.length > 0 && {
+      casillas(xPt, yTopPt) {
+        return bloquesCasillas.flatMap(({ bloque: b, offsetPt, lado }) =>
+          b.casillas(xPt, yTopPt + offsetPt).map((c) => (lado ? { ...c, lado } : c))
+        );
+      },
+    }),
   };
 }
 
@@ -865,6 +956,35 @@ export function calcularManifiesto(ctx, items, config = CONFIG_POR_DEFECTO, resp
   paginasItems.forEach((p, i) => (p.tituloDerecha = `Página ${i + 1} de ${paginasItems.length}`));
 
   return [...paginasDemografia, ...paginasItems];
+}
+
+// Geometría absoluta (en pt, mismo sistema de coordenadas que dibujar: origen
+// arriba-izquierda de cada página) de las casillas de ordenar/clasificar —
+// issue #35: detección determinista de tinta por casilla, previa a OCR-IA.
+// Reutiliza calcularManifiesto (los bloques ya construidos, con su método
+// casillas() si lo tienen) y replica EXACTAMENTE el mismo bucle de
+// acumulación vertical que usa construirHoja al dibujar cada página, así que
+// nunca puede desincronizarse de dónde caen las casillas de verdad en el PDF
+// — la lectura (subirLote.js/digitalizar.js, sobre la imagen ya enderezada a
+// esta misma escala canónica) usa esta función, nunca mide nada por su
+// cuenta. Devuelve un array paralelo al manifiesto: por página, la lista de
+// casillas de ese formato con {itemId, lado, posicion, xPt, yTopPt, wPt, hPt}.
+export function calcularGeometriaCasillas(ctx, items, config = CONFIG_POR_DEFECTO) {
+  const manifiesto = calcularManifiesto(ctx, items, config);
+  return manifiesto.map((entrada, i) => {
+    let y = PADDING_PT + CABECERA_ALTO_PT;
+    if (entrada.tipo === "demografia" && i === 0) y += ALTURA_QR_GRANDE_PT;
+    const casillas = [];
+    for (const bloque of entrada.bloques) {
+      if (bloque.casillas) {
+        for (const c of bloque.casillas(PADDING_PT, y)) {
+          casillas.push({ itemId: bloque.itemManifiesto.id, formato: bloque.itemManifiesto.formato, ...c });
+        }
+      }
+      y += bloque.altoPt;
+    }
+    return casillas;
+  });
 }
 
 // ============================================================

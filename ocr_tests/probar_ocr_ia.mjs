@@ -34,9 +34,12 @@ import { readFile, readdir } from "node:fs/promises";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createServer } from "node:http";
+import { chromium } from "playwright";
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-import { crearContextoFuentes, calcularManifiesto, LETRAS } from "../public/admin/papel/hoja.js";
+import { crearContextoFuentes, calcularManifiesto, calcularGeometriaCasillas, LETRAS } from "../public/admin/papel/hoja.js";
+import { PAGE_W, PAGE_H, ESCALA_DIGITALIZACION } from "../public/admin/papel/geometria.js";
 import { CATALOGOS } from "../public/js/demografia.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -85,6 +88,120 @@ async function peticion(pathname, opciones = {}) {
     throw new Error(`${opciones.method ?? "GET"} ${pathname} → HTTP ${res.status}: ${cuerpo.slice(0, 300)}`);
   }
   return res.status === 204 ? null : res.json();
+}
+
+// ============================================================
+// Enderezado + detección de tinta (issue #35, ampliado a los 5 formatos):
+// antes este script mandaba la foto "cruda" (rotada, con ruido) directamente
+// a OCR-IA — nunca ejercía el paso de enderezado (comun.js::
+// detectarFiduciales+warpearImagen) que sí corre siempre en producción
+// (digitalizar.js/subirLote.js), así que nunca medía lo mismo que verá el
+// modelo de verdad. Ahora, para cualquier página de tipo "items" (todas
+// tienen casillas de algún formato — hoja.js::calcularGeometriaCasillas ya
+// cubre los 5), se endereza con el mismo mecanismo real y se calcula la
+// detección de tinta correspondiente a cada formato — igual que hará el
+// cliente real, nunca a partir del ground truth del plan. Las páginas de
+// demografía se siguen mandando crudas (esos campos no tienen esta
+// detección, fuera del alcance del issue #35).
+const MIME_ESTATICO = { ".mjs": "text/javascript; charset=utf-8", ".js": "text/javascript; charset=utf-8" };
+function iniciarServidorEstatico() {
+  const servidor = createServer(async (req, res) => {
+    try {
+      const urlPath = decodeURIComponent(req.url.split("?")[0]);
+      if (urlPath === "/__vacio.html") {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end("<!DOCTYPE html><html><body></body></html>");
+        return;
+      }
+      const rutaFs = path.join(RAIZ_REPO, urlPath);
+      if (!rutaFs.startsWith(RAIZ_REPO)) {
+        res.writeHead(403);
+        res.end();
+        return;
+      }
+      const datos = await readFile(rutaFs);
+      res.writeHead(200, { "Content-Type": MIME_ESTATICO[path.extname(rutaFs)] || "application/octet-stream" });
+      res.end(datos);
+    } catch {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+  return new Promise((resolve) => servidor.listen(0, "127.0.0.1", () => resolve(servidor)));
+}
+
+// Devuelve { imagen: dataURL, itemsEnriquecidos } o { error } — casillasPagina
+// es geometriaPorPagina[i] (hoja.js::calcularGeometriaCasillas), vacío solo
+// para páginas de demografía (el llamador ya filtra ese caso antes).
+async function enderezarYDetectarBlancos(paginaBrowser, baseUrl, jpegBase64, casillasPagina, itemsPagina) {
+  const salida = await paginaBrowser.evaluate(
+    async ({ baseUrl, jpegBase64, casillas, destW, destH }) => {
+      const mod = await import(`${baseUrl}/public/admin/papel/comun.js`);
+      const img = await new Promise((resolve, reject) => {
+        const im = new Image();
+        im.onload = () => resolve(im);
+        im.onerror = reject;
+        im.src = `data:image/jpeg;base64,${jpegBase64}`;
+      });
+      const canvasFuente = document.createElement("canvas");
+      canvasFuente.width = img.width;
+      canvasFuente.height = img.height;
+      canvasFuente.getContext("2d").drawImage(img, 0, 0);
+      const detectados = mod.detectarFiduciales(canvasFuente);
+      if (!detectados) return { error: "fiduciales-no-detectados" };
+      const dst = mod.destinoFiducialesEscalado();
+      const warp = mod.warpearImagen(canvasFuente, detectados, destW, destH, dst);
+      const conTinta = mod.detectarTintaCasillas(warp, casillas);
+      return { imagen: warp.toDataURL("image/jpeg", 0.85), conTinta };
+    },
+    {
+      baseUrl,
+      jpegBase64,
+      casillas: casillasPagina,
+      destW: Math.round(PAGE_W * ESCALA_DIGITALIZACION),
+      destH: Math.round(PAGE_H * ESCALA_DIGITALIZACION),
+    }
+  );
+  if (salida.error) return { error: salida.error };
+
+  // Misma lógica por formato que public/admin/papel/digitalizar.js::
+  // conDeteccionDeTinta (duplicada a propósito: ese módulo importa admin.js,
+  // que toca `document` al cargar, no es seguro importarlo en Node — mismo
+  // motivo que el resto de duplicaciones deliberadas de este script, README
+  // §2).
+  const itemsEnriquecidos = itemsPagina.map((it) => {
+    const casillasItem = salida.conTinta.filter((c) => c.itemId === it.id);
+    if (casillasItem.length === 0) return it;
+    switch (it.formato) {
+      case "ordenar":
+      case "clasificar":
+      case "opcion_multiple": {
+        const posicionesEnBlancoRespuesta = casillasItem.filter((c) => c.lado === "respuesta" && !c.tieneTinta).map((c) => c.posicion + 1);
+        const posicionesEnBlancoCorreccion = casillasItem.filter((c) => c.lado === "correccion" && !c.tieneTinta).map((c) => c.posicion + 1);
+        return {
+          ...it,
+          ...(posicionesEnBlancoRespuesta.length > 0 && { posicionesEnBlancoRespuesta }),
+          ...(posicionesEnBlancoCorreccion.length > 0 && { posicionesEnBlancoCorreccion }),
+        };
+      }
+      case "seleccion_multiple": {
+        const numSeleccionadasRespuesta = casillasItem.filter((c) => c.lado === "respuesta" && c.tieneTinta).length;
+        const numSeleccionadasCorreccion = casillasItem.filter((c) => c.lado === "correccion" && c.tieneTinta).length;
+        return { ...it, numSeleccionadasRespuesta, numSeleccionadasCorreccion };
+      }
+      case "abierto": {
+        const longitud = (lado) => {
+          const inkadas = casillasItem.filter((c) => c.lado === lado && c.tieneTinta).map((c) => c.posicion);
+          if (inkadas.length === 0) return 0;
+          return Math.max(...inkadas) - Math.min(...inkadas) + 1;
+        };
+        return { ...it, longitudDetectadaRespuesta: longitud("respuesta"), longitudDetectadaCorreccion: longitud("correccion") };
+      }
+      default:
+        return it;
+    }
+  });
+  return { imagen: salida.imagen, itemsEnriquecidos };
 }
 
 // ============================================================
@@ -245,7 +362,7 @@ function igual(a, b, formato) {
 // ============================================================
 // Ejecución por instancia
 // ============================================================
-async function probarInstancia(dir, items, manifiesto, tokenPruebaId) {
+async function probarInstancia(dir, items, manifiesto, tokenPruebaId, { paginaBrowser, baseUrl, geometriaPorPagina }) {
   const nombre = path.basename(dir);
   const esperado = JSON.parse(await readFile(path.join(dir, "respuestas-esperadas.json"), "utf8"));
 
@@ -254,6 +371,19 @@ async function probarInstancia(dir, items, manifiesto, tokenPruebaId) {
     const jpegPath = path.join(dir, `pagina-${String(i + 1).padStart(2, "0")}.jpg`);
     const jpegBase64 = await readFile(jpegPath, "base64");
     const m = manifiesto[i];
+    const casillasPagina = geometriaPorPagina[i];
+    if (m.tipo === "items" && casillasPagina.length > 0) {
+      // issue #35: página con ordenar/clasificar — endereza y detecta tinta
+      // igual que producción, en vez de mandar la foto cruda.
+      const resultado = await enderezarYDetectarBlancos(paginaBrowser, baseUrl, jpegBase64, casillasPagina, m.items);
+      if (resultado.error) {
+        console.log(`  [${nombre}] página ${i + 1}: FALLO AL ENDEREZAR (${resultado.error}) — se manda la foto cruda, sin detección de blancos.`);
+        paginasEntrada.push({ id: `${nombre}-${i + 1}`, imagen: `data:image/jpeg;base64,${jpegBase64}`, tipo: m.tipo, items: m.items });
+      } else {
+        paginasEntrada.push({ id: `${nombre}-${i + 1}`, imagen: resultado.imagen, tipo: m.tipo, items: resultado.itemsEnriquecidos });
+      }
+      continue;
+    }
     paginasEntrada.push({
       id: `${nombre}-${i + 1}`,
       imagen: `data:image/jpeg;base64,${jpegBase64}`,
@@ -399,14 +529,37 @@ async function main() {
   const fontBoldBytes = await readFile(path.join(RAIZ_REPO, "public/admin/papel/fonts/LiberationSans-Bold.ttf"));
   const ctx = await crearContextoFuentes({ PDFDocument, rgb }, fontkit, null, null, fontRegularBytes, fontBoldBytes);
   const manifiesto = calcularManifiesto(ctx, itemsOrdenados);
+  const geometriaPorPagina = calcularGeometriaCasillas(ctx, itemsOrdenados);
 
   console.log(`Modelo: ${MODELO}. Instancias: ${personasDisponibles.join(", ")}`);
   const tokenPruebaId = await obtenerTokenDePruebas();
   console.log(`Remesa de pruebas: ${tokenPruebaId} (es_prueba, excluida de /api/admin/stats sin filtro)`);
 
+  // Chromium solo hace falta para enderezar las páginas con ordenar/clasificar
+  // (issue #35) — se lanza siempre igual, aunque ninguna instancia lo use,
+  // para no complicar el resto de esta función con un camino condicional.
+  const chromiumPreinstalado = "/opt/pw-browsers/chromium";
+  const browser = await chromium.launch(fs.existsSync(chromiumPreinstalado) ? { executablePath: chromiumPreinstalado } : {});
+  const servidor = await iniciarServidorEstatico();
+  const puerto = servidor.address().port;
+  const baseUrl = `http://127.0.0.1:${puerto}`;
+
   const resumen = [];
-  for (const persona of personasDisponibles) {
-    resumen.push(await probarInstancia(path.join(RAIZ_REPO, "ocr_tests", persona), itemsOrdenados, manifiesto, tokenPruebaId));
+  try {
+    const paginaBrowser = await browser.newPage();
+    await paginaBrowser.goto(`${baseUrl}/__vacio.html`);
+    for (const persona of personasDisponibles) {
+      resumen.push(
+        await probarInstancia(path.join(RAIZ_REPO, "ocr_tests", persona), itemsOrdenados, manifiesto, tokenPruebaId, {
+          paginaBrowser,
+          baseUrl,
+          geometriaPorPagina,
+        })
+      );
+    }
+  } finally {
+    await browser.close();
+    servidor.close();
   }
 
   console.log("\n=== Resumen ===");

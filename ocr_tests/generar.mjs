@@ -51,8 +51,8 @@ const RAIZ_REPO = path.resolve(__dirname, "..");
 // — si no, item.casillas_abierto quedaría ausente y hoja.js caería siempre
 // al mínimo fijo (18), el mismo bug que motivó mover este cálculo al
 // servidor.
-const CASILLAS_ABIERTO_MINIMO = 18;
-function conCasillasAbierto(item) {
+export const CASILLAS_ABIERTO_MINIMO = 18;
+export function conCasillasAbierto(item) {
   if (item.formato !== "abierto") return item;
   return { ...item, casillas_abierto: Math.max(CASILLAS_ABIERTO_MINIMO, (item.respuesta_canonica?.length ?? 0) + 2) };
 }
@@ -60,7 +60,7 @@ function conCasillasAbierto(item) {
 // ============================================================
 // PRNG determinista (mulberry32) — misma semilla siempre da el mismo plan.
 // ============================================================
-function rngDesde(semilla) {
+export function rngDesde(semilla) {
   let s = semilla >>> 0;
   return function () {
     s |= 0;
@@ -70,7 +70,7 @@ function rngDesde(semilla) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-function hashCadena(s) {
+export function hashCadena(s) {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
@@ -119,7 +119,7 @@ async function descargarFuenteInk(nombre) {
 // casilla de opción (p. ej. "F) 7" en vez de "F"), respuestas abiertas
 // incompletas, y robustez general con letra descuidada/foto ruidosa.
 // ============================================================
-const PERSONAS = [
+export const PERSONAS = [
   {
     id: "01-letra-clara",
     descripcion: "Letra clara, casi sin correcciones — todos los campos censales deben leerse bien",
@@ -366,7 +366,13 @@ function planDemografia(persona, rng) {
   return { demografia, definitiva };
 }
 
-function construirPlan(items, persona, semilla) {
+// Exportada (issue #35): ocr_tests/verificar_casillas_vacias.mjs la reutiliza
+// para obtener, sin generar ninguna imagen, el ground truth exacto de qué
+// casillas de ordenar/clasificar quedaron en blanco por persona/ítem —
+// planItems[item.id].{respuesta,correccion} son exactamente la tinta que
+// construirHoja dibujaría (array de longitud n, "" = sin tinta en esa
+// posición; correccion === null = bloque Corrección entero sin dibujar).
+export function construirPlan(items, persona, semilla) {
   const rng = rngDesde(semilla);
   const planItems = {};
   const definitivas = {};
@@ -645,7 +651,14 @@ async function generarPersonas(browser, servidor) {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exitCode = 1;
-});
+// Solo dispara la generación (red + Chromium + reescritura de ocr_tests/<persona>/)
+// cuando el fichero se ejecuta directamente (`node ocr_tests/generar.mjs`) —
+// issue #35: verificar_casillas_vacias.mjs importa construirPlan/PERSONAS de
+// este mismo módulo para reproducir el ground truth sin regenerar fixtures ni
+// pagar el coste de red/Chromium de por medio.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  });
+}
