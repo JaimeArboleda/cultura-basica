@@ -618,16 +618,28 @@ function localizarBlobEnRegion(imageData, x0, y0, x1, y1) {
   return null;
 }
 
-// Busca los 4 fiduciales dentro de sus cuadrantes esperados (8% del ancho/alto
-// de la foto en cada esquina). Devuelve null si falla alguna esquina; el
-// llamador cae entonces a la posición por defecto del selector manual.
+// Busca los 4 fiduciales dentro de sus cuadrantes esperados en cada esquina
+// (bug real encontrado y corregido durante issue #35: el cuadrante era 8% del
+// ancho/alto de la foto, pero FIDUCIAL_INSET_MM pasó de 3mm a PADDING_MM
+// (15mm) en un cambio de layout anterior sin actualizar este valor —
+// geometria.js, "Antes 3mm... ahora coincide con el margen". El centro del
+// fiducial queda a FIDUCIAL_INSET_MM + FIDUCIAL_SIZE_MM/2 = 17.5mm del borde,
+// un 8.3% del ancho de la página YA SIN contar ningún margen de encuadre real
+// (fuera de la página, dentro del encuadre de la foto) — con cualquier margen
+// de encuadre (inevitable en una foto real, y confirmado contra las fixtures
+// sintéticas de ocr_tests/, donde cae en 11-12%/8-9% del encuadre incluso con
+// solo un 3% de margen simulado), el fiducial cae sistemáticamente FUERA del
+// cuadrante de búsqueda: la autodetección fallaba siempre, cayendo en
+// silencio al selector manual de 4 esquinas). 20% deja margen de sobra para
+// fotos con más aire alrededor de la hoja sin llegar a solaparse con el
+// fiducial opuesto (~88% del encuadre en las mismas fixtures).
 export function detectarFiduciales(canvasFuente) {
   const ctx = canvasFuente.getContext("2d");
   const w = canvasFuente.width;
   const h = canvasFuente.height;
   const imageData = ctx.getImageData(0, 0, w, h);
-  const fx = Math.round(w * 0.08);
-  const fy = Math.round(h * 0.08);
+  const fx = Math.round(w * 0.2);
+  const fy = Math.round(h * 0.2);
   const tl = localizarBlobEnRegion(imageData, 0, 0, fx, fy);
   const tr = localizarBlobEnRegion(imageData, w - fx, 0, w, fy);
   const br = localizarBlobEnRegion(imageData, w - fx, h - fy, w, h);
