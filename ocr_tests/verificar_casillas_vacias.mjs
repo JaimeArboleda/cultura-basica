@@ -265,6 +265,10 @@ async function main() {
                 tieneTinta: c.tieneTinta,
                 zona: c.zona,
                 varianza: c.varianza,
+                otsuSeparabilidad: c.otsuSeparabilidad,
+                numComponentes: c.numComponentes,
+                extensionComponenteMayor: c.extensionComponenteMayor,
+                fraccionComponenteMayor: c.fraccionComponenteMayor,
               })),
             };
           },
@@ -293,6 +297,10 @@ async function main() {
             tieneTintaProduccion: produccionCasilla?.tieneTinta,
             zona: produccionCasilla?.zona,
             varianza: produccionCasilla?.varianza,
+            otsuSeparabilidad: produccionCasilla?.otsuSeparabilidad,
+            numComponentes: produccionCasilla?.numComponentes,
+            extensionComponenteMayor: produccionCasilla?.extensionComponenteMayor,
+            fraccionComponenteMayor: produccionCasilla?.fraccionComponenteMayor,
           });
         }
       }
@@ -375,7 +383,17 @@ async function main() {
               itemId,
               gt,
               blancoLocal,
-              casillas: produccion.map((c) => ({ lado: c.lado, posicion: c.posicion, densidad: c.densidad, varianza: c.varianza, zona: c.zona })),
+              casillas: produccion.map((c) => ({
+                lado: c.lado,
+                posicion: c.posicion,
+                densidad: c.densidad,
+                varianza: c.varianza,
+                zona: c.zona,
+                otsuSeparabilidad: c.otsuSeparabilidad,
+                numComponentes: c.numComponentes,
+                extensionComponenteMayor: c.extensionComponenteMayor,
+                fraccionComponenteMayor: c.fraccionComponenteMayor,
+              })),
             };
           });
         },
@@ -407,6 +425,10 @@ async function main() {
             densidad: c.densidad,
             varianza: c.varianza,
             zona: c.zona,
+            otsuSeparabilidad: c.otsuSeparabilidad,
+            numComponentes: c.numComponentes,
+            extensionComponenteMayor: c.extensionComponenteMayor,
+            fraccionComponenteMayor: c.fraccionComponenteMayor,
             blancoLocal: resultado.blancoLocal,
             tieneTintaReal,
           });
@@ -549,16 +571,28 @@ async function main() {
       console.log(`  0 casos peligrosos (tinta real -> zona "blanco").`);
     }
     if (dudoso > 0) {
-      const varDudosoTinta = datos.filter((r) => r.zona === "dudoso" && r.tieneTintaReal).map((r) => r.varianza);
-      const varDudosoBlanco = datos.filter((r) => r.zona === "dudoso" && !r.tieneTintaReal).map((r) => r.varianza);
-      if (varDudosoTinta.length > 0 && varDudosoBlanco.length > 0) {
-        const medVarTinta = medianaSimple(varDudosoTinta);
-        const medVarBlanco = medianaSimple(varDudosoBlanco);
+      const dudosos = datos.filter((r) => r.zona === "dudoso");
+      const FEATURES = [
+        { campo: "varianza", etiqueta: "varianza" },
+        { campo: "otsuSeparabilidad", etiqueta: "separabilidad de Otsu (0-1)" },
+        { campo: "extensionComponenteMayor", etiqueta: "extensión de la componente mayor (0-1)" },
+        { campo: "fraccionComponenteMayor", etiqueta: "fracción de píxeles en la componente mayor (0-1)" },
+      ];
+      for (const { campo, etiqueta } of FEATURES) {
+        const conTinta = dudosos.filter((r) => r.tieneTintaReal).map((r) => r[campo]);
+        const enBlanco = dudosos.filter((r) => !r.tieneTintaReal).map((r) => r[campo]);
+        if (conTinta.length === 0 || enBlanco.length === 0) continue;
+        const medTinta = medianaSimple(conTinta);
+        const medBlanco = medianaSimple(enBlanco);
+        const minTinta = Math.min(...conTinta);
+        const maxTinta = Math.max(...conTinta);
+        const minBlanco = Math.min(...enBlanco);
+        const maxBlanco = Math.max(...enBlanco);
+        const limpia = maxBlanco < minTinta || maxTinta < minBlanco;
         console.log(
-          `  Dentro de la zona dudosa, varianza mediana: con tinta real=${medVarTinta.toFixed(1)}, en blanco real=${medVarBlanco.toFixed(1)}` +
-            (medVarTinta > medVarBlanco * 1.3
-              ? " — la varianza SÍ parece separar más dentro de la banda dudosa (candidata a estrechar la banda combinando ambas señales)."
-              : " — la varianza no separa claramente dentro de esta banda con esta muestra (demasiado pequeña para concluir).")
+          `  [dudoso] ${etiqueta} — con tinta: min=${minTinta.toFixed(4)} mediana=${medTinta.toFixed(4)} max=${maxTinta.toFixed(4)}; ` +
+            `en blanco: min=${minBlanco.toFixed(4)} mediana=${medBlanco.toFixed(4)} max=${maxBlanco.toFixed(4)}` +
+            (limpia ? " — SEPARACIÓN LIMPIA dentro de la banda dudosa (0 solapamiento con esta muestra)." : " — se solapan.")
         );
       }
     }

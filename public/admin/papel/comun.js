@@ -576,6 +576,151 @@ export function varianzaEnRegion(imageData, x0, y0, x1, y1) {
   return sumaCuad / n;
 }
 
+// Trazo coherente vs ruido estocástico (issue #37, seguimiento a la
+// varianza de arriba): la varianza de intensidad no distingue la CAUSA del
+// contraste — un artefacto de compresión JPEG (bloques de 8x8) o un ligero
+// desalineamiento del warp que atrapa el borde impreso de la casilla pueden
+// producir tanto contraste local como un trazo real; verificado contra
+// escaneos reales (ocr_tests/README.md, ronda del 17 de agosto de 2026): la
+// casilla EN BLANCO con más varianza de todo el dataset real superaba a
+// varias casillas CON tinta real. La diferencia real entre un trazo y ruido
+// no es solo cuánto contraste hay, sino su FORMA: un trazo de letra es una
+// mancha COHERENTE que ocupa una fracción sustancial de la casilla, mientras
+// que un artefacto de bloque o un borde mal recortado es más pequeño y no
+// domina la región.
+//
+// 1. Umbral de Otsu (histograma de oscuridad de la propia región, sin
+//    depender de ningún blanco muestreado fuera de ella): asume que la
+//    región es bimodal (fondo + trazo) y busca el corte que maximiza la
+//    varianza ENTRE las dos clases resultantes. Esa varianza entre clases
+//    (normalizada a 0-1, otsuSeparabilidad) es ya una medida de "qué tan
+//    bimodal es de verdad" la región: alta si hay una separación clara
+//    fondo/trazo, baja si es solo ruido disperso sin una moda oscura clara.
+// 2. Se binariza con ese umbral y se etiquetan las componentes conexas
+//    (flood-fill de 4 vecinos con una pila — la región es tan pequeña, unos
+//    pocos miles de píxeles, que ni siquiera hace falta un algoritmo más
+//    sofisticado que O(nº píxeles)).
+// 3. De la componente más grande se mide su EXTENSIÓN relativa al tamaño de
+//    la región (cuánto ancho/alto de la casilla cubre su caja delimitadora)
+//    y qué fracción de todos los píxeles "trazo" concentra — un trazo real
+//    debería dominar ambas métricas más que ruido disperso o un artefacto
+//    puntual, aunque el margen exacto hay que verificarlo con datos (ver
+//    ocr_tests/verificar_casillas_vacias.mjs).
+export function analizarComponentesCasilla(imageData, x0, y0, x1, y1) {
+  const d = imageData.data;
+  const w = imageData.width;
+  const h = imageData.height;
+  const xi = Math.max(0, Math.round(x0));
+  const xf = Math.min(w, Math.round(x1));
+  const yi = Math.max(0, Math.round(y0));
+  const yf = Math.min(h, Math.round(y1));
+  const rw = xf - xi;
+  const rh = yf - yi;
+  const vacio = { otsuUmbral: 0, otsuSeparabilidad: 0, numComponentes: 0, extensionComponenteMayor: 0, fraccionComponenteMayor: 0 };
+  if (rw <= 0 || rh <= 0) return vacio;
+
+  // Un único recorrido: oscuridad de cada píxel en un buffer local (para no
+  // volver a tocar imageData en los pasos siguientes) + histograma para Otsu.
+  const n = rw * rh;
+  const valores = new Uint8ClampedArray(n);
+  const histograma = new Array(256).fill(0);
+  for (let y = 0; y < rh; y++) {
+    for (let x = 0; x < rw; x++) {
+      const i = ((yi + y) * w + (xi + x)) * 4;
+      const oscuridad = Math.round(255 - (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]));
+      valores[y * rw + x] = oscuridad;
+      histograma[oscuridad]++;
+    }
+  }
+
+  let sumaTotal = 0;
+  for (let v = 0; v < 256; v++) sumaTotal += v * histograma[v];
+
+  // Otsu: barre los 256 cortes posibles buscando el que maximiza la varianza
+  // entre clases (fondo/trazo) — clásico, O(256) tras el histograma.
+  let mejorUmbral = 0;
+  let mejorVarianzaEntre = 0;
+  let pesoFondoAcum = 0;
+  let sumaFondoAcum = 0;
+  for (let t = 0; t < 255; t++) {
+    pesoFondoAcum += histograma[t];
+    sumaFondoAcum += t * histograma[t];
+    const pesoTrazo = n - pesoFondoAcum;
+    if (pesoFondoAcum === 0 || pesoTrazo === 0) continue;
+    const mediaFondo = sumaFondoAcum / pesoFondoAcum;
+    const mediaTrazo = (sumaTotal - sumaFondoAcum) / pesoTrazo;
+    const varianzaEntre = pesoFondoAcum * pesoTrazo * (mediaFondo - mediaTrazo) * (mediaFondo - mediaTrazo);
+    if (varianzaEntre > mejorVarianzaEntre) {
+      mejorVarianzaEntre = varianzaEntre;
+      mejorUmbral = t + 1; // píxeles con oscuridad >= t+1 son la clase "trazo"
+    }
+  }
+  if (mejorUmbral === 0) return vacio; // región perfectamente uniforme, ni un corte mejora sobre 0
+
+  // Varianza total de la región, para normalizar la varianza entre clases a
+  // 0-1 (comparable entre casillas con distinto contraste absoluto).
+  const media = sumaTotal / n;
+  let varianzaTotal = 0;
+  for (let v = 0; v < 256; v++) varianzaTotal += histograma[v] * (v - media) * (v - media);
+  varianzaTotal /= n;
+  const otsuSeparabilidad = varianzaTotal > 0 ? mejorVarianzaEntre / (n * n) / varianzaTotal : 0;
+
+  // Componentes conexas (flood-fill, 4 vecinos) de los píxeles "trazo".
+  const visitado = new Uint8Array(n);
+  const dx4 = [-1, 1, 0, 0];
+  const dy4 = [0, 0, -1, 1];
+  let numComponentes = 0;
+  let mayorArea = 0;
+  let mayorBboxW = 0;
+  let mayorBboxH = 0;
+  let totalTrazo = 0;
+  const pila = [];
+  for (let start = 0; start < n; start++) {
+    if (visitado[start] || valores[start] < mejorUmbral) continue;
+    numComponentes++;
+    pila.push(start);
+    visitado[start] = 1;
+    let area = 0;
+    let minX = rw;
+    let maxX = -1;
+    let minY = rh;
+    let maxY = -1;
+    while (pila.length > 0) {
+      const idx = pila.pop();
+      const x = idx % rw;
+      const y = (idx / rw) | 0;
+      area++;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      for (let k = 0; k < 4; k++) {
+        const nx = x + dx4[k];
+        const ny = y + dy4[k];
+        if (nx < 0 || nx >= rw || ny < 0 || ny >= rh) continue;
+        const v = ny * rw + nx;
+        if (visitado[v] || valores[v] < mejorUmbral) continue;
+        visitado[v] = 1;
+        pila.push(v);
+      }
+    }
+    totalTrazo += area;
+    if (area > mayorArea) {
+      mayorArea = area;
+      mayorBboxW = maxX - minX + 1;
+      mayorBboxH = maxY - minY + 1;
+    }
+  }
+
+  return {
+    otsuUmbral: mejorUmbral,
+    otsuSeparabilidad,
+    numComponentes,
+    extensionComponenteMayor: numComponentes > 0 ? Math.max(mayorBboxW / rw, mayorBboxH / rh) : 0,
+    fraccionComponenteMayor: totalTrazo > 0 ? mayorArea / totalTrazo : 0,
+  };
+}
+
 function densidadEnAnillo(imageData, cx, cy, rInt, rExt) {
   const d = imageData.data;
   const w = imageData.width;
@@ -902,7 +1047,8 @@ export function detectarTintaCasillas(canvasEnderezado, casillas, escala = ESCAL
     const my = hPx * INSET_RELATIVO_CASILLA;
     const densidad = densidadPromedio(imageData, xPx + mx, yPx + my, xPx + wPx - mx, yPx + hPx - my);
     const varianza = varianzaEnRegion(imageData, xPx + mx, yPx + my, xPx + wPx - mx, yPx + hPx - my);
+    const componentes = analizarComponentesCasilla(imageData, xPx + mx, yPx + my, xPx + wPx - mx, yPx + hPx - my);
     const zona = zonaTintaCasilla(densidad, blanco);
-    return { ...c, densidad, varianza, zona, tieneTinta: zona === "tinta" };
+    return { ...c, densidad, varianza, ...componentes, zona, tieneTinta: zona === "tinta" };
   });
 }

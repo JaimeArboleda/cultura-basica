@@ -870,3 +870,64 @@ existe para evitar. `zona === "tinta"` ya se calcula y se expone (0 casos de
 para cuando se retome), pero no se usa todavía para restringir ni informar
 nada — el comportamiento actual, para esa zona, es idéntico al de antes del
 #37.
+
+## Componentes conexas + Otsu: "trazo coherente vs ruido estocástico" (issue #37, misma sesión)
+
+La varianza (arriba) mide CUÁNTO contraste local hay, pero no distingue su
+CAUSA — un artefacto de compresión JPEG o un borde impreso mal recortado por
+el warp pueden tener tanto contraste como un trazo real (el caso de la
+casilla en blanco con varianza 2406 de la sección anterior). Hipótesis a
+probar: un trazo de letra es una mancha COHERENTE que ocupa una fracción
+sustancial de la casilla, mientras que un artefacto puntual es pequeño en
+comparación — la FORMA del contraste, no solo su magnitud.
+
+`comun.js::analizarComponentesCasilla` implementa: (1) umbral de Otsu sobre
+el histograma de la propia región (asume bimodalidad fondo/trazo, sin
+depender de ningún blanco externo) — de propina da `otsuSeparabilidad`
+(varianza entre clases normalizada 0-1: qué tan bimodal es de verdad la
+región); (2) componentes conexas por flood-fill sobre la binarización
+resultante; (3) de la componente más grande, `extensionComponenteMayor`
+(cuánto ancho/alto de la casilla cubre su caja delimitadora) y
+`fraccionComponenteMayor` (qué parte de todos los píxeles "trazo" concentra).
+Expuesto en `detectarTintaCasillas` pero **sin usarse todavía en
+`zonaTintaCasilla`** — solo verificado, no integrado, por lo que sigue abajo.
+
+**Resultado: prometedor en las fixtures sintéticas, no se sostiene en los
+escaneos reales — la hipótesis de partida no se confirma con estos datos.**
+Dentro de la zona dudosa de cada dataset:
+
+| Feature | Sintéticas (150 dudosas) | Reales (14 dudosas) |
+|---|---|---|
+| Varianza | limpia (908 vs 1) | se solapan (1156 vs 2024, invertido) |
+| Separabilidad de Otsu | limpia (0.88 vs 0.68) | limpia (0.85 vs **0.91**, invertido) |
+| Extensión de la componente mayor | se solapan (0.50 vs 0.68, máx. blanco=1.00) | se solapan (ambas ≈ 1.00) |
+| Fracción de la componente mayor | limpia (1.00 vs 0.30) | se solapan (ambas ≈ 1.00) |
+
+Dos hallazgos concretos que explican por qué no se sostiene:
+
+1. **La separabilidad de Otsu se invierte entre datasets**: en los escaneos
+   reales, las casillas EN BLANCO dudosas miden más separabilidad (0.86-0.94)
+   que las CON TINTA (0.83-0.86) — lo contrario de lo esperado. Hipótesis:
+   Otsu mide qué tan NÍTIDO es el corte, no si hay tinta — un artefacto
+   pequeño y compacto (un bloque JPEG) puede tener un borde más nítido que
+   una letra fina y borrosa por la propia compresión. Mide "nitidez del
+   borde", no "trazo vs ruido".
+2. **La extensión de la componente mayor no es pequeña para el ruido real**:
+   la hipótesis de partida ("un artefacto ocupa poco de la casilla") no se
+   cumple — en los escaneos reales, tanto las casillas con tinta como las
+   "en blanco" dudosas terminan con una componente que cubre ~100% de la
+   región. Motivo probable: en una región sin bimodalidad real (ruido/textura
+   de papel, no dos clases limpias), Otsu igualmente DEVUELVE un corte (tiene
+   que barrer los 256 posibles y quedarse con el mejor, aunque sea malo) y
+   ese corte puede partir la región en un único blob grande en vez de en
+   manchas pequeñas dispersas — la premisa "ruido = muchas manchas pequeñas"
+   no se cumplió en la práctica.
+
+**Conclusión**: no se integra en `zonaTintaCasilla` con estos datos — con
+solo 14 casillas dudosas reales (y ya una señal invertida respecto a las
+sintéticas), forzar una regla con esto sería sobreajustar a un caso
+adversarial concreto, el mismo riesgo que ya obligó a recalibrar los
+márgenes de densidad en la sección anterior. Los campos quedan calculados y
+expuestos (`otsuSeparabilidad`, `numComponentes`, `extensionComponenteMayor`,
+`fraccionComponenteMayor`) para poder revisarlos cuando el dataset real sea
+más grande, pero el comportamiento de producción no cambia.
