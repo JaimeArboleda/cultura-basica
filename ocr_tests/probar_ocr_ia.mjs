@@ -176,8 +176,10 @@ async function enderezarYDetectarBlancos(paginaBrowser, baseUrl, jpegBase64, cas
       case "ordenar":
       case "clasificar":
       case "opcion_multiple": {
-        const posicionesEnBlancoRespuesta = casillasItem.filter((c) => c.lado === "respuesta" && !c.tieneTinta).map((c) => c.posicion + 1);
-        const posicionesEnBlancoCorreccion = casillasItem.filter((c) => c.lado === "correccion" && !c.tieneTinta).map((c) => c.posicion + 1);
+        // zona === "blanco" (nunca "dudoso"), issue #37 — ver el mismo
+        // comentario en public/admin/papel/digitalizar.js::conDeteccionDeTinta.
+        const posicionesEnBlancoRespuesta = casillasItem.filter((c) => c.lado === "respuesta" && c.zona === "blanco").map((c) => c.posicion + 1);
+        const posicionesEnBlancoCorreccion = casillasItem.filter((c) => c.lado === "correccion" && c.zona === "blanco").map((c) => c.posicion + 1);
         return {
           ...it,
           ...(posicionesEnBlancoRespuesta.length > 0 && { posicionesEnBlancoRespuesta }),

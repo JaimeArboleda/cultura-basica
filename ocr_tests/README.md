@@ -750,3 +750,123 @@ suelos/posiciones individuales son seguros) queda documentada en los propios
 comentarios de `esquemaCampoRespuestaItemLado` (`worker/src/endpoints/admin/ocrIa.ts`)
 para la próxima vez que se considere restringir el esquema con una señal
 determinista.
+
+## Baseline de blanco adaptativo + 3 zonas + varianza, verificado contra escaneos reales (issue #37, 17 de agosto de 2026)
+
+Seguimiento directo del "trabajo pendiente #3" que dejó abierto el #35 arriba
+("calibrar el umbral contra fotos/escaneos reales de calidad muy distinta —
+esta verificación es 100% contra las 4 fixtures sintéticas"): un caso real
+llegó a producción (`01-letra-clara`, ítem `18`, `seleccion_multiple`) donde
+una casilla con tinta real midió **7.9**, justo por debajo del umbral fijo 8
+— el detector la contó como vacía. La mitigación desplegada entonces
+(`MARGEN_SEGURIDAD_TECHO`, no forzar conteos exactos) fue un parche
+defensivo: renunciaba a restringir el esquema en vez de detectar la zona
+insegura y tratarla distinto.
+
+**Cambios en `comun.js` (`detectarTintaCasillas`/`zonaTintaCasilla`):**
+
+1. **Baseline de blanco adaptativo por foto** (`muestrearBlancoLocal`): en vez
+   de un umbral absoluto fijo, se muestrea la densidad del margen de página de
+   la MISMA foto (franja `[2mm, 12mm]` del borde, dentro del margen de 15mm
+   que `hoja.js` garantiza siempre en blanco y con margen de sobra antes de
+   los fiduciales) — 24 parches (6 por banda × 4 bandas), mediana para ser
+   robusta a una mancha o sombra puntual en un único parche.
+2. **3 zonas en vez de un único corte** (`zonaTintaCasilla`): `densidad <
+   blancoLocal + MARGEN_BLANCO_SEGURO` → `"blanco"` (fuerza vacío en el
+   esquema, igual que antes); `densidad >= blancoLocal + MARGEN_TINTA_SEGURA`
+   → `"tinta"` (zona nueva, ver "no implementado" más abajo); entre medias →
+   `"dudoso"` (no se fuerza nada, exactamente como si no hubiera detección
+   para esa posición).
+3. **Varianza de intensidad como señal secundaria** (`varianzaEnRegion`):
+   calculada y expuesta junto a la densidad, para evaluar si separa mejor
+   dentro de la zona dudosa (resultado más abajo). No se implementó la
+   alternativa de alta frecuencia/Fourier que también menciona el issue — la
+   varianza es una proxy mucho más simple de calcular sobre una región tan
+   pequeña sin añadir ninguna dependencia de DSP.
+4. **`digitalizar.js`/`probar_ocr_ia.mjs`**: `posicionesEnBlancoRespuesta/
+   Correccion` ahora solo incluyen posiciones en zona `"blanco"` — antes
+   (`!tieneTinta`) habrían incluido también las dudosas, exactamente el fallo
+   que motivó este issue (forzar vacío sobre una casilla borderline).
+
+**Dataset ampliado con 2 escaneos reales** (`ocr_tests/05-escaneo-real/`,
+issue #37, adjuntados por el propio autor): dos PDFs con efecto de escaneado
+obtenido con una herramienta online, cada uno una pasada de escaneado
+DISTINTA sobre el MISMO par de hojas físicas ya impresas por este sistema y
+rellenadas a mano por dos personas (letra clara / letra descuidada) — 12
+páginas cada uno (2 hojas de 6 páginas). Sin `generar.mjs` ni
+`respuestas-esperadas.json` posible para contenido real: el ground truth de
+qué posiciones tienen tinta se estableció leyendo las imágenes a mano,
+limitado a los 2 únicos ítems `ordenar`/`clasificar` del banco (ítem impreso
+nº4, `ordenar` 10 posiciones, y nº7, `clasificar` 10 posiciones) — mismo
+criterio que el resto de este script (son los únicos formatos donde
+"posición i-ésima" tiene ground truth exacto sin ambigüedad). 160 casillas
+nuevas (2 personas × 2 escaneados × 2 ítems × ~20 casillas Respuesta+
+Corrección), sumadas a las 312 sintéticas ya existentes.
+
+**Primer hallazgo, con los márgenes iniciales (`MARGEN_BLANCO_SEGURO = 4`,
+`MARGEN_TINTA_SEGURA = 7`, pensados para reproducir el umbral 8 antiguo):**
+2 casillas con tinta real (`escaneo-2.pdf`, persona de letra clara, ítem
+`03`, posiciones 5 y 6 — las letras "I" y "F", ambas con poca superficie de
+trazo) cayeron en zona `"blanco"` — exactamente el mismo tipo de fallo
+peligroso que motivó el issue, ahora reproducido con datos reales en vez de
+solo con el caso de producción ya conocido. La causa: el baseline de blanco
+muestreado en el margen de esa foto (25.6) resultó ser **más oscuro** que la
+densidad de esas dos casillas con tinta real (22.1 y 27.8) — la densidad
+RELATIVA al margen de una letra fina en un escaneo de menor calidad puede
+ser negativa (-3.5), mientras que casillas genuinamente en blanco del mismo
+dataset llegan hasta +3.6: un solapamiento real de ~7 puntos que el margen
+original no cubría con seguridad.
+
+**Recalibrado con margen de sobra a ambos lados de ese solapamiento
+observado** (`MARGEN_BLANCO_SEGURO = -5`, `MARGEN_TINTA_SEGURA = 9`): 0 casos
+peligrosos verificados contra las 312 casillas sintéticas + las 160 reales.
+El precio de esta seguridad, medido con los mismos datos: en las fixtures
+SINTÉTICAS (fondo casi perfectamente blanco, `blancoLocal` 1-4), NINGUNA de
+las 146 casillas en blanco alcanza ya el nuevo margen (`zona blanco` pasa de
+146 a **0** — todas caen en `"dudoso"`, nunca en `"tinta"`, así que sigue
+siendo seguro, solo menos útil) — un efecto secundario real de calibrar con
+seguridad de por medio contra un caso adversarial encontrado en solo 2 hojas
+reales. En los escaneos reales, en cambio, si vale la pena (`zona blanco`
+99/108 blancos reales, 92%) — consistente con que el margen de esas fotos
+tiende a leer MÁS oscuro que el interior de una casilla en blanco (posible
+viñeteado/sombra del efecto de escaneado, más pronunciado cerca del borde de
+la página que cerca del centro, donde viven las casillas — no confirmado,
+candidato a revisar en una futura ronda).
+
+**Varianza como señal secundaria: prometedora en las fixtures sintéticas,
+no concluyente en los escaneos reales.** Dentro de la zona dudosa (donde
+importa, porque ahí es donde densidad sola no basta): en las 150 casillas
+dudosas sintéticas, la varianza mediana separa con claridad (908 con tinta
+real vs. 1 en blanco real — un trazo real, aunque tenue, tiene mucho más
+contraste local que ruido uniforme). En las 14 casillas dudosas de los
+escaneos reales, sin embargo, NO separa (1156 con tinta real vs. 2024 en
+blanco real — la casilla en blanco con más varianza de todo el dataset real,
+2406, no tiene tinta ninguna, posiblemente una mancha/artefacto de
+compresión JPEG puntual). Con solo 14 casillas dudosas reales, la muestra es
+demasiado pequeña para concluir nada firme — queda como trabajo pendiente
+ampliar el dataset real antes de usar la varianza para ESTRECHAR la zona
+dudosa (que es la motivación original de añadirla, issue #37 "ideas
+adicionales #2").
+
+**Verificación**: `node ocr_tests/verificar_casillas_vacias.mjs` (ampliado,
+sigue sin llamar a ninguna API, solo necesita red para el mirror de Google
+Fonts que ya usaba `generar.mjs` — el PDF de escaneos reales se renderiza con
+`pdfjs-dist` ya instalado en `node_modules/`, servido como blob local en vez
+de por CDN, porque el Chromium que lanza Playwright en algunos entornos de
+desarrollo en la nube no hereda la configuración de proxy de red del
+proceso Node que lo lanza).
+
+**No implementado en esta ronda** (issue #37 trabajo pendiente #2-#3,
+deliberadamente fuera de alcance): el esquema de "contenido seguro
+obligatorio" (no permitir cadena vacía en zona `"tinta"`) y la pista textual
+para la zona `"dudosa"` en el prompt. El propio issue pide explícitamente
+verificar el efecto de la pista textual contra la API real antes de fijar su
+diseño ("podría ayudar... o podría sesgar al modelo a confiar ciegamente en
+la estimación en vez de mirar de verdad") — sin un Worker desplegado con
+`wrangler dev` disponible en esta ronda, implementar esa parte sin poder
+verificarla habría repetido exactamente el patrón de riesgo que este issue
+existe para evitar. `zona === "tinta"` ya se calcula y se expone (0 casos de
+`"blanco real -> tinta"` en las 472 casillas de ambos datasets, buena señal
+para cuando se retome), pero no se usa todavía para restringir ni informar
+nada — el comportamiento actual, para esa zona, es idéntico al de antes del
+#37.

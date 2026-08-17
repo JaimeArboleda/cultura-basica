@@ -281,26 +281,34 @@ export function renderConfirmacionYCrear(
 // ============================================================
 
 // casillasPagina (opcional): la entrada de geometriaCasillas (obtenerManifiesto)
-// correspondiente a ESTA página. issue #35 (ampliado a los 5 formatos): antes
-// de mandar la página a OCR-IA, se muestrea la tinta de cada casilla sobre el
-// propio warpCanvas (ya enderezado) y se manda al Worker lo que ya se sabe
-// con certeza por cada lado (Respuesta/Corrección), en la forma que necesita
-// cada formato:
-//   - ordenar/clasificar/opcion_multiple: qué posiciones concretas están sin
-//     tinta (1-based) — el Worker las fuerza a cadena vacía en el esquema en
-//     vez de dejar que el modelo decida, la causa raíz del fallo de #33 (con
-//     un hueco en medio de la rejilla, el modelo desplazaba las letras
-//     siguientes en vez de dejar la posición vacía). opcion_multiple tiene
-//     una única casilla por lado, así que "en blanco" == "el bloque entero
-//     está vacío", fuerza null.
-//   - seleccion_multiple: cuántas casillas tienen tinta — el Worker fuerza
-//     esa MISMA cantidad de letras válidas en la respuesta (ni más ni menos),
-//     0 fuerza null.
-//   - abierto: cuántas casillas hay entre la primera y la última con tinta
-//     (incluye huecos intermedios: son los espacios entre palabras) — el
-//     Worker acota la longitud máxima a ese tramo en vez de al nº total de
-//     casillas impresas, para reducir el autocompletado ("PLUSV" →
-//     "PLUSVALIA"); 0 (ninguna casilla con tinta) fuerza null.
+// correspondiente a ESTA página. issue #35 (ampliado a los 5 formatos, y a un
+// baseline de blanco adaptativo + 3 zonas en el #37): antes de mandar la
+// página a OCR-IA, se muestrea la tinta de cada casilla sobre el propio
+// warpCanvas (ya enderezado) — comparando cada densidad contra un blanco
+// muestreado en el margen de ESTA MISMA foto, no un umbral absoluto fijo,
+// comun.js::muestrearBlancoLocal/zonaTintaCasilla — y se manda al Worker lo
+// que ya se sabe con certeza (zona "blanco", nunca "dudoso") por cada lado
+// (Respuesta/Corrección), en la forma que necesita cada formato:
+//   - ordenar/clasificar/opcion_multiple: qué posiciones concretas están en
+//     zona "blanco" SEGURA (1-based) — el Worker las fuerza a cadena vacía en
+//     el esquema en vez de dejar que el modelo decida, la causa raíz del
+//     fallo de #33 (con un hueco en medio de la rejilla, el modelo desplazaba
+//     las letras siguientes en vez de dejar la posición vacía). Una posición
+//     en zona "dudosa" NUNCA se incluye aquí (issue #37: forzar vacío sobre
+//     una casilla dudosa es justo el fallo real que motivó este issue — una
+//     casilla con tinta real midiendo 7.9, justo por debajo del umbral 8
+//     antiguo). opcion_multiple tiene una única casilla por lado, así que "en
+//     blanco" == "el bloque entero está vacío", fuerza null.
+//   - seleccion_multiple: cuántas casillas están en zona "tinta" SEGURA — el
+//     Worker solo usa esto para "0 -> null" (ver el comentario junto a
+//     MARGEN_SEGURIDAD_TECHO en ocrIa.ts: forzar el conteo EXACTO es frágil,
+//     ya se probó y se revirtió en #35).
+//   - abierto: cuántas casillas hay entre la primera y la última en zona
+//     "tinta" (incluye huecos intermedios: son los espacios entre palabras)
+//     — el Worker acota la longitud máxima a ese tramo MÁS un margen de
+//     seguridad en vez de al nº total de casillas impresas, para reducir el
+//     autocompletado ("PLUSV" → "PLUSVALIA"); 0 (ninguna casilla en zona
+//     tinta) fuerza null.
 function conDeteccionDeTinta(itemManifiesto, warpCanvas, casillasPagina) {
   const casillasItem = casillasPagina.filter((c) => c.itemId === itemManifiesto.id);
   if (casillasItem.length === 0) return itemManifiesto;
@@ -310,8 +318,13 @@ function conDeteccionDeTinta(itemManifiesto, warpCanvas, casillasPagina) {
     case "ordenar":
     case "clasificar":
     case "opcion_multiple": {
-      const posicionesEnBlancoRespuesta = conTinta.filter((c) => c.lado === "respuesta" && !c.tieneTinta).map((c) => c.posicion + 1);
-      const posicionesEnBlancoCorreccion = conTinta.filter((c) => c.lado === "correccion" && !c.tieneTinta).map((c) => c.posicion + 1);
+      // zona === "blanco" (nunca "dudoso", issue #37): solo se fuerza la
+      // posición a cadena vacía cuando el baseline adaptativo la considera
+      // blanco SEGURO — una posición "dudosa" (densidad cerca del umbral) se
+      // deja sin restringir, exactamente como si no hubiera detección para
+      // ella, en vez de arriesgarse a forzar vacío sobre contenido real.
+      const posicionesEnBlancoRespuesta = conTinta.filter((c) => c.lado === "respuesta" && c.zona === "blanco").map((c) => c.posicion + 1);
+      const posicionesEnBlancoCorreccion = conTinta.filter((c) => c.lado === "correccion" && c.zona === "blanco").map((c) => c.posicion + 1);
       return {
         ...itemManifiesto,
         ...(posicionesEnBlancoRespuesta.length > 0 && { posicionesEnBlancoRespuesta }),

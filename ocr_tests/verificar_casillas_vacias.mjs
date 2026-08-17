@@ -31,6 +31,17 @@
 //      reproducido aquí con la misma semilla determinista — sin volver a
 //      generar ninguna imagen).
 //
+// Ampliado en el issue #37 con una segunda fuente de datos: además de las 4
+// fixtures sintéticas de arriba, procesa también los 2 PDFs con efecto de
+// escaneado REAL de ocr_tests/05-escaneo-real/ (ver HOJAS_REALES más abajo)
+// — necesarios porque las fixtures sintéticas, con un fondo casi
+// perfectamente blanco, nunca ejercitaron el caso borderline que motivó el
+// #37 (una casilla con tinta real midiendo 7.9, justo por debajo del umbral
+// 8 antiguo). Comparte el mismo criterio (comparación pura de imagen contra
+// ground truth, sin LLM) y añade el reporte de las 3 zonas de
+// comun.js::zonaTintaCasilla (blanco/dudoso/tinta) en vez del único umbral
+// binario original.
+//
 // Uso: node ocr_tests/verificar_casillas_vacias.mjs
 import { readFile } from "node:fs/promises";
 import fs from "node:fs";
@@ -84,6 +95,60 @@ function iniciarServidorEstatico() {
 // "blanco" y "con tinta" antes de fijar uno solo en el código de producción.
 const UMBRALES_A_PROBAR = [8, 12, 16, 20, 25, 30, 40, 55, 70, 90];
 
+// ============================================================
+// Escaneos reales (issue #37, seguimiento de #35 "trabajo pendiente #3":
+// calibrar contra fotos/escaneos reales, no solo estas fixtures sintéticas).
+// ocr_tests/05-escaneo-real/escaneo-{1,2}.pdf: dos PDFs con efecto de
+// escaneado real (obtenidos con una herramienta online, issue #37, comentario
+// del propio autor) sobre el MISMO par de hojas físicas ya impresas por este
+// sistema y rellenadas a mano por dos personas distintas — cada PDF es una
+// pasada de escaneado distinta (misma tinta, calidad/artefactos distintos:
+// justo la variabilidad que un umbral absoluto fijo no puede capturar), 12
+// páginas cada uno (2 hojas de 6 páginas: datos + 5 páginas de ítems).
+//
+// No hay generar.mjs ni respuestas-esperadas.json para contenido real — el
+// ground truth de qué posiciones tienen tinta se estableció leyendo las
+// imágenes a mano (ver ocr_tests/README.md para el detalle), limitado a los
+// 2 ÚNICOS ítems ordenar/clasificar del banco actual (mismo criterio que el
+// resto de este script: son los únicos formatos donde "posición i-ésima"
+// tiene ground truth exacto sin ambigüedad, ver la cabecera del fichero):
+// ítem impreso nº4 ("Ordena estas figuras históricas", id "03", ordenar, 10
+// posiciones) e ítem nº7 ("Clasifica estos compositores", id "22",
+// clasificar, 10 posiciones) — ambos en las páginas "1 de 5"/"2 de 5" de
+// cada hoja (índice de página 1 y 2 dentro de sus 6 páginas). En las 4
+// observaciones reales leídas, las posiciones con tinta son siempre un
+// PREFIJO contiguo desde la posición 1 (nunca un hueco a mitad de rejilla),
+// así que el ground truth se codifica como "nº de posiciones con tinta desde
+// la 1ª" por bloque.
+const HOJAS_REALES = [
+  {
+    archivo: "escaneo-1.pdf",
+    personas: [
+      { id: "real-A-letra-clara", paginaInicial: 0, groundTruth: { "03": { respuesta: 10, correccion: 0 }, "22": { respuesta: 10, correccion: 0 } } },
+      {
+        id: "real-B-letra-descuidada",
+        paginaInicial: 6,
+        groundTruth: { "03": { respuesta: 0, correccion: 0 }, "22": { respuesta: 6, correccion: 0 } },
+      },
+    ],
+  },
+  {
+    archivo: "escaneo-2.pdf",
+    personas: [
+      { id: "real-A-letra-clara", paginaInicial: 0, groundTruth: { "03": { respuesta: 10, correccion: 0 }, "22": { respuesta: 10, correccion: 0 } } },
+      {
+        id: "real-B-letra-descuidada",
+        paginaInicial: 6,
+        groundTruth: { "03": { respuesta: 0, correccion: 0 }, "22": { respuesta: 6, correccion: 0 } },
+      },
+    ],
+  },
+];
+// Offset (dentro de las 6 páginas de una hoja) de la página de ítems que
+// contiene cada uno de los 2 ítems ordenar/clasificar — página de datos es el
+// índice 0, así que "página 1 de 5" es índice 1 y "página 2 de 5" es índice 2.
+const OFFSET_PAGINA_ITEM = { "03": 1, "22": 2 };
+
 async function main() {
   const items = JSON.parse(await readFile(path.join(RAIZ_REPO, "data/items.json"), "utf8"));
   const ordenIds = JSON.parse(await readFile(path.join(RAIZ_REPO, "data/orden-test.json"), "utf8"));
@@ -112,6 +177,7 @@ async function main() {
   const baseUrl = `http://127.0.0.1:${puerto}`;
 
   const resultados = []; // { persona, itemId, lado, posicion, densidad, tieneTintaReal }
+  const resultadosReales = []; // { persona, itemId, lado, posicion, densidad, varianza, zona, blancoLocal, tieneTintaReal } — escaneos reales, issue #37
   const fallosWarp = [];
   let insetRelativoProduccion;
 
@@ -187,8 +253,20 @@ async function main() {
             // umbral ya fijado en comun.js (no solo el mejor umbral teórico
             // de este barrido) acierta en las 4 fixtures.
             const produccion = mod.detectarTintaCasillas(warp, rects);
+            const blancoLocal = mod.muestrearBlancoLocal(imageData);
 
-            return { densidades, produccion: produccion.map((c) => ({ itemId: c.itemId, lado: c.lado, posicion: c.posicion, tieneTinta: c.tieneTinta })) };
+            return {
+              densidades,
+              blancoLocal,
+              produccion: produccion.map((c) => ({
+                itemId: c.itemId,
+                lado: c.lado,
+                posicion: c.posicion,
+                tieneTinta: c.tieneTinta,
+                zona: c.zona,
+                varianza: c.varianza,
+              })),
+            };
           },
           { baseUrl, jpegBase64, rects, destW: Math.round(PAGE_W * ESCALA_DIGITALIZACION), destH: Math.round(PAGE_H * ESCALA_DIGITALIZACION) }
         );
@@ -199,18 +277,142 @@ async function main() {
           continue;
         }
 
-        const produccionPorClave = new Map(salida.produccion.map((c) => [`${c.itemId}:${c.lado}:${c.posicion}`, c.tieneTinta]));
+        const produccionPorClave = new Map(salida.produccion.map((c) => [`${c.itemId}:${c.lado}:${c.posicion}`, c]));
         for (const dcasilla of salida.densidades) {
           const planItem = plan.planItems[dcasilla.itemId];
           const tieneTintaReal =
             dcasilla.lado === "respuesta"
               ? Boolean(planItem.respuesta[dcasilla.posicion])
               : planItem.correccion != null && Boolean(planItem.correccion[dcasilla.posicion]);
-          const tieneTintaProduccion = produccionPorClave.get(`${dcasilla.itemId}:${dcasilla.lado}:${dcasilla.posicion}`);
-          resultados.push({ persona: persona.id, ...dcasilla, tieneTintaReal, tieneTintaProduccion });
+          const produccionCasilla = produccionPorClave.get(`${dcasilla.itemId}:${dcasilla.lado}:${dcasilla.posicion}`);
+          resultados.push({
+            persona: persona.id,
+            ...dcasilla,
+            blancoLocal: salida.blancoLocal,
+            tieneTintaReal,
+            tieneTintaProduccion: produccionCasilla?.tieneTinta,
+            zona: produccionCasilla?.zona,
+            varianza: produccionCasilla?.varianza,
+          });
         }
       }
       console.log(`  [${persona.id}] procesada.`);
+    }
+
+    console.log("\nProcesando escaneos reales (issue #37)...");
+    for (const hoja of HOJAS_REALES) {
+      const rutaPdf = path.join(RAIZ_REPO, "ocr_tests/05-escaneo-real", hoja.archivo);
+      if (!fs.existsSync(rutaPdf)) {
+        console.log(`  [${hoja.archivo}] no encontrado — se salta.`);
+        continue;
+      }
+      const pdfBase64 = await readFile(rutaPdf, "base64");
+
+      const peticiones = [];
+      for (const persona of hoja.personas) {
+        for (const [itemId, gt] of Object.entries(persona.groundTruth)) {
+          // geometriaPorPagina está indexado dentro de UNA hoja de 6 páginas
+          // (el layout es el mismo para cualquier instancia); pageIndex, en
+          // cambio, es el índice ABSOLUTO dentro del PDF de 12 páginas (2
+          // hojas), así que hace falta sumar paginaInicial solo para éste.
+          const pageIndex = persona.paginaInicial + OFFSET_PAGINA_ITEM[itemId];
+          const casillas = geometriaPorPagina[OFFSET_PAGINA_ITEM[itemId]].filter((c) => c.itemId === itemId);
+          const rects = casillas.map((c) => ({ itemId: c.itemId, lado: c.lado, posicion: c.posicion, xPt: c.xPt, yTopPt: c.yTopPt, wPt: c.wPt, hPt: c.hPt }));
+          peticiones.push({ personaId: persona.id, itemId, gt, pageIndex, rects });
+        }
+      }
+
+      // No se usa mod.cargarPaginasPdf (comun.js) aquí: esa función importa
+      // pdfjs-dist desde jsdelivr DENTRO del navegador, y a diferencia de
+      // Node (que sí pasa por el proxy HTTPS del entorno, ver
+      // generar.mjs::FUENTES_INK, descargado con fetch de Node, nunca desde
+      // dentro de la página) el Chromium que lanza Playwright en este sandbox
+      // no hereda esa configuración de proxy — falla con "Failed to fetch
+      // dynamically imported module". Se sirve el pdfjs-dist YA instalado en
+      // node_modules/ (devDependency del propio repo) como blobs locales en
+      // vez de red — solo un detalle de este script de test, comun.js sigue
+      // usando el CDN en producción (un navegador real de un usuario sí tiene
+      // su propia red, sin este problema).
+      const pdfjsMjs = await readFile(path.join(RAIZ_REPO, "node_modules/pdfjs-dist/build/pdf.mjs"), "utf8");
+      const pdfjsWorker = await readFile(path.join(RAIZ_REPO, "node_modules/pdfjs-dist/build/pdf.worker.mjs"), "utf8");
+
+      const salida = await pagina.evaluate(
+        async ({ baseUrl, pdfBase64, peticiones, destW, destH, pdfjsMjs, pdfjsWorker }) => {
+          const mod = await import(`${baseUrl}/public/admin/papel/comun.js`);
+          const workerBlobUrl = URL.createObjectURL(new Blob([pdfjsWorker], { type: "text/javascript" }));
+          const mjsBlobUrl = URL.createObjectURL(new Blob([pdfjsMjs], { type: "text/javascript" }));
+          const pdfjsLib = await import(mjsBlobUrl);
+          pdfjsLib.GlobalWorkerOptions.workerSrc = workerBlobUrl;
+
+          const bytes = Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0));
+          const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
+          const ANCHO_OBJETIVO = 2200; // igual que comun.js::cargarPaginasPdf
+          const paginasPdf = [];
+          for (let i = 1; i <= doc.numPages; i++) {
+            const paginaPdf = await doc.getPage(i);
+            const viewportBase = paginaPdf.getViewport({ scale: 1 });
+            const escalaPdf = ANCHO_OBJETIVO / viewportBase.width;
+            const viewport = paginaPdf.getViewport({ scale: escalaPdf });
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(viewport.width);
+            canvas.height = Math.round(viewport.height);
+            await paginaPdf.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+            paginasPdf.push(canvas);
+          }
+
+          return peticiones.map(({ personaId, itemId, gt, pageIndex, rects }) => {
+            const canvasFuente = paginasPdf[pageIndex];
+            if (!canvasFuente) return { personaId, itemId, gt, error: `pdf sin página ${pageIndex}` };
+            const detectados = mod.detectarFiduciales(canvasFuente);
+            if (!detectados) return { personaId, itemId, gt, error: "fiduciales-no-detectados" };
+            const dst = mod.destinoFiducialesEscalado();
+            const warp = mod.warpearImagen(canvasFuente, detectados, destW, destH, dst);
+            const produccion = mod.detectarTintaCasillas(warp, rects);
+            const imageData = warp.getContext("2d").getImageData(0, 0, destW, destH);
+            const blancoLocal = mod.muestrearBlancoLocal(imageData);
+            return {
+              personaId,
+              itemId,
+              gt,
+              blancoLocal,
+              casillas: produccion.map((c) => ({ lado: c.lado, posicion: c.posicion, densidad: c.densidad, varianza: c.varianza, zona: c.zona })),
+            };
+          });
+        },
+        {
+          baseUrl,
+          pdfBase64,
+          peticiones,
+          destW: Math.round(PAGE_W * ESCALA_DIGITALIZACION),
+          destH: Math.round(PAGE_H * ESCALA_DIGITALIZACION),
+          pdfjsMjs,
+          pdfjsWorker,
+        }
+      );
+
+      for (const resultado of salida) {
+        if (resultado.error) {
+          fallosWarp.push({ persona: `${hoja.archivo}/${resultado.personaId}`, item: resultado.itemId, error: resultado.error });
+          console.log(`  [${hoja.archivo}/${resultado.personaId}] ítem ${resultado.itemId}: FALLO (${resultado.error})`);
+          continue;
+        }
+        for (const c of resultado.casillas) {
+          const nRelleno = c.lado === "respuesta" ? resultado.gt.respuesta : resultado.gt.correccion;
+          const tieneTintaReal = c.posicion < nRelleno;
+          resultadosReales.push({
+            persona: `${hoja.archivo}/${resultado.personaId}`,
+            itemId: resultado.itemId,
+            lado: c.lado,
+            posicion: c.posicion,
+            densidad: c.densidad,
+            varianza: c.varianza,
+            zona: c.zona,
+            blancoLocal: resultado.blancoLocal,
+            tieneTintaReal,
+          });
+        }
+      }
+      console.log(`  [${hoja.archivo}] procesado (blanco local por página: ver detalle abajo).`);
     }
   } finally {
     await browser.close();
@@ -303,6 +505,120 @@ async function main() {
   if (prodFp > 0) {
     console.error("ATENCIÓN: la función de producción tiene falsos positivos peligrosos en estas fixtures — no desplegar sin revisar.");
     process.exitCode = 1;
+  }
+
+  // ============================================================
+  // Zonas (issue #37): mismo chequeo que arriba, pero con la clasificación en
+  // 3 zonas de comun.js::zonaTintaCasilla en vez del umbral binario. El único
+  // caso PELIGROSO bajo el diseño ya implementado (digitalizar.js/
+  // probar_ocr_ia.mjs solo fuerzan vacío para zona "blanco", nunca para
+  // "dudoso") es tinta real clasificada como "blanco" — "dudoso" nunca fuerza
+  // nada, así que caer ahí nunca puede borrar contenido real, solo renuncia a
+  // restringir el esquema para esa posición (igual que si no hubiera
+  // detección).
+  function informeZonas(nombre, datos) {
+    if (datos.length === 0) {
+      console.log(`\n[${nombre}] sin datos.`);
+      return;
+    }
+    let blancoOk = 0;
+    let dudosoTinta = 0;
+    let dudosoBlanco = 0;
+    let tintaOk = 0;
+    let peligroso = 0; // tinta real -> zona "blanco" (se fuerza vacío sobre contenido real)
+    let desaprovechado = 0; // blanco real -> zona "tinta" (inocuo hoy, no forzamos nada en esa dirección)
+    for (const r of datos) {
+      if (r.zona === "blanco") {
+        if (r.tieneTintaReal) peligroso++;
+        else blancoOk++;
+      } else if (r.zona === "tinta") {
+        if (r.tieneTintaReal) tintaOk++;
+        else desaprovechado++;
+      } else {
+        if (r.tieneTintaReal) dudosoTinta++;
+        else dudosoBlanco++;
+      }
+    }
+    const total = datos.length;
+    const dudoso = dudosoTinta + dudosoBlanco;
+    console.log(`\n[${nombre}] ${total} casillas — zona blanco=${blancoOk + peligroso} (${peligroso} peligrosas), zona dudoso=${dudoso} (${dudosoTinta} con tinta real / ${dudosoBlanco} en blanco real), zona tinta=${tintaOk + desaprovechado} (${desaprovechado} en blanco real, inocuo).`);
+    if (peligroso > 0) {
+      console.error(`  ATENCIÓN: ${peligroso} casilla(s) con tinta real cayeron en zona "blanco" — se forzaría vacío sobre contenido real.`);
+      process.exitCode = 1;
+    } else {
+      console.log(`  0 casos peligrosos (tinta real -> zona "blanco").`);
+    }
+    if (dudoso > 0) {
+      const varDudosoTinta = datos.filter((r) => r.zona === "dudoso" && r.tieneTintaReal).map((r) => r.varianza);
+      const varDudosoBlanco = datos.filter((r) => r.zona === "dudoso" && !r.tieneTintaReal).map((r) => r.varianza);
+      if (varDudosoTinta.length > 0 && varDudosoBlanco.length > 0) {
+        const medVarTinta = medianaSimple(varDudosoTinta);
+        const medVarBlanco = medianaSimple(varDudosoBlanco);
+        console.log(
+          `  Dentro de la zona dudosa, varianza mediana: con tinta real=${medVarTinta.toFixed(1)}, en blanco real=${medVarBlanco.toFixed(1)}` +
+            (medVarTinta > medVarBlanco * 1.3
+              ? " — la varianza SÍ parece separar más dentro de la banda dudosa (candidata a estrechar la banda combinando ambas señales)."
+              : " — la varianza no separa claramente dentro de esta banda con esta muestra (demasiado pequeña para concluir).")
+        );
+      }
+    }
+  }
+
+  function medianaSimple(arr) {
+    const s = [...arr].sort((a, b) => a - b);
+    return s[Math.floor(s.length / 2)];
+  }
+
+  informeZonas("Fixtures sintéticas (ordenar/clasificar, 4 instancias)", resultados);
+  informeZonas("Escaneos reales (issue #37, 2 personas x 2 escaneados)", resultadosReales);
+
+  if (resultadosReales.length > 0) {
+    const blancosLocales = [...new Set(resultadosReales.map((r) => r.blancoLocal))];
+    console.log(
+      `\nBlanco local muestreado por página en los escaneos reales: ${blancosLocales.map((v) => v.toFixed(1)).join(", ")} ` +
+        `(en las fixtures sintéticas, para comparar: ~0, fondo casi perfectamente blanco).`
+    );
+    const densConReal = resultadosReales.filter((r) => r.tieneTintaReal).map((r) => r.densidad);
+    const densSinReal = resultadosReales.filter((r) => !r.tieneTintaReal).map((r) => r.densidad);
+    const relConReal = resultadosReales.filter((r) => r.tieneTintaReal).map((r) => r.densidad - r.blancoLocal);
+    const relSinReal = resultadosReales.filter((r) => !r.tieneTintaReal).map((r) => r.densidad - r.blancoLocal);
+    if (densConReal.length > 0 && densSinReal.length > 0) {
+      console.log(
+        `Densidad ABSOLUTA en escaneos reales — con tinta: min=${Math.min(...densConReal).toFixed(1)} max=${Math.max(...densConReal).toFixed(1)}; ` +
+          `en blanco: min=${Math.min(...densSinReal).toFixed(1)} max=${Math.max(...densSinReal).toFixed(1)}.`
+      );
+      console.log(
+        `Densidad RELATIVA al blanco local (densidad - blancoLocal, lo que de verdad compara zonaTintaCasilla) — con tinta: ` +
+          `min=${Math.min(...relConReal).toFixed(1)} max=${Math.max(...relConReal).toFixed(1)}; en blanco: ` +
+          `min=${Math.min(...relSinReal).toFixed(1)} max=${Math.max(...relSinReal).toFixed(1)}.`
+      );
+      const varConReal = resultadosReales.filter((r) => r.tieneTintaReal).map((r) => r.varianza);
+      const varSinReal = resultadosReales.filter((r) => !r.tieneTintaReal).map((r) => r.varianza);
+      console.log(
+        `Varianza en escaneos reales — con tinta: min=${Math.min(...varConReal).toFixed(0)} max=${Math.max(...varConReal).toFixed(0)}; ` +
+          `en blanco: min=${Math.min(...varSinReal).toFixed(0)} max=${Math.max(...varSinReal).toFixed(0)}.`
+      );
+      const separacionLimpia = Math.max(...relSinReal) < Math.min(...relConReal);
+      console.log(
+        separacionLimpia
+          ? "Separación LIMPIA también en escaneos reales con densidad relativa al baseline adaptativo: un único corte (2 zonas) ya " +
+              "bastaría para este dataset, sin necesitar una banda dudosa — aunque con muestra pequeña (2 personas), conviene ampliar " +
+              "el dataset antes de decidir eliminar la zona dudosa (ver comentario del propio issue #37)."
+          : "Las distribuciones se SOLAPAN incluso en densidad RELATIVA al blanco local (a diferencia de las fixtures sintéticas): la " +
+              "zona dudosa de 3 zonas sigue aportando valor real sobre un único corte — consistente con el caso de producción que " +
+              "motivó el issue (7.9 de densidad, justo en esta banda)."
+      );
+    }
+    const peligrosos = resultadosReales.filter((r) => r.zona === "blanco" && r.tieneTintaReal);
+    if (peligrosos.length > 0) {
+      console.log("\nDetalle de los casos peligrosos (tinta real -> zona blanco):");
+      for (const r of peligrosos) {
+        console.log(
+          `  ${r.persona} ítem ${r.itemId} ${r.lado} posición ${r.posicion + 1}: densidad=${r.densidad.toFixed(1)} ` +
+            `blancoLocal=${r.blancoLocal.toFixed(1)} (relativo=${(r.densidad - r.blancoLocal).toFixed(1)}) varianza=${r.varianza.toFixed(1)}`
+        );
+      }
+    }
   }
 }
 

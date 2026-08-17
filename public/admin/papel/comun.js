@@ -19,7 +19,17 @@
 // `data/build-paginacion.mjs` como parche para hacerlo determinista):
 // sustituido por ./hoja.js (pdf-lib, aritmética pura sobre métricas de fuente
 // reales), así que tampoco queda nada de eso.
-import { cajaQrGrande, cajaQrPagina, ESCALA_DIGITALIZACION, fiducialesFijos, PT_POR_MM, PX_POR_MM } from "./geometria.js";
+import {
+  cajaQrGrande,
+  cajaQrPagina,
+  ESCALA_DIGITALIZACION,
+  fiducialesFijos,
+  PADDING_MM,
+  PAGE_H_MM,
+  PAGE_W_MM,
+  PT_POR_MM,
+  PX_POR_MM,
+} from "./geometria.js";
 import { decodificarQr } from "./qr.js";
 
 export { ESCALA_DIGITALIZACION };
@@ -525,6 +535,47 @@ export function densidadPromedio(imageData, x0, y0, x1, y1) {
   return n > 0 ? suma / n : 0;
 }
 
+// Varianza de intensidad (misma luma 0-255 que densidadPromedio) dentro de
+// una región — issue #37, idea adicional nº2: un trazo de tinta real tiene
+// alto CONTRASTE local (línea oscura sobre fondo claro), mientras que una
+// mancha, sombra o ruido uniforme puede tener una media de densidad parecida
+// pero mucho menos variación interna. Señal secundaria a la densidad media
+// para separar mejor la zona dudosa (ver zonaTintaCasilla más abajo). No es
+// una transformada de Fourier (el issue también menciona "coeficientes de
+// alta frecuencia" como alternativa) — la varianza es una proxy mucho más
+// simple de calcular sobre una región pequeña (22% de inset de una casilla)
+// sin arrastrar ninguna librería de DSP, y mide esencialmente lo mismo para
+// este caso de uso: cuánto varía la intensidad punto a punto.
+export function varianzaEnRegion(imageData, x0, y0, x1, y1) {
+  const d = imageData.data;
+  const w = imageData.width;
+  const h = imageData.height;
+  const xi = Math.max(0, Math.round(x0));
+  const xf = Math.min(w, Math.round(x1));
+  const yi = Math.max(0, Math.round(y0));
+  const yf = Math.min(h, Math.round(y1));
+  let suma = 0;
+  let n = 0;
+  for (let y = yi; y < yf; y++) {
+    for (let x = xi; x < xf; x++) {
+      const i = (y * w + x) * 4;
+      suma += 255 - (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+      n++;
+    }
+  }
+  if (n === 0) return 0;
+  const media = suma / n;
+  let sumaCuad = 0;
+  for (let y = yi; y < yf; y++) {
+    for (let x = xi; x < xf; x++) {
+      const i = (y * w + x) * 4;
+      const luma = 255 - (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+      sumaCuad += (luma - media) * (luma - media);
+    }
+  }
+  return sumaCuad / n;
+}
+
 function densidadEnAnillo(imageData, cx, cy, rInt, rExt) {
   const d = imageData.data;
   const w = imageData.width;
@@ -674,19 +725,23 @@ export function destinoFiducialesEscalado(escala = ESCALA_DIGITALIZACION) {
 }
 
 // ============================================================
-// Detección determinista de tinta por casilla (issue #35): sobre la imagen YA
-// enderezada (post-warpearImagen, en coordenadas canónicas fijas —
-// hoja.js::calcularGeometriaCasillas conoce la posición exacta de cada
-// casilla de ordenar/clasificar), decide "tinta / sin tinta" por umbral —
-// mismo mecanismo que ya usa detectarFiduciales (densidadPromedio), aplicado
-// a un problema mucho más simple (binario, nunca "qué letra hay"). Umbral e
-// inset calibrados y verificados contra las 4 instancias sintéticas de
-// ocr_tests/ (ocr_tests/verificar_casillas_vacias.mjs): separación limpia
-// entre "con tinta" (mínimo de densidad 8.1) y "en blanco" (máximo 4.5) en
-// las 312 casillas evaluadas — ver ese script para volver a calibrar si hace
-// falta (fotos reales de calidad muy distinta, issue #35 trabajo pendiente
-// #3, todavía no probado más allá de estas fixtures sintéticas).
+// Detección determinista de tinta por casilla (issue #35, ampliada en el
+// #37 con baseline adaptativo + 3 zonas): sobre la imagen YA enderezada
+// (post-warpearImagen, en coordenadas canónicas fijas — hoja.js::
+// calcularGeometriaCasillas conoce la posición exacta de cada casilla),
+// decide "tinta / dudoso / sin tinta" — mismo mecanismo que ya usa
+// detectarFiduciales (densidadPromedio), aplicado a un problema mucho más
+// simple (nunca "qué letra hay"). Umbral e inset calibrados y verificados
+// contra las 4 instancias sintéticas de ocr_tests/
+// (ocr_tests/verificar_casillas_vacias.mjs): separación limpia entre "con
+// tinta" (mínimo de densidad 8.1) y "en blanco" (máximo 4.5) en las 312
+// casillas evaluadas — ver ese script para volver a calibrar si hace falta.
 export const INSET_RELATIVO_CASILLA = 0.22;
+// Umbral absoluto histórico (issue #35) — se mantiene exportado por
+// compatibilidad con quien lo importe directamente, pero detectarTintaCasillas
+// ya NO lo usa como umbral fijo: en su lugar resta un baseline de blanco
+// muestreado en la propia foto (ver UMBRAL_TINTA_CASILLA/UMBRAL_BLANCO_CASILLA
+// más abajo, ahora relativos a ese baseline) — issue #37.
 export const UMBRAL_TINTA_CASILLA = 8;
 
 // pt (mismo sistema de coordenadas que hoja.js, origen arriba-izquierda de la
@@ -696,13 +751,148 @@ export function ptAPxCanonico(pt, escala = ESCALA_DIGITALIZACION) {
   return (pt / PT_POR_MM) * PX_POR_MM * escala;
 }
 
+// mm (mismo sistema que geometria.js) -> px del canvas ya enderezado, misma
+// escala que ptAPxCanonico (destinoFiducialesEscalado usa fiducialesFijos(),
+// en mm, multiplicado por PX_POR_MM * escala).
+function mmAPxCanonico(mm, escala = ESCALA_DIGITALIZACION) {
+  return mm * PX_POR_MM * escala;
+}
+
+// ============================================================
+// Baseline de blanco adaptativo por foto (issue #37, "trabajo pendiente #4"
+// del propio issue original #35): en vez de comparar la densidad de cada
+// casilla contra un umbral absoluto fijo (calibrado solo contra las
+// fixtures sintéticas, con fondo blanco casi perfecto), se muestrea la
+// densidad del MARGEN DE PÁGINA de la MISMA foto — una franja que hoja.js
+// garantiza SIEMPRE en blanco (nada se dibuja más cerca del borde que
+// PADDING_MM, geometria.js) — y se usa ese valor como referencia de "blanco"
+// para ESA foto concreta. Debería hacer la detección más robusta a
+// variaciones de escaneado/foto (papel amarilleado, sombras, exposición,
+// compresión JPEG distinta entre móviles) que un umbral absoluto no puede
+// capturar.
+//
+// Franja de muestreo: entre BLANCO_MARGEN_INSET_MM y BLANCO_MARGEN_FIN_MM del
+// borde de la página — dentro del margen de PADDING_MM (15mm) garantizado en
+// blanco y con margen de sobra antes del fiducial (que empieza justo en
+// PADDING_MM, geometria.js::FIDUCIAL_INSET_MM), así que ninguna de las 4
+// bandas (arriba/abajo/izquierda/derecha) puede solaparse con un fiducial ni
+// con los QR (ambos viven dentro del área de contenido, no en el margen).
+const BLANCO_MARGEN_INSET_MM = 2;
+const BLANCO_MARGEN_FIN_MM = 12;
+const BLANCO_MARGEN_NUM_PARCHES = 6;
+
+function medianaDe(valores) {
+  const s = [...valores].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+
+// Reparte NUM_PARCHES rectángulos a lo largo de un eje (horizontal para las
+// bandas superior/inferior, vertical para las laterales) y devuelve la
+// densidad de cada uno — varios parches en vez de un único rectángulo grande
+// para que una única mancha, pliegue o sombra puntual en el margen (posible
+// en una foto real) no arrastre sola la mediana.
+function densidadesEnBanda(imageData, escala, horizontal, ini, fin, cruzIni, cruzFin) {
+  const valores = [];
+  const paso = (fin - ini) / BLANCO_MARGEN_NUM_PARCHES;
+  for (let k = 0; k < BLANCO_MARGEN_NUM_PARCHES; k++) {
+    const a = mmAPxCanonico(ini + k * paso, escala);
+    const b = mmAPxCanonico(ini + (k + 1) * paso, escala);
+    const c0 = mmAPxCanonico(cruzIni, escala);
+    const c1 = mmAPxCanonico(cruzFin, escala);
+    valores.push(horizontal ? densidadPromedio(imageData, a, c0, b, c1) : densidadPromedio(imageData, c0, a, c1, b));
+  }
+  return valores;
+}
+
+// Densidad "de referencia" del blanco de ESTA foto concreta, muestreada en
+// sus 4 márgenes — mediana de todos los parches (24 por defecto: 6 por
+// banda x 4 bandas) para ser robusta a un parche contaminado por una sombra
+// o mancha local. Exportada para que ocr_tests/verificar_casillas_vacias.mjs
+// pueda reportarla junto al resto de estadísticas de calibración.
+export function muestrearBlancoLocal(imageData, escala = ESCALA_DIGITALIZACION) {
+  const anchoMm = PAGE_W_MM;
+  const altoMm = PAGE_H_MM;
+  const valores = [
+    ...densidadesEnBanda(imageData, escala, true, BLANCO_MARGEN_INSET_MM, anchoMm - BLANCO_MARGEN_INSET_MM, BLANCO_MARGEN_INSET_MM, BLANCO_MARGEN_FIN_MM),
+    ...densidadesEnBanda(
+      imageData,
+      escala,
+      true,
+      BLANCO_MARGEN_INSET_MM,
+      anchoMm - BLANCO_MARGEN_INSET_MM,
+      altoMm - BLANCO_MARGEN_FIN_MM,
+      altoMm - BLANCO_MARGEN_INSET_MM
+    ),
+    ...densidadesEnBanda(imageData, escala, false, BLANCO_MARGEN_INSET_MM, altoMm - BLANCO_MARGEN_INSET_MM, BLANCO_MARGEN_INSET_MM, BLANCO_MARGEN_FIN_MM),
+    ...densidadesEnBanda(
+      imageData,
+      escala,
+      false,
+      BLANCO_MARGEN_INSET_MM,
+      altoMm - BLANCO_MARGEN_INSET_MM,
+      anchoMm - BLANCO_MARGEN_FIN_MM,
+      anchoMm - BLANCO_MARGEN_INSET_MM
+    ),
+  ];
+  return medianaDe(valores);
+}
+
+// ============================================================
+// Clasificación en 3 zonas (issue #37, seguimiento de #35): en vez de un
+// único corte binario tinta/blanco, dos márgenes por ENCIMA del baseline de
+// blanco local (muestrearBlancoLocal): por debajo de MARGEN_BLANCO_SEGURO ->
+// "blanco" (mismo comportamiento que el diseño anterior: fuerza la posición
+// a cadena vacía en el esquema de OCR-IA); por encima de MARGEN_TINTA_SEGURA
+// -> "tinta" (zona nueva: candidata a exigir contenido no vacío en el
+// esquema, issue #37 trabajo pendiente #3); entre medias -> "dudoso" (no se
+// fuerza nada en el esquema, pero sí se informa al modelo por texto — issue
+// #37 trabajo pendiente #2). Los valores de margen se calibraron primero para
+// reproducir aproximadamente el umbral absoluto histórico (8, con blanco casi
+// 0 en las fixtures sintéticas), pero verificarlos contra escaneos REALES
+// (ocr_tests/05-escaneo-real/, ocr_tests/verificar_casillas_vacias.mjs) reveló
+// que el baseline de blanco muestreado en el margen de página NO SIEMPRE es
+// representativo de la densidad de fondo cerca de una casilla concreta —
+// hallazgo real de esta ronda: en un escaneo de menor calidad, una letra fina
+// ("I") midió una densidad relativa al margen de -3.5 (MÁS CLARA que el propio
+// margen de la foto), mientras que casillas genuinamente en blanco llegaron
+// hasta +3.6 — un solapamiento real que el margen [4, 7] original (calibrado
+// solo con las fixtures sintéticas, donde el margen sí es un blanco casi
+// perfecto) no cubría con seguridad: 2 casillas con tinta real habrían caído
+// en zona "blanco" y forzado vacío sobre contenido real. Ampliado con margen
+// de sobra a ambos lados de ese solapamiento observado — sacrifica algo de
+// cobertura "segura" (más casillas caen en zona "dudosa" en escaneos
+// ruidosos) a cambio de la garantía de seguridad (0 casos peligrosos
+// verificados contra las 4 fixtures sintéticas + los 2 escaneos reales x 2
+// personas). El muestreo de margen sigue siendo un baseline GLOBAL por foto —
+// no descarta que un efecto de sombra/viñeteado LOCALIZADO (más oscuro cerca
+// del borde de la página que cerca del centro, donde viven las casillas) siga
+// sesgando este baseline; un baseline muestreado más cerca de cada bloque de
+// casillas en vez de solo en el margen de página es candidato para una futura
+// ronda de calibración (ver ocr_tests/README.md).
+export const MARGEN_BLANCO_SEGURO = -5;
+export const MARGEN_TINTA_SEGURA = 9;
+
+export function zonaTintaCasilla(densidad, blancoLocal) {
+  if (densidad < blancoLocal + MARGEN_BLANCO_SEGURO) return "blanco";
+  if (densidad >= blancoLocal + MARGEN_TINTA_SEGURA) return "tinta";
+  return "dudoso";
+}
+
 // casillas: array de {xPt, yTopPt, wPt, hPt, ...} en pt (hoja.js::
 // calcularGeometriaCasillas) — cualquier otra propiedad (itemId, lado,
-// posicion...) se conserva sin tocar. Devuelve el mismo array con
-// `tieneTinta` (boolean) añadido a cada elemento.
-export function detectarTintaCasillas(canvasEnderezado, casillas, escala = ESCALA_DIGITALIZACION) {
+// posicion...) se conserva sin tocar. Devuelve el mismo array con `densidad`,
+// `varianza`, `zona` ("blanco"/"dudoso"/"tinta") y `tieneTinta` (boolean,
+// zona === "tinta" — se mantiene por compatibilidad con quien solo necesite
+// el criterio binario anterior) añadidos a cada elemento.
+//
+// blancoLocal (opcional): si no se pasa, se muestrea de esta misma imagen
+// (muestrearBlancoLocal) — permite al llamador reutilizar un único muestreo
+// para varias llamadas sobre la misma página (varios ítems) sin repetir el
+// recorrido de los 4 márgenes en cada una.
+export function detectarTintaCasillas(canvasEnderezado, casillas, escala = ESCALA_DIGITALIZACION, blancoLocal) {
   const ctx = canvasEnderezado.getContext("2d");
   const imageData = ctx.getImageData(0, 0, canvasEnderezado.width, canvasEnderezado.height);
+  const blanco = blancoLocal ?? muestrearBlancoLocal(imageData, escala);
   return casillas.map((c) => {
     const xPx = ptAPxCanonico(c.xPt, escala);
     const yPx = ptAPxCanonico(c.yTopPt, escala);
@@ -711,6 +901,8 @@ export function detectarTintaCasillas(canvasEnderezado, casillas, escala = ESCAL
     const mx = wPx * INSET_RELATIVO_CASILLA;
     const my = hPx * INSET_RELATIVO_CASILLA;
     const densidad = densidadPromedio(imageData, xPx + mx, yPx + my, xPx + wPx - mx, yPx + hPx - my);
-    return { ...c, tieneTinta: densidad >= UMBRAL_TINTA_CASILLA };
+    const varianza = varianzaEnRegion(imageData, xPx + mx, yPx + my, xPx + wPx - mx, yPx + hPx - my);
+    const zona = zonaTintaCasilla(densidad, blanco);
+    return { ...c, densidad, varianza, zona, tieneTinta: zona === "tinta" };
   });
 }
