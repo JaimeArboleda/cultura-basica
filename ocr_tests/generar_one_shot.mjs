@@ -2,8 +2,9 @@
 // al prompt real en cada llamada de OCR-IA a páginas de tipo "items" (issue
 // #31, sección "Si hay todavía alucinaciones, podemos probar a mandar un
 // ejemplo de muestra"): una página ficticia con 6 preguntas — abierto,
-// opción múltiple, selección múltiple, ordenar, clasificar y un segundo
-// abierto — pensada para enseñarle al modelo, con un ejemplo YA RESUELTO, no
+// opción múltiple, selección múltiple, ordenar, clasificar y una segunda de
+// ordenar (esta última completamente en blanco) — pensada para enseñarle al
+// modelo, con un ejemplo YA RESUELTO, no
 // solo con texto, los casos concretos donde seguía alucinando pese al
 // refuerzo del prompt (ver ocr_tests/README.md para el historial completo de
 // rondas de este mismo issue):
@@ -21,26 +22,42 @@
 //      COMPLETAMENTE en blanco — enseña que la salida correcta es null en
 //      los dos, nunca una letra inventada (el patrón de alucinación más
 //      claro encontrado en las corridas anteriores).
-//   3. Selección múltiple: una casilla vacía en medio de la selección, en
-//      ambos bloques — enseña a transcribir el espacio literal en vez de
-//      "cerrar el hueco" o completar hacia el conjunto que se supone
-//      correcto.
+//   3. Selección múltiple: las opciones consignadas se transcriben tal cual
+//      están, sin narrativa adicional — una versión anterior de este ejemplo
+//      dejaba una casilla vacía en medio de la selección y enseñaba a
+//      transcribirla como un espacio literal, pero ese hueco no aportaba
+//      nada (el post-proceso ya ignora cualquier carácter que no sea una
+//      letra válida), así que se retiró (issue #33) para simplificar el
+//      ejemplo — sin confirmar que fuera la causa de ninguna confusión en
+//      otro formato, solo por no ganarse su complejidad.
 //   4. Ordenar: Respuesta y Corrección son dos secuencias COMPLETAS pero
 //      ambas incorrectas y distintas entre sí — enseña a transcribir cada
 //      secuencia tal cual está, sin intentar "arreglarla" hacia el orden que
 //      se supone correcto.
-//   5. Clasificar: un elemento (posición 3) queda SIN clasificar en los DOS
-//      bloques (ni Respuesta ni Corrección le asignan categoría) — enseña
-//      que un elemento salteado es cadena vacía en esa posición del
-//      diccionario, no una letra inventada, mismo principio que la pregunta
-//      3 (selección múltiple) pero aplicado a "clasificar". Otro elemento
-//      (posición 4) SÍ tiene una corrección real y distinta entre bloques
-//      (Ave -> Reptil), para que el ejemplo también enseñe una corrección
-//      genuina en este formato, no solo blancos o coincidencias.
-//   6. Abierto (segundo): Respuesta tiene contenido pero Corrección está
-//      COMPLETAMENTE en blanco — enseña que correccion es null cuando no hay
-//      nada escrito ahí, sin inventar una corrección ni "arreglar" lo que
-//      dice Respuesta aunque parezca incorrecto.
+//   5. Clasificar: 10 elementos (antes 4), con TRES posiciones (2, 3 y 7)
+//      sin clasificar en Respuesta — más de un hueco, y no consecutivos,
+//      para que el patrón "posición salteada = cadena vacía" quede
+//      inequívoco en vez de poder confundirse con un caso aislado. En
+//      Corrección, dos de esos huecos (2 y 3) SÍ se rellenan pero el
+//      tercero (7) se queda otra vez en blanco — enseña que un elemento
+//      puede seguir sin clasificar en el bloque de Corrección aunque el
+//      resto del bloque tenga contenido, no que "tener contenido en algún
+//      sitio" implique rellenar todo lo demás. Otro elemento (posición 4)
+//      SÍ tiene una corrección real y distinta entre bloques (Ave ->
+//      Reptil), para que el ejemplo también enseñe una corrección genuina
+//      en este formato, no solo blancos o coincidencias (issue #33, tras
+//      encontrar este patrón de fallo real en un examen de producción).
+//   6. Ordenar (segunda, antes un segundo "abierto"): Respuesta Y Corrección
+//      COMPLETAMENTE en blanco, en un formato de varias posiciones (no una
+//      única casilla como la pregunta 2) — enseña que un bloque de
+//      "ordenar"/"clasificar" enteramente vacío también es null, nunca un
+//      diccionario con cadena vacía en cada posición, y mucho menos una
+//      ordenación inventada aunque el enunciado tenga una respuesta
+//      objetivamente correcta (issue #33: encontrado en un examen real, una
+//      pregunta "ordenar" dejada en blanco volvía con una secuencia completa
+//      inventada en vez de null — caso que ningún ejemplo anterior cubría,
+//      ya que la única pregunta "en blanco" que existía (la 2) era de una
+//      sola casilla).
 //
 // Las 6 preguntas usan contenido DISTINTO al banco real (data/items.json,
 // issue #31: "una página de ejemplo con preguntas diferentes a las del
@@ -121,14 +138,14 @@ const ITEMS_EJEMPLO = [
     id: "ejemplo-clasificar",
     formato: "clasificar",
     enunciado: "Clasifica estos animales según su clase: mamífero, ave o reptil:",
-    elementos: ["Águila", "Delfín", "Murciélago", "Serpiente"],
+    elementos: ["Águila", "Delfín", "Murciélago", "Serpiente", "Cocodrilo", "Loro", "Ballena", "Tortuga", "Búho", "Lagarto"],
     categorias: ["Mamífero", "Ave", "Reptil"],
   },
   {
-    id: "ejemplo-abierto-2",
-    formato: "abierto",
-    enunciado: "¿Cuál es la capital de Australia?",
-    casillas_abierto: 16,
+    id: "ejemplo-ordenar-blanco",
+    formato: "ordenar",
+    enunciado: "Ordena estos átomos de menor a mayor número atómico:",
+    elementos: ["Hierro", "Litio", "Helio", "Oxígeno", "Hidrógeno", "Carbono"],
   },
 ];
 
@@ -141,19 +158,34 @@ const RESPUESTAS_SINTETICAS = {
   items: {
     "ejemplo-abierto-1": { respuesta: "JUAN EL BAUTIS", correccion: "JOSE DE ARIMATEA" },
     "ejemplo-opcion-multiple": { respuesta: "", correccion: "" },
-    "ejemplo-seleccion-multiple": { respuesta: "A E", correccion: "A B" },
+    "ejemplo-seleccion-multiple": { respuesta: "AE", correccion: "AB" },
     "ejemplo-ordenar": { respuesta: ["C", "D", "B", "A"], correccion: ["D", "A", "C", "B"] },
-    // Águila y Delfín coinciden en ambos bloques (Ave/Mamífero, sin cambios);
-    // Murciélago (posición 3) queda SIN clasificar en los dos bloques
-    // (elemento salteado, no un error a corregir) — enseña que un elemento
-    // sin clasificar es cadena vacía, no una letra inventada, igual que una
-    // casilla vacía en medio de una selección múltiple (pregunta 3).
-    // Serpiente (posición 4) SÍ tiene una corrección real y distinta entre
-    // bloques (Ave -> Reptil) — para que el ejemplo también muestre una
-    // corrección genuina en "clasificar", no solo casos que coinciden o que
-    // quedan en blanco.
-    "ejemplo-clasificar": { respuesta: ["B", "A", "", "B"], correccion: ["B", "A", "", "C"] },
-    "ejemplo-abierto-2": { respuesta: "SYDNEY", correccion: "" },
+    // 10 elementos (Águila, Delfín, Murciélago, Serpiente, Cocodrilo, Loro,
+    // Ballena, Tortuga, Búho, Lagarto), 3 categorías (Mamífero/Ave/Reptil).
+    // Delfín (2), Murciélago (3) y Ballena (7) quedan SIN clasificar en
+    // Respuesta — tres huecos, no solo uno, para que el patrón "posición
+    // salteada = cadena vacía" quede inequívoco. En Corrección, Delfín y
+    // Murciélago SÍ se clasifican (A, A) pero Ballena (7) se queda otra vez
+    // en blanco — para dejar claro que un elemento puede seguir sin
+    // clasificar en el bloque de Corrección, no solo desaparecer del todo
+    // porque el bloque tenga contenido en otras posiciones. Serpiente (4)
+    // SÍ tiene una corrección real y distinta entre bloques (Ave -> Reptil).
+    // El resto de posiciones (1, 5, 6, 8, 9, 10) coincide en ambos bloques,
+    // sin cambios.
+    "ejemplo-clasificar": {
+      respuesta: ["B", "", "", "B", "C", "B", "", "C", "B", "C"],
+      correccion: ["B", "A", "A", "C", "C", "B", "", "C", "B", "C"],
+    },
+    // 6 elementos, respuesta y corrección COMPLETAMENTE en blanco — ninguna
+    // casilla de ninguno de los dos bloques tiene nada escrito. Enseña que un
+    // bloque de "ordenar"/"clasificar" enteramente vacío es null, no un
+    // diccionario con cadena vacía en todas las posiciones (mismo principio
+    // que la pregunta 2, opción múltiple en blanco, pero aplicado aquí a un
+    // formato de varias posiciones) — caso que no estaba cubierto por ningún
+    // ejemplo anterior y que resultó ser justo el que el modelo alucinaba en
+    // un examen real (issue #33): una pregunta "ordenar" dejada en blanco
+    // volvía con una secuencia completa inventada en vez de null.
+    "ejemplo-ordenar-blanco": { respuesta: ["", "", "", "", "", ""], correccion: ["", "", "", "", "", ""] },
   },
 };
 
@@ -165,16 +197,16 @@ const RESPUESTAS_SINTETICAS = {
 const RESPUESTA_ESPERADA = {
   1: { respuesta_inicial: "JUAN EL BAUTIS", correccion: "JOSE DE ARIMATEA" },
   2: { respuesta_inicial: null, correccion: null },
-  3: { respuesta_inicial: "A E", correccion: "A B" },
+  3: { respuesta_inicial: "AE", correccion: "AB" },
   4: {
     respuesta_inicial: { 1: "C", 2: "D", 3: "B", 4: "A" },
     correccion: { 1: "D", 2: "A", 3: "C", 4: "B" },
   },
   5: {
-    respuesta_inicial: { 1: "B", 2: "A", 3: "", 4: "B" },
-    correccion: { 1: "B", 2: "A", 3: "", 4: "C" },
+    respuesta_inicial: { 1: "B", 2: "", 3: "", 4: "B", 5: "C", 6: "B", 7: "", 8: "C", 9: "B", 10: "C" },
+    correccion: { 1: "B", 2: "A", 3: "A", 4: "C", 5: "C", 6: "B", 7: "", 8: "C", 9: "B", 10: "C" },
   },
-  6: { respuesta_inicial: "SYDNEY", correccion: null },
+  6: { respuesta_inicial: null, correccion: null },
 };
 
 // Mismo texto que construirContenidoPagina/describirFormatoItemBreve
@@ -207,27 +239,27 @@ const USER_PROMPT_EJEMPLO =
   "como si no — nunca completar lo que está cortado, nunca acortar lo que está entero.\n" +
   "- Pregunta 2 (opción múltiple): las dos casillas, Respuesta y Corrección, están COMPLETAMENTE en blanco — la " +
   "respuesta correcta es null en ambas, nunca una letra inventada.\n" +
-  "- Pregunta 3 (selección múltiple): hay una casilla vacía en medio de la selección, en los dos bloques — se " +
-  "transcribe como un espacio literal en esa posición, sin cerrar el hueco ni añadir la letra que falta.\n" +
+  "- Pregunta 3 (selección múltiple): se transcriben las opciones consignadas, tal cual están.\n" +
   "- Pregunta 4 (ordenar): Respuesta y Corrección son dos secuencias COMPLETAS, pero ninguna de las dos es la " +
   'ordenación correcta ni coinciden entre sí — se transcribe cada una tal cual está, sin "arreglarla" hacia el ' +
   "orden que se supone correcto.\n" +
-  "- Pregunta 5 (clasificar): el elemento de la posición 3 (Murciélago) queda SIN clasificar en los DOS bloques — " +
-  "ni Respuesta ni Corrección le asignan ninguna categoría. Esa posición es cadena vacía en el diccionario de las " +
-  "dos respuestas, nunca una categoría inventada — mismo principio que la casilla vacía de la pregunta 3, " +
-  "aplicado aquí a \"clasificar\". El elemento de la posición 4 (Serpiente), en cambio, SÍ tiene una corrección " +
-  "real: Respuesta dice \"B\" (Ave) y Corrección lo cambia a \"C\" (Reptil) — dos valores distintos, cada uno " +
-  "transcrito tal cual está en su propio bloque, sin copiar el valor de uno al otro.\n" +
-  "- Pregunta 6 (abierto): Respuesta tiene contenido pero Corrección está COMPLETAMENTE en blanco — Corrección es " +
-  "null, sin inventar una corrección ni cambiar lo escrito en Respuesta aunque te parezca incorrecto: tu trabajo " +
-  "es transcribir, no corregir.\n\n" +
+  "- Pregunta 5 (clasificar): los elementos de la posición 2 (Delfín), 3 (Murciélago) y 7 (Ballena) quedan SIN " +
+  "clasificar en la respuesta original. Esa posición es cadena vacía en el diccionario de dicha respuesta, nunca " +
+  "una categoría inventada. En la corrección, las posiciones 2 y 3 sí tienen una asignación de categoría, pero 7 " +
+  'debe mantenerse con la cadena vacía. El elemento de la posición 4 (Serpiente) sí tiene una corrección real: ' +
+  'Respuesta dice "B" (Ave) y Corrección lo cambia a "C" (Reptil) — cada uno transcrito tal cual está en su ' +
+  "propio bloque, sin copiar el valor de uno al otro.\n" +
+  "- Pregunta 6 (ordenar): las casillas de Respuesta y Corrección están COMPLETAMENTE en blanco — no hay ninguna " +
+  "letra escrita en ninguna posición, de ninguno de los dos bloques. Cuando un bloque entero está vacío, su valor " +
+  "es null, igual que en la pregunta 2 — nunca un diccionario con cadena vacía en todas sus posiciones, y nunca " +
+  "una ordenación inventada aunque el enunciado tenga una respuesta objetivamente correcta.\n\n" +
   "Debes digitalizar esta página EJEMPLO, en el JSON ya especificado, que contiene los siguientes ítems:\n" +
   "- Pregunta 1: Abierto.\n" +
   "- Pregunta 2: Opción múltiple, entre A y E.\n" +
   "- Pregunta 3: Selección múltiple, con opciones entre A y E.\n" +
   "- Pregunta 4: Ordenar 4 elementos (letras A-D) en las posiciones 1-4.\n" +
-  "- Pregunta 5: Clasificar 4 elementos (números 1-4) en categorías entre A y C.\n" +
-  "- Pregunta 6: Abierto.\n\n" +
+  "- Pregunta 5: Clasificar 10 elementos (números 1-10) en categorías entre A y C.\n" +
+  "- Pregunta 6: Ordenar 6 elementos (letras A-F) en las posiciones 1-6.\n\n" +
   'Para cada pregunta debes transcribir tanto "Respuesta" como "Corrección", exactamente como en la respuesta que ' +
   "sigue a continuación — luego te tocará hacer lo mismo con la página real.";
 

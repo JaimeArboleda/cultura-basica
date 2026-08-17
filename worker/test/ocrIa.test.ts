@@ -400,6 +400,6 @@ describe("construirMensajesEjemplo", () => {
     const respuesta = JSON.parse(mensajeAssistant.content as string);
     expect(Object.keys(respuesta).sort()).toEqual(["1", "2", "3", "4", "5", "6"]);
     expect(respuesta["2"]).toEqual({ respuesta_inicial: null, correccion: null });
-    expect(respuesta["6"]).toEqual({ respuesta_inicial: "SYDNEY", correccion: null });
+    expect(respuesta["6"]).toEqual({ respuesta_inicial: null, correccion: null });
   });
 });
