@@ -2,7 +2,7 @@
   "persona": "01-letra-clara",
   "descripcion": "Letra clara, casi sin correcciones — todos los campos censales deben leerse bien",
   "token_id_qr": "TEST-01-letra-clara",
-  "exam_id_qr": "TWKLZFBK",
+  "exam_id_qr": "TXGX77MX",
   "paginas": 6,
   "demografia": {
     "anio_nacimiento": 1984,
@@ -88,11 +88,9 @@
     "04": {
       "El entierro del Conde Orgaz": "El Greco",
       "Ana Karenina": "Lev Tolstói",
-      "La Divina Comedia": "Dante Alighieri",
       "La maja desnuda": "Francisco de Goya",
       "Macbeth": "William Shakespeare",
       "La Piedad": "Miguel Ángel",
-      "Las señoritas de Avignon": "Pablo Picasso",
       "La Regenta": "Leopoldo Alas \"Clarín\"",
       "Analectas": "Confucio"
     },

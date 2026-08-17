@@ -2,7 +2,7 @@
   "persona": "04-descuidada-ruidosa",
   "descripcion": "Letra descuidada, foto con más ruido/desenfoque, varios campos en blanco",
   "token_id_qr": "TEST-04-descuidada-ruidosa",
-  "exam_id_qr": "TYYEPF8D",
+  "exam_id_qr": "T6CH3ZBN",
   "paginas": 6,
   "demografia": {
     "anio_nacimiento": 1991,
@@ -55,8 +55,7 @@
       "Tomás Luis de Victoria": "Renacimiento",
       "Ravel": "Impresionismo",
       "Bach": "Barroco",
-      "Liszt": "Romanticismo",
-      "Mozart": "Clasicismo"
+      "Liszt": "Romanticismo"
     },
     "23": 2,
     "24": [

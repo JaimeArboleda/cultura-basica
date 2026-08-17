@@ -290,7 +290,9 @@ export const SYSTEM_PROMPT_ITEMS =
   '* Ordenar y clasificar: pondrás un diccionario con claves de "1" a "N" (N es el número total de elementos a ' +
   'ordenar/clasificar) y las letras consignadas en cada una de las posiciones, con cadenas vacías si hay bloques ' +
   'sin rellenar. Ejemplo: {"1": "B", "2": "", "3": "J"...}. Esos números aparecen encima de las casillas en las ' +
-  "que el alumno debe escribir, y están siempre ordenados.\n" +
+  "que el alumno debe escribir, y están siempre ordenados. **Jamás** pongas una letra en posiciones " +
+  "correspondientes a casillas sin rellenar: recuerda que debes consignar fielmente lo escrito por el alumno, " +
+  "sin añadir o modificar información.\n" +
   "* Opción múltiple: pondrás la opción elegida, una única letra, en mayúscula.\n" +
   "* Selección múltiple: pondrás todas las opciones elegidas, en un único string, en mayúsculas. Por ejemplo: " +
   '"BJ A". Si hay espacios entre medias, los dejas, para transcribir fielmente lo consignado (luego los ' +

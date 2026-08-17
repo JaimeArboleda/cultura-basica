@@ -2,7 +2,7 @@
   "persona": "03-valores-invalidos-e-incompletas",
   "descripcion": "Escribe valores fuera de formato en casillas de opción (p. ej. \"F) 7\" en vez de \"F\") y respuestas abiertas a medias",
   "token_id_qr": "TEST-03-valores-invalidos-e-incompletas",
-  "exam_id_qr": "T8KZ9BQP",
+  "exam_id_qr": "TPV6K68V",
   "paginas": 6,
   "demografia": {
     "anio_nacimiento": 1950,
@@ -90,7 +90,6 @@
       "El entierro del Conde Orgaz": "El Greco",
       "Ana Karenina": "Lev Tolstói",
       "La Divina Comedia": "Dante Alighieri",
-      "La maja desnuda": "Francisco de Goya",
       "Macbeth": "William Shakespeare",
       "La Piedad": "Miguel Ángel",
       "Las señoritas de Avignon": "Pablo Picasso",

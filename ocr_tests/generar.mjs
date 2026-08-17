@@ -181,6 +181,29 @@ const PERSONAS = [
 // respuesta DEFINITIVA esperada (misma precedencia que decodificarRespuestas).
 // ============================================================
 
+// Huecos deliberados en preguntas "clasificar" (issue #33): antes, la rama
+// "clasificar" de planItem solo sabía dejar el bloque ENTERO en blanco
+// (enBlanco, ver más abajo) o enteramente relleno — nunca una posición
+// individual sin clasificar en medio de las demás, pese a ser justo el
+// patrón real que se encontró mal leído en un examen de producción (issue
+// #33: 2 huecos entre 9 elementos, letras desplazadas en vez de dejar hueco
+// = cadena vacía). Solo hay 2 ítems "clasificar" en todo el banco (04, 9
+// elementos; 22, 10 elementos), así que con 4 personas caben como mucho 8
+// combinaciones (persona, ítem) — se fuerzan aquí 4 de esas 8, una por
+// persona, variando tanto el nº de huecos (1 a 3) como qué pasa con ellos en
+// Corrección (ninguna corrección, corrección que los rellena todos, o
+// corrección que rellena solo algunos y deja otro hueco — mismo patrón que
+// el one-shot-example ampliado en esta misma ronda, worker/src/endpoints/
+// admin/ocrIaEjemplo.ts) para medir el motor contra la mayor variedad
+// posible con solo 4 casos. Las posiciones son índices 0-based sobre
+// item.elementos.
+const HUECOS_CLASIFICAR = {
+  "01-letra-clara": { "04": { posiciones: [2, 6], correccion: "ninguna" } },
+  "02-con-correcciones": { "22": { posiciones: [0, 4, 8], correccion: "completa" } },
+  "03-valores-invalidos-e-incompletas": { "04": { posiciones: [3], correccion: "ninguna" } },
+  "04-descuidada-ruidosa": { "22": { posiciones: [1, 5, 9], correccion: "parcial", huecosCorreccion: [9] } },
+};
+
 function letraDeIndice(i) {
   return LETRAS[i];
 }
@@ -274,9 +297,33 @@ function planItem(item, persona, rng) {
         intento = correcto.map((l) => (rng() < 0.4 ? letraDeIndice(otroIndice(rng, LETRAS.indexOf(l), item.categorias.length)) : l));
       }
       const corrige = !acierta && rng() < persona.tasaCorreccionSiFalla;
-      const finalLetras = corrige ? correcto : intento;
-      const definitiva = Object.fromEntries(item.elementos.map((e, i) => [e, item.categorias[LETRAS.indexOf(finalLetras[i])]]));
-      return { respuestaInk: intento, correccionInk: corrige ? correcto : null, definitiva };
+      let respuestaInk = intento;
+      let correccionInk = corrige ? correcto : null;
+      let finalLetras = corrige ? correcto : intento;
+
+      const huecos = HUECOS_CLASIFICAR[persona.id]?.[item.id];
+      if (huecos) {
+        respuestaInk = intento.map((l, i) => (huecos.posiciones.includes(i) ? "" : l));
+        if (huecos.correccion === "ninguna") {
+          correccionInk = null;
+          finalLetras = respuestaInk;
+        } else if (huecos.correccion === "completa") {
+          correccionInk = correcto;
+          finalLetras = correcto;
+        } else {
+          correccionInk = correcto.map((l, i) => (huecos.huecosCorreccion.includes(i) ? "" : l));
+          finalLetras = correccionInk;
+        }
+      }
+
+      // Una posición sin clasificar (cadena vacía) no aporta clave al
+      // diccionario definitivo — mismo criterio que decodificarRespuestas
+      // (public/admin/papel/digitalizar.js), que solo escribe una entrada
+      // cuando encuentra una letra válida.
+      const definitiva = Object.fromEntries(
+        item.elementos.map((e, i) => [e, finalLetras[i] ? item.categorias[LETRAS.indexOf(finalLetras[i])] : null]).filter(([, cat]) => cat !== null)
+      );
+      return { respuestaInk, correccionInk, definitiva };
     }
     default:
       throw new Error(`Formato desconocido: ${item.formato}`);

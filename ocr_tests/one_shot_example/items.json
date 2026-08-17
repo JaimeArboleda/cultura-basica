@@ -50,7 +50,13 @@
         "Águila",
         "Delfín",
         "Murciélago",
-        "Serpiente"
+        "Serpiente",
+        "Cocodrilo",
+        "Loro",
+        "Ballena",
+        "Tortuga",
+        "Búho",
+        "Lagarto"
       ],
       "categorias": [
         "Mamífero",
@@ -59,10 +65,17 @@
       ]
     },
     {
-      "id": "ejemplo-abierto-2",
-      "formato": "abierto",
-      "enunciado": "¿Cuál es la capital de Australia?",
-      "casillas_abierto": 16
+      "id": "ejemplo-ordenar-blanco",
+      "formato": "ordenar",
+      "enunciado": "Ordena estos átomos de menor a mayor número atómico:",
+      "elementos": [
+        "Hierro",
+        "Litio",
+        "Helio",
+        "Oxígeno",
+        "Hidrógeno",
+        "Carbono"
+      ]
     }
   ],
   "respuestas_sinteticas": {
@@ -76,8 +89,8 @@
         "correccion": ""
       },
       "ejemplo-seleccion-multiple": {
-        "respuesta": "A E",
-        "correccion": "A B"
+        "respuesta": "AE",
+        "correccion": "AB"
       },
       "ejemplo-ordenar": {
         "respuesta": [
@@ -96,20 +109,46 @@
       "ejemplo-clasificar": {
         "respuesta": [
           "B",
-          "A",
           "",
-          "B"
+          "",
+          "B",
+          "C",
+          "B",
+          "",
+          "C",
+          "B",
+          "C"
         ],
         "correccion": [
           "B",
           "A",
+          "A",
+          "C",
+          "C",
+          "B",
           "",
+          "C",
+          "B",
           "C"
         ]
       },
-      "ejemplo-abierto-2": {
-        "respuesta": "SYDNEY",
-        "correccion": ""
+      "ejemplo-ordenar-blanco": {
+        "respuesta": [
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "correccion": [
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ]
       }
     }
   }
