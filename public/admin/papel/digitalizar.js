@@ -8,9 +8,9 @@
 // página entera) y la pantalla de confirmación al crear la sesión.
 import { api, escaparHtml } from "../admin.js";
 import { bloqueCamposDemografia, leerDemografiaDelFormulario, renderEditarSesion } from "../editarSesion.js";
-import { cargarFuentesHoja, obtenerFontkit, obtenerPdfLib } from "./comun.js";
+import { cargarFuentesHoja, detectarTintaCasillas, obtenerFontkit, obtenerPdfLib } from "./comun.js";
 import { CATALOGOS } from "../../js/demografia.js";
-import { calcularManifiesto, crearContextoFuentes, VERSION_PIPELINE } from "./hoja.js";
+import { calcularGeometriaCasillas, calcularManifiesto, crearContextoFuentes, VERSION_PIPELINE } from "./hoja.js";
 
 // [campo del objeto Demografia (worker/src/tipos.ts), clave en CATALOGOS
 // (public/js/demografia.js)] — necesario para traducir la letra que devolvió
@@ -57,10 +57,16 @@ export function obtenerManifiesto() {
       const ctx = await obtenerContextoFuentes();
       const { items } = await api.itemsImpresion();
       const manifiesto = calcularManifiesto(ctx, items);
+      // geometriaCasillas: array paralelo a `manifiesto` (una entrada por
+      // página) con la posición de cada casilla de ordenar/clasificar — issue
+      // #35, para la detección determinista de tinta en
+      // construirEntradaPaginaIA más abajo.
+      const geometriaCasillas = calcularGeometriaCasillas(ctx, items);
       return {
         ctx,
         items,
         manifiesto,
+        geometriaCasillas,
         itemsPorId: new Map(items.map((it) => [it.id, it])),
         numeroPorId: new Map(items.map((it, i) => [it.id, i + 1])),
       };
@@ -274,11 +280,36 @@ export function renderConfirmacionYCrear(
 // worker/src/endpoints/admin/digitalizacion.ts.
 // ============================================================
 
-export function construirEntradaPaginaIA(paginaManifiesto, warpCanvas, paginaId) {
+// casillasPagina (opcional): la entrada de geometriaCasillas (obtenerManifiesto)
+// correspondiente a ESTA página — solo trae algo para páginas con ítems
+// ordenar/clasificar. issue #35: antes de mandar la página a OCR-IA, se
+// muestrea la tinta de cada casilla sobre el propio warpCanvas (ya
+// enderezado) y se marcan como YA SABIDAS en blanco las posiciones sin tinta
+// — el Worker las fuerza a cadena vacía en el esquema en vez de dejar que el
+// modelo decida, que es la causa raíz del fallo de #33 (con un hueco en
+// medio de la rejilla, el modelo desplazaba las letras siguientes en vez de
+// dejar la posición vacía).
+function conPosicionesEnBlanco(itemManifiesto, warpCanvas, casillasPagina) {
+  if (itemManifiesto.formato !== "ordenar" && itemManifiesto.formato !== "clasificar") return itemManifiesto;
+  const casillasItem = casillasPagina.filter((c) => c.itemId === itemManifiesto.id);
+  if (casillasItem.length === 0) return itemManifiesto;
+  const conTinta = detectarTintaCasillas(warpCanvas, casillasItem);
+  const posicionesEnBlancoRespuesta = conTinta.filter((c) => c.lado === "respuesta" && !c.tieneTinta).map((c) => c.posicion + 1);
+  const posicionesEnBlancoCorreccion = conTinta.filter((c) => c.lado === "correccion" && !c.tieneTinta).map((c) => c.posicion + 1);
+  return {
+    ...itemManifiesto,
+    ...(posicionesEnBlancoRespuesta.length > 0 && { posicionesEnBlancoRespuesta }),
+    ...(posicionesEnBlancoCorreccion.length > 0 && { posicionesEnBlancoCorreccion }),
+  };
+}
+
+export function construirEntradaPaginaIA(paginaManifiesto, warpCanvas, paginaId, casillasPagina = []) {
+  const items =
+    paginaManifiesto.tipo === "items" ? paginaManifiesto.items.map((it) => conPosicionesEnBlanco(it, warpCanvas, casillasPagina)) : undefined;
   return {
     id: paginaId,
     imagen: warpCanvas.toDataURL("image/jpeg", 0.85),
     tipo: paginaManifiesto.tipo,
-    ...(paginaManifiesto.tipo === "demografia" ? { campos: paginaManifiesto.campos } : { items: paginaManifiesto.items }),
+    ...(paginaManifiesto.tipo === "demografia" ? { campos: paginaManifiesto.campos } : { items }),
   };
 }

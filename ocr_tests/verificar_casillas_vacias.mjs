@@ -34,16 +34,10 @@ import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { crearContextoFuentes, calcularManifiesto, calcularGeometriaCasillas } from "../public/admin/papel/hoja.js";
 import { PERSONAS, hashCadena, construirPlan, conCasillasAbierto } from "./generar.mjs";
-import { PT_POR_MM, PX_POR_MM, PAGE_W, PAGE_H, ESCALA_DIGITALIZACION } from "../public/admin/papel/geometria.js";
+import { PAGE_W, PAGE_H, ESCALA_DIGITALIZACION } from "../public/admin/papel/geometria.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ_REPO = path.resolve(__dirname, "..");
-
-// pt (hoja.js) -> px del canvas ya enderezado a ESCALA_DIGITALIZACION (mismo
-// sistema que usa el cliente real al warpear con destinoFiducialesEscalado()).
-function ptAPxWarp(pt) {
-  return (pt / PT_POR_MM) * PX_POR_MM * ESCALA_DIGITALIZACION;
-}
 
 // Servidor estático mínimo para servir los módulos ES del navegador (mismo
 // motivo/patrón que generar.mjs::iniciarServidorEstatico, duplicado aquí
@@ -76,12 +70,6 @@ function iniciarServidorEstatico() {
   });
   return new Promise((resolve) => servidor.listen(0, "127.0.0.1", () => resolve(servidor)));
 }
-
-// Margen relativo de inset por lado al muestrear el interior de una casilla:
-// evita coger el trazo del borde impreso (CASILLA_BORDE_PT) y tinta que se
-// haya salido a la casilla vecina tras el warp (issue #35, caso límite citado
-// explícitamente: "sangrado de tinta de una casilla vecina tras el warp").
-const INSET_RELATIVO = 0.22;
 
 // Varios umbrales de oscuridad media (misma escala 0-255 que
 // comun.js::densidadPromedio) para ver dónde cae el punto de corte real entre
@@ -117,10 +105,17 @@ async function main() {
 
   const resultados = []; // { persona, itemId, lado, posicion, densidad, tieneTintaReal }
   const fallosWarp = [];
+  let insetRelativoProduccion;
 
   try {
     const pagina = await browser.newPage();
     await pagina.goto(`${baseUrl}/__vacio.html`);
+    // Leído de comun.js (no duplicado aquí): el inset que de verdad se está
+    // probando es el que ya usa detectarTintaCasillas en producción.
+    insetRelativoProduccion = await pagina.evaluate(
+      async ({ baseUrl }) => (await import(`${baseUrl}/public/admin/papel/comun.js`)).INSET_RELATIVO_CASILLA,
+      { baseUrl }
+    );
 
     for (const persona of PERSONAS) {
       const dir = path.join(RAIZ_REPO, "ocr_tests", persona.id);
@@ -137,18 +132,14 @@ async function main() {
         const jpegPath = path.join(dir, `pagina-${String(i + 1).padStart(2, "0")}.jpg`);
         const jpegBase64 = await readFile(jpegPath, "base64");
 
-        const rects = casillas.map((c) => ({
-          itemId: c.itemId,
-          lado: c.lado,
-          posicion: c.posicion,
-          x: ptAPxWarp(c.xPt),
-          y: ptAPxWarp(c.yTopPt),
-          w: ptAPxWarp(c.wPt),
-          h: ptAPxWarp(c.hPt),
-        }));
+        // Se manda la geometría en pt (sin convertir aquí): la conversión a px
+        // del canvas enderezado (ptAPxCanonico) vive en comun.js — un único
+        // sitio, el mismo que usa la función de producción, para que este
+        // script no pueda desincronizarse silenciosamente de ella.
+        const rects = casillas.map((c) => ({ itemId: c.itemId, lado: c.lado, posicion: c.posicion, xPt: c.xPt, yTopPt: c.yTopPt, wPt: c.wPt, hPt: c.hPt }));
 
         const salida = await pagina.evaluate(
-          async ({ baseUrl, jpegBase64, rects, destW, destH, insetRelativo }) => {
+          async ({ baseUrl, jpegBase64, rects, destW, destH }) => {
             const mod = await import(`${baseUrl}/public/admin/papel/comun.js`);
             const img = await new Promise((resolve, reject) => {
               const im = new Image();
@@ -165,50 +156,33 @@ async function main() {
             if (!detectados) return { error: "fiduciales-no-detectados" };
             const dst = mod.destinoFiducialesEscalado();
             const warp = mod.warpearImagen(canvasFuente, detectados, destW, destH, dst);
-            const wctx = warp.getContext("2d");
-            const imageData = wctx.getImageData(0, 0, destW, destH);
-            const d = imageData.data;
-            const w = imageData.width;
-            const h = imageData.height;
+            const imageData = warp.getContext("2d").getImageData(0, 0, destW, destH);
 
-            function densidad(x0, y0, x1, y1) {
-              const xi = Math.max(0, Math.round(x0));
-              const xf = Math.min(w, Math.round(x1));
-              const yi = Math.max(0, Math.round(y0));
-              const yf = Math.min(h, Math.round(y1));
-              let suma = 0;
-              let n = 0;
-              for (let y = yi; y < yf; y++) {
-                for (let x = xi; x < xf; x++) {
-                  const idx = (y * w + x) * 4;
-                  suma += 255 - (0.299 * d[idx] + 0.587 * d[idx + 1] + 0.114 * d[idx + 2]);
-                  n++;
-                }
-              }
-              return n > 0 ? suma / n : 0;
-            }
+            // Densidad "cruda" del interior de cada casilla, con el mismo
+            // inset que usa la función de producción (mod.INSET_RELATIVO_CASILLA)
+            // — se recalcula aquí (en vez de llamar directo a
+            // detectarTintaCasillas) para poder barrer varios umbrales sobre
+            // el mismo dato y no solo el umbral ya fijado en producción.
+            const densidades = rects.map((r) => {
+              const xPx = mod.ptAPxCanonico(r.xPt);
+              const yPx = mod.ptAPxCanonico(r.yTopPt);
+              const wPx = mod.ptAPxCanonico(r.wPt);
+              const hPx = mod.ptAPxCanonico(r.hPt);
+              const mx = wPx * mod.INSET_RELATIVO_CASILLA;
+              const my = hPx * mod.INSET_RELATIVO_CASILLA;
+              const densidad = mod.densidadPromedio(imageData, xPx + mx, yPx + my, xPx + wPx - mx, yPx + hPx - my);
+              return { itemId: r.itemId, lado: r.lado, posicion: r.posicion, densidad };
+            });
 
-            return {
-              densidades: rects.map((r) => {
-                const mx = r.w * insetRelativo;
-                const my = r.h * insetRelativo;
-                return {
-                  itemId: r.itemId,
-                  lado: r.lado,
-                  posicion: r.posicion,
-                  densidad: densidad(r.x + mx, r.y + my, r.x + r.w - mx, r.y + r.h - my),
-                };
-              }),
-            };
+            // Función de producción tal cual (mismo camino que ejecutará
+            // digitalizar.js/subirLote.js en real) — para confirmar que el
+            // umbral ya fijado en comun.js (no solo el mejor umbral teórico
+            // de este barrido) acierta en las 4 fixtures.
+            const produccion = mod.detectarTintaCasillas(warp, rects);
+
+            return { densidades, produccion: produccion.map((c) => ({ itemId: c.itemId, lado: c.lado, posicion: c.posicion, tieneTinta: c.tieneTinta })) };
           },
-          {
-            baseUrl,
-            jpegBase64,
-            rects,
-            destW: Math.round(PAGE_W * ESCALA_DIGITALIZACION),
-            destH: Math.round(PAGE_H * ESCALA_DIGITALIZACION),
-            insetRelativo: INSET_RELATIVO,
-          }
+          { baseUrl, jpegBase64, rects, destW: Math.round(PAGE_W * ESCALA_DIGITALIZACION), destH: Math.round(PAGE_H * ESCALA_DIGITALIZACION) }
         );
 
         if (salida.error) {
@@ -217,13 +191,15 @@ async function main() {
           continue;
         }
 
+        const produccionPorClave = new Map(salida.produccion.map((c) => [`${c.itemId}:${c.lado}:${c.posicion}`, c.tieneTinta]));
         for (const dcasilla of salida.densidades) {
           const planItem = plan.planItems[dcasilla.itemId];
           const tieneTintaReal =
             dcasilla.lado === "respuesta"
               ? Boolean(planItem.respuesta[dcasilla.posicion])
               : planItem.correccion != null && Boolean(planItem.correccion[dcasilla.posicion]);
-          resultados.push({ persona: persona.id, ...dcasilla, tieneTintaReal });
+          const tieneTintaProduccion = produccionPorClave.get(`${dcasilla.itemId}:${dcasilla.lado}:${dcasilla.posicion}`);
+          resultados.push({ persona: persona.id, ...dcasilla, tieneTintaReal, tieneTintaProduccion });
         }
       }
       console.log(`  [${persona.id}] procesada.`);
@@ -251,7 +227,7 @@ async function main() {
   const densCon = conTinta.map((r) => r.densidad);
   const densSin = sinTinta.map((r) => r.densidad);
   console.log(
-    `\nDistribución de densidad (0-255, oscuridad media del interior de la casilla, tras inset ${(INSET_RELATIVO * 100).toFixed(0)}%):`
+    `\nDistribución de densidad (0-255, oscuridad media del interior de la casilla, tras inset ${(insetRelativoProduccion * 100).toFixed(0)}%):`
   );
   console.log(
     `  Con tinta: min=${percentil(densCon, 0).toFixed(1)} p10=${percentil(densCon, 0.1).toFixed(1)} mediana=${percentil(densCon, 0.5).toFixed(1)} p90=${percentil(densCon, 0.9).toFixed(1)} max=${percentil(densCon, 1).toFixed(1)}`
@@ -299,6 +275,26 @@ async function main() {
       "\nHay falsos positivos peligrosos incluso con el mejor umbral: alguna casilla en blanco se está detectando como 'con " +
         "tinta' (o viceversa, con umbrales altos) — antes de restringir el esquema de OCR-IA con esto, revisar esos casos concretos."
     );
+  }
+
+  // Chequeo final: no solo "existe un buen umbral teórico" sino que la propia
+  // función que va a correr en producción (comun.js::detectarTintaCasillas,
+  // con su umbral/inset ya fijados) acierta en las 4 fixtures.
+  let prodOk = 0;
+  let prodFp = 0;
+  let prodFn = 0;
+  for (const r of resultados) {
+    if (r.tieneTintaProduccion === r.tieneTintaReal) prodOk++;
+    else if (!r.tieneTintaReal && r.tieneTintaProduccion) prodFp++;
+    else prodFn++;
+  }
+  console.log(
+    `\ncomun.js::detectarTintaCasillas (umbral de producción, sin barrer nada): ${prodOk}/${resultados.length} correcto` +
+      ` (${((prodOk / resultados.length) * 100).toFixed(1)}%), ${prodFp} falsos positivos peligrosos, ${prodFn} falsos negativos inocuos.`
+  );
+  if (prodFp > 0) {
+    console.error("ATENCIÓN: la función de producción tiene falsos positivos peligrosos en estas fixtures — no desplegar sin revisar.");
+    process.exitCode = 1;
   }
 }
 

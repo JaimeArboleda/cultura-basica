@@ -94,6 +94,19 @@ interface ItemEntrada {
   // como son casillas físicas, la transcripción SIEMPRE mide ese nº exacto
   // de caracteres (huecos = espacio), nunca más ni menos.
   numCasillas?: number;
+  // Posiciones (1-based, sobre "1"..item.n) que el cliente ya sabe de
+  // antemano que están sin rellenar — detectado de forma determinista (sin
+  // LLM) muestreando la tinta de cada casilla sobre la imagen ya enderezada,
+  // ANTES de llamar aquí (public/admin/papel/comun.js::detectarTintaCasillas,
+  // hoja.js::calcularGeometriaCasillas, issue #35). Solo aplica a ordenar/
+  // clasificar: es la causa raíz del fallo de #33 — sin esto, cuando el
+  // modelo no sabe de antemano qué casilla está vacía, lee las letras SIN
+  // hueco en el orden en que aparecen y las reparte secuencialmente entre
+  // TODAS las posiciones, desplazando todo lo que va después del primer
+  // hueco en vez de dejar esa posición como cadena vacía — verificado 4/4
+  // contra la API real forzando estas posiciones en el esquema (issue #35).
+  posicionesEnBlancoRespuesta?: number[];
+  posicionesEnBlancoCorreccion?: number[];
 }
 
 interface PaginaEntrada {
@@ -178,6 +191,17 @@ function motivoItemInvalido(it: unknown): string | null {
   }
   if (o.formato === "abierto" && !(typeof o.numCasillas === "number" && Number.isInteger(o.numCasillas) && o.numCasillas > 0)) {
     return `formato "abierto" necesita numCasillas (entero > 0): ${JSON.stringify(o.numCasillas)}`;
+  }
+  for (const campo of ["posicionesEnBlancoRespuesta", "posicionesEnBlancoCorreccion"] as const) {
+    const valor = o[campo];
+    if (valor === undefined) continue;
+    if (o.formato !== "ordenar" && o.formato !== "clasificar") {
+      return `${campo} solo es válido en ordenar/clasificar, no en "${o.formato}"`;
+    }
+    const n = o.n as number;
+    if (!Array.isArray(valor) || valor.some((p) => typeof p !== "number" || !Number.isInteger(p) || p < 1 || p > n)) {
+      return `${campo} debe ser un array de enteros entre 1 y n=${n}: ${JSON.stringify(valor)}`;
+    }
   }
   return null;
 }
@@ -442,12 +466,20 @@ function esquemaLetraEnum(numLetras: number) {
 // estar en blanco por separado dentro de un bloque Respuesta/Corrección que
 // sí tiene contenido en otras posiciones. El objeto entero también puede ser
 // null si el bloque completo (Respuesta o Corrección) está en blanco.
-function esquemaPosicionesNullable(numPosiciones: number, numLetrasValidas: number) {
+//
+// posicionesForzadasVacias (issue #35): posiciones 1-based que el cliente ya
+// detectó sin tinta de forma determinista (ItemEntrada.posicionesEnBlanco*
+// más arriba) — para esas, el esquema no ofrece ninguna letra como opción
+// (enum: [""]) en vez del patrón normal letra-o-vacío: el modelo ya no puede
+// "inventar" una letra ahí ni desplazar el resto de la secuencia para
+// rellenar el hueco, porque Structured Outputs no le deja otra salida.
+function esquemaPosicionesNullable(numPosiciones: number, numLetrasValidas: number, posicionesForzadasVacias?: number[]) {
   const letra = letraMax(numLetrasValidas);
+  const forzadas = new Set(posicionesForzadasVacias ?? []);
   const properties: Record<string, unknown> = {};
   const required: string[] = [];
   for (let i = 1; i <= numPosiciones; i++) {
-    properties[String(i)] = { type: "string", pattern: `^[A-${letra}]?$` };
+    properties[String(i)] = forzadas.has(i) ? { type: "string", enum: [""] } : { type: "string", pattern: `^[A-${letra}]?$` };
     required.push(String(i));
   }
   return { anyOf: [{ type: "object", properties, required, additionalProperties: false }, { type: "null" }] };
@@ -505,7 +537,28 @@ function esquemaCampoRespuestaItem(item: ItemEntrada) {
 // Corrección>} — el modelo ya no resuelve la precedencia entre ambos
 // (SYSTEM_PROMPT_ITEMS), eso se hace en código, ver bloqueTieneContenido
 // más abajo.
+//
+// issue #35: si el ítem trae posicionesEnBlancoRespuesta/
+// posicionesEnBlancoCorreccion (ordenar/clasificar), Respuesta y Corrección
+// dejan de compartir el mismo esquema `campo` — cada una se construye por
+// separado, forzando a cadena vacía las posiciones que ya se saben en blanco
+// de antemano (detección determinista, nunca del modelo).
 function esquemaPregunta(item: ItemEntrada) {
+  if (
+    (item.formato === "ordenar" || item.formato === "clasificar") &&
+    (item.posicionesEnBlancoRespuesta || item.posicionesEnBlancoCorreccion)
+  ) {
+    const numLetrasValidas = item.formato === "ordenar" ? item.n! : item.numCategorias!;
+    return {
+      type: "object",
+      properties: {
+        respuesta_inicial: esquemaPosicionesNullable(item.n!, numLetrasValidas, item.posicionesEnBlancoRespuesta),
+        correccion: esquemaPosicionesNullable(item.n!, numLetrasValidas, item.posicionesEnBlancoCorreccion),
+      },
+      required: ["respuesta_inicial", "correccion"],
+      additionalProperties: false,
+    };
+  }
   const campo = esquemaCampoRespuestaItem(item);
   return {
     type: "object",

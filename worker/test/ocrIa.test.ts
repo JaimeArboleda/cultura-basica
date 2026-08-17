@@ -165,6 +165,42 @@ describe("POST /api/admin/ocr-ia", () => {
     expect(res.status).toBe(400);
   });
 
+  it("400 con posicionesEnBlancoRespuesta en un formato que no es ordenar/clasificar", async () => {
+    const auth = await tokenAdmin();
+    const res = await postOcrIa(
+      {
+        paginas: [
+          {
+            id: "p1",
+            imagen: IMAGEN_VALIDA,
+            tipo: "items",
+            items: [{ id: "x", formato: "abierto", numero: 1, numCasillas: 5, posicionesEnBlancoRespuesta: [1] }],
+          },
+        ],
+      },
+      auth
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("400 con una posición en posicionesEnBlancoCorreccion fuera de rango (> n)", async () => {
+    const auth = await tokenAdmin();
+    const res = await postOcrIa(
+      {
+        paginas: [
+          {
+            id: "p1",
+            imagen: IMAGEN_VALIDA,
+            tipo: "items",
+            items: [{ id: "x", formato: "ordenar", numero: 1, n: 3, posicionesEnBlancoCorreccion: [4] }],
+          },
+        ],
+      },
+      auth
+    );
+    expect(res.status).toBe(400);
+  });
+
   it("400 con un ítem sin numero (posición impresa en el círculo)", async () => {
     const auth = await tokenAdmin();
     const res = await postOcrIa(
@@ -299,6 +335,82 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     expect(bloque.anyOf[1]).toEqual({ type: "null" });
     expect(bloque.anyOf[0].properties["1"]).toEqual({ type: "string", pattern: "^[A-C]?$" });
     expect(bloque.anyOf[0].properties["3"]).toEqual({ type: "string", pattern: "^[A-C]?$" });
+  });
+
+  it("ordenar: posicionesEnBlancoRespuesta fuerza esas posiciones a SOLO cadena vacía, el resto sigue con el patrón normal (issue #35)", () => {
+    const esquema = construirEsquemaCompleto([
+      {
+        id: "p",
+        imagen: "x",
+        tipo: "items",
+        items: [{ id: "i", formato: "ordenar", numero: 1, n: 3, posicionesEnBlancoRespuesta: [2] }],
+      },
+    ]);
+    const pregunta = propiedad(esquema, "1");
+    const bloque = bloqueRespuesta(pregunta, "respuesta_inicial") as {
+      anyOf: [{ properties: Record<string, unknown> }, { type: string }];
+    };
+    expect(bloque.anyOf[0].properties["2"]).toEqual({ type: "string", enum: [""] });
+    expect(bloque.anyOf[0].properties["1"]).toEqual({ type: "string", pattern: "^[A-C]?$" });
+    expect(bloque.anyOf[0].properties["3"]).toEqual({ type: "string", pattern: "^[A-C]?$" });
+  });
+
+  it("ordenar: posicionesEnBlancoRespuesta y posicionesEnBlancoCorreccion se aplican por SEPARADO a cada bloque", () => {
+    const esquema = construirEsquemaCompleto([
+      {
+        id: "p",
+        imagen: "x",
+        tipo: "items",
+        items: [
+          { id: "i", formato: "ordenar", numero: 1, n: 3, posicionesEnBlancoRespuesta: [1], posicionesEnBlancoCorreccion: [3] },
+        ],
+      },
+    ]);
+    const pregunta = propiedad(esquema, "1");
+    const respuesta = bloqueRespuesta(pregunta, "respuesta_inicial") as {
+      anyOf: [{ properties: Record<string, unknown> }, { type: string }];
+    };
+    const correccion = bloqueRespuesta(pregunta, "correccion") as {
+      anyOf: [{ properties: Record<string, unknown> }, { type: string }];
+    };
+    expect(respuesta.anyOf[0].properties["1"]).toEqual({ type: "string", enum: [""] });
+    expect(respuesta.anyOf[0].properties["3"]).toEqual({ type: "string", pattern: "^[A-C]?$" });
+    expect(correccion.anyOf[0].properties["1"]).toEqual({ type: "string", pattern: "^[A-C]?$" });
+    expect(correccion.anyOf[0].properties["3"]).toEqual({ type: "string", enum: [""] });
+  });
+
+  it("ordenar: sin posicionesEnBlanco*, el esquema es idéntico al de antes (sin esta feature)", () => {
+    const sinFeature = construirEsquemaCompleto([
+      { id: "p", imagen: "x", tipo: "items", items: [{ id: "i", formato: "ordenar", numero: 1, n: 3 }] },
+    ]);
+    const conFeatureVacia = construirEsquemaCompleto([
+      {
+        id: "p",
+        imagen: "x",
+        tipo: "items",
+        items: [{ id: "i", formato: "ordenar", numero: 1, n: 3, posicionesEnBlancoRespuesta: [], posicionesEnBlancoCorreccion: [] }],
+      },
+    ]);
+    expect(bloqueRespuesta(propiedad(conFeatureVacia, "1"), "respuesta_inicial")).toEqual(
+      bloqueRespuesta(propiedad(sinFeature, "1"), "respuesta_inicial")
+    );
+  });
+
+  it("clasificar: posicionesEnBlancoRespuesta usa las letras de CATEGORÍA para las posiciones no forzadas (distinto de n)", () => {
+    const esquema = construirEsquemaCompleto([
+      {
+        id: "p",
+        imagen: "x",
+        tipo: "items",
+        items: [{ id: "i", formato: "clasificar", numero: 1, n: 5, numCategorias: 2, posicionesEnBlancoRespuesta: [3] }],
+      },
+    ]);
+    const pregunta = propiedad(esquema, "1");
+    const bloque = bloqueRespuesta(pregunta, "respuesta_inicial") as {
+      anyOf: [{ properties: Record<string, unknown> }, { type: string }];
+    };
+    expect(bloque.anyOf[0].properties["3"]).toEqual({ type: "string", enum: [""] });
+    expect(bloque.anyOf[0].properties["1"]).toEqual({ type: "string", pattern: "^[A-B]?$" }); // numCategorias=2, no n=5
   });
 
   it("clasificar: cada elemento restringido a las letras de CATEGORÍA (distinto de n)", () => {

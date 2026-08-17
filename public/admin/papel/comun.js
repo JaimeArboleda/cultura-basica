@@ -4,17 +4,22 @@
 // fontkit, UPNG — para generar la hoja, ver ./hoja.js — y pdf.js, para la
 // subida en bloque de PDFs ya escaneados).
 //
-// Todo lo que existía aquí SOLO para soportar OMR (muestreo de oscuridad) o
-// el recorte de una casilla de texto para Tesseract se ha retirado: ya no
-// hay ningún motor que lea recortes — la hoja entera se manda a OCR-IA
-// (worker/src/endpoints/admin/ocrIa.ts), así que lo único que de verdad hace
-// falta leer de la FOTO en el navegador son los dos códigos QR (para saber a
-// qué examen/página/remesa pertenece) y la homografía para producir una
-// imagen bien enderezada que mandar al modelo. Lo mismo con el paginado por
-// medición del DOM (antes aquí, con `data/build-paginacion.mjs` como parche
-// para hacerlo determinista): sustituido por ./hoja.js (pdf-lib, aritmética
-// pura sobre métricas de fuente reales), así que tampoco queda nada de eso.
-import { cajaQrGrande, cajaQrPagina, ESCALA_DIGITALIZACION, fiducialesFijos } from "./geometria.js";
+// Todo lo que existía aquí SOLO para soportar OMR (clasificar QUÉ letra había
+// en una casilla por oscuridad) o el recorte de una casilla de texto para
+// Tesseract se ha retirado: ya no hay ningún motor que lea recortes — la hoja
+// entera se manda a OCR-IA (worker/src/endpoints/admin/ocrIa.ts). El muestreo
+// de densidad que queda (detección de fiduciales, y desde issue #35 también
+// detectarTintaCasillas más abajo) resuelve un problema mucho más simple —
+// tinta sí/no, nunca qué letra hay — y solo restringe el esquema de OCR-IA
+// para las posiciones ya sabidas en blanco, nunca sustituye la lectura del
+// modelo. Lo que de verdad hace falta leer de la FOTO en el navegador son los
+// dos códigos QR (para saber a qué examen/página/remesa pertenece) y la
+// homografía para producir una imagen bien enderezada que mandar al modelo.
+// Lo mismo con el paginado por medición del DOM (antes aquí, con
+// `data/build-paginacion.mjs` como parche para hacerlo determinista):
+// sustituido por ./hoja.js (pdf-lib, aritmética pura sobre métricas de fuente
+// reales), así que tampoco queda nada de eso.
+import { cajaQrGrande, cajaQrPagina, ESCALA_DIGITALIZACION, fiducialesFijos, PT_POR_MM, PX_POR_MM } from "./geometria.js";
 import { decodificarQr } from "./qr.js";
 
 export { ESCALA_DIGITALIZACION };
@@ -496,7 +501,11 @@ export async function prepararImagenFuente(file) {
 // fuera de él) antes de aceptarlo, probando los candidatos de más a menos
 // oscuro hasta encontrar uno que lo cumpla. Es solo el punto de partida del
 // selector manual (crearSelectorEsquinas): si falla, se arrastra a mano.
-function densidadPromedio(imageData, x0, y0, x1, y1) {
+// Exportada (issue #35): ocr_tests/verificar_casillas_vacias.mjs la reutiliza
+// para recalibrar INSET_RELATIVO_CASILLA/UMBRAL_TINTA_CASILLA (más abajo)
+// contra fixtures nuevas, en vez de mantener una segunda copia de esta
+// aritmética en el script de test.
+export function densidadPromedio(imageData, x0, y0, x1, y1) {
   const d = imageData.data;
   const w = imageData.width;
   const h = imageData.height;
@@ -662,4 +671,46 @@ export function detectarFiduciales(canvasFuente) {
 export function destinoFiducialesEscalado(escala = ESCALA_DIGITALIZACION) {
   const f = fiducialesFijos();
   return ["tl", "tr", "br", "bl"].map((esquina) => ({ x: f[esquina].cx * escala, y: f[esquina].cy * escala }));
+}
+
+// ============================================================
+// Detección determinista de tinta por casilla (issue #35): sobre la imagen YA
+// enderezada (post-warpearImagen, en coordenadas canónicas fijas —
+// hoja.js::calcularGeometriaCasillas conoce la posición exacta de cada
+// casilla de ordenar/clasificar), decide "tinta / sin tinta" por umbral —
+// mismo mecanismo que ya usa detectarFiduciales (densidadPromedio), aplicado
+// a un problema mucho más simple (binario, nunca "qué letra hay"). Umbral e
+// inset calibrados y verificados contra las 4 instancias sintéticas de
+// ocr_tests/ (ocr_tests/verificar_casillas_vacias.mjs): separación limpia
+// entre "con tinta" (mínimo de densidad 8.1) y "en blanco" (máximo 4.5) en
+// las 312 casillas evaluadas — ver ese script para volver a calibrar si hace
+// falta (fotos reales de calidad muy distinta, issue #35 trabajo pendiente
+// #3, todavía no probado más allá de estas fixtures sintéticas).
+export const INSET_RELATIVO_CASILLA = 0.22;
+export const UMBRAL_TINTA_CASILLA = 8;
+
+// pt (mismo sistema de coordenadas que hoja.js, origen arriba-izquierda de la
+// página) -> px del canvas ya enderezado a ESCALA_DIGITALIZACION (el mismo
+// destino que produce warpearImagen con destinoFiducialesEscalado()).
+export function ptAPxCanonico(pt, escala = ESCALA_DIGITALIZACION) {
+  return (pt / PT_POR_MM) * PX_POR_MM * escala;
+}
+
+// casillas: array de {xPt, yTopPt, wPt, hPt, ...} en pt (hoja.js::
+// calcularGeometriaCasillas) — cualquier otra propiedad (itemId, lado,
+// posicion...) se conserva sin tocar. Devuelve el mismo array con
+// `tieneTinta` (boolean) añadido a cada elemento.
+export function detectarTintaCasillas(canvasEnderezado, casillas, escala = ESCALA_DIGITALIZACION) {
+  const ctx = canvasEnderezado.getContext("2d");
+  const imageData = ctx.getImageData(0, 0, canvasEnderezado.width, canvasEnderezado.height);
+  return casillas.map((c) => {
+    const xPx = ptAPxCanonico(c.xPt, escala);
+    const yPx = ptAPxCanonico(c.yTopPt, escala);
+    const wPx = ptAPxCanonico(c.wPt, escala);
+    const hPx = ptAPxCanonico(c.hPt, escala);
+    const mx = wPx * INSET_RELATIVO_CASILLA;
+    const my = hPx * INSET_RELATIVO_CASILLA;
+    const densidad = densidadPromedio(imageData, xPx + mx, yPx + my, xPx + wPx - mx, yPx + hPx - my);
+    return { ...c, tieneTinta: densidad >= UMBRAL_TINTA_CASILLA };
+  });
 }
