@@ -628,14 +628,21 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
   // del switch) también lo necesita para "abierto", para pasárselo al motor
   // de OCR-IA como numCasillas.
   let numCasillasAbierto;
-  // Declarados fuera del switch (issue #35): igual que numCasillasAbierto,
-  // el bloque de geometría de más abajo necesita saber, para ordenar/
-  // clasificar, en qué construirBloqueCasillasDoble concreto viven las
-  // casillas de posiciones y a qué desplazamiento vertical (relativo al
-  // origen del ítem) quedó — es el único momento en que se conoce ese
-  // offset, antes de que `partes` se apile en un solo bloque.
-  let bloqueCasillasPosiciones;
-  let offsetCasillasPosicionesPt;
+  // Acumula, para CUALQUIER formato, cada sub-bloque de casillas que aparece
+  // en el ítem junto con el desplazamiento vertical (relativo al origen del
+  // ítem) al que quedó — es el único momento en que se conoce ese offset,
+  // antes de que `partes` se apile en un solo bloque (issue #35, ampliado de
+  // ordenar/clasificar a los 5 formatos: la detección determinista de tinta
+  // necesita la geometría de cualquier casilla, no solo las de posiciones).
+  // `lado` solo hace falta para "abierto" (Respuesta/Corrección son dos
+  // bloques SEPARADOS, apilados, cada uno sin lado propio) — para el resto
+  // de formatos ya viene incluido en las casillas que devuelve el propio
+  // construirBloqueCasillasDoble (bloqueIzq/bloqueDer con lado "respuesta"/
+  // "correccion"), así que aquí se deja sin definir y no se pisa nada.
+  const bloquesCasillas = []; // { bloque, offsetPt, lado? }
+  function offsetActualPt() {
+    return partes.reduce((s, p) => s + p.altoPt, 0);
+  }
 
   switch (item.formato) {
     case "abierto": {
@@ -650,22 +657,37 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       // a partir de ella (antes lo intentaba y siempre caía al mínimo fijo:
       // bug real, la hoja en producción nunca dibujaba más de 18 casillas).
       numCasillasAbierto = casillasAbiertoAjustadas(item.casillas_abierto ?? config.casillasAbierto, anchoPt);
-      partes.push(construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config, resp, numCasillasAbierto));
-      partes.push(
-        construirRespuestaAbierta(ctx, "Corrección (solo si te equivocaste antes)", anchoPt, config, corr, numCasillasAbierto)
+      const offsetResp = offsetActualPt();
+      const bloqueResp = construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config, resp, numCasillasAbierto);
+      partes.push(bloqueResp);
+      // Sin casillas() en estilo "linea" (config.estiloAbierto): no hay
+      // casillas discretas que muestrear, solo una raya continua.
+      if (bloqueResp.casillas) bloquesCasillas.push({ bloque: bloqueResp, offsetPt: offsetResp, lado: "respuesta" });
+
+      const offsetCorr = offsetActualPt();
+      const bloqueCorr = construirRespuestaAbierta(
+        ctx,
+        "Corrección (solo si te equivocaste antes)",
+        anchoPt,
+        config,
+        corr,
+        numCasillasAbierto
       );
+      partes.push(bloqueCorr);
+      if (bloqueCorr.casillas) bloquesCasillas.push({ bloque: bloqueCorr, offsetPt: offsetCorr, lado: "correccion" });
       break;
     }
     case "opcion_multiple": {
       const letras = item.opciones.map((_, i) => LETRAS[i]);
       partes.push(construirInstruccion(ctx, "Marca UNA sola respuesta: escribe su letra en la casilla.", anchoPt, config));
       partes.push(construirListaEtiquetada(ctx, item.opciones, letras, anchoPt, config));
-      partes.push(
-        construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", 1, anchoPt, config, {
-          valoresIzq: resp ? [resp] : undefined,
-          valoresDer: corr ? [corr] : undefined,
-        })
-      );
+      const offset = offsetActualPt();
+      const bloqueDoble = construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", 1, anchoPt, config, {
+        valoresIzq: resp ? [resp] : undefined,
+        valoresDer: corr ? [corr] : undefined,
+      });
+      partes.push(bloqueDoble);
+      bloquesCasillas.push({ bloque: bloqueDoble, offsetPt: offset });
       break;
     }
     case "seleccion_multiple": {
@@ -682,12 +704,13 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
           : "Marca TODAS las que correspondan: escribe sus letras, una por casilla.";
       partes.push(construirInstruccion(ctx, instruccionTexto, anchoPt, config));
       partes.push(construirListaEtiquetada(ctx, item.opciones, letras, anchoPt, config));
-      partes.push(
-        construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
-          valoresIzq: resp ? [...resp] : undefined,
-          valoresDer: corr ? [...corr] : undefined,
-        })
-      );
+      const offset = offsetActualPt();
+      const bloqueDoble = construirBloqueCasillasDoble(ctx, "Respuesta", "Corrección (solo si te equivocaste antes)", n, anchoPt, config, {
+        valoresIzq: resp ? [...resp] : undefined,
+        valoresDer: corr ? [...corr] : undefined,
+      });
+      partes.push(bloqueDoble);
+      bloquesCasillas.push({ bloque: bloqueDoble, offsetPt: offset });
       break;
     }
     case "ordenar": {
@@ -703,8 +726,8 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
         )
       );
       partes.push(construirListaEtiquetada(ctx, item.elementos, letrasElementos, anchoPt, config));
-      offsetCasillasPosicionesPt = partes.reduce((s, p) => s + p.altoPt, 0);
-      bloqueCasillasPosiciones = construirBloqueCasillasDoble(
+      const offset = offsetActualPt();
+      const bloqueDoble = construirBloqueCasillasDoble(
         ctx,
         "Respuesta",
         "Corrección (solo si te equivocaste antes)",
@@ -713,7 +736,8 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
         config,
         { etiquetasCabecera: posiciones, valoresIzq: resp, valoresDer: corr }
       );
-      partes.push(bloqueCasillasPosiciones);
+      partes.push(bloqueDoble);
+      bloquesCasillas.push({ bloque: bloqueDoble, offsetPt: offset });
       break;
     }
     case "clasificar": {
@@ -725,8 +749,8 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       );
       partes.push(construirLeyendaCompacta(ctx, item.categorias, letrasCategorias, anchoPt, config));
       partes.push(construirListaEtiquetada(ctx, item.elementos, numerosElementos, anchoPt, config));
-      offsetCasillasPosicionesPt = partes.reduce((s, p) => s + p.altoPt, 0);
-      bloqueCasillasPosiciones = construirBloqueCasillasDoble(
+      const offset = offsetActualPt();
+      const bloqueDoble = construirBloqueCasillasDoble(
         ctx,
         "Respuesta",
         "Corrección (solo si te equivocaste antes)",
@@ -735,7 +759,8 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
         config,
         { etiquetasCabecera: numerosElementos, valoresIzq: resp, valoresDer: corr }
       );
-      partes.push(bloqueCasillasPosiciones);
+      partes.push(bloqueDoble);
+      bloquesCasillas.push({ bloque: bloqueDoble, offsetPt: offset });
       break;
     }
   }
@@ -762,16 +787,18 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       // restringe el esquema de salida a exactamente esa longitud (ocrIa.ts).
       ...(item.formato === "abierto" && { numCasillas: numCasillasAbierto }),
     },
-    // Geometría de las casillas de posiciones (issue #35: detección
-    // determinista de tinta por casilla, previa a OCR-IA) — solo ordenar/
-    // clasificar, los únicos formatos con "huecos" en medio de la rejilla que
-    // el modelo confunde. xPt/yTopPt son absolutos de PÁGINA (mismo origen que
-    // dibujar): el llamador (calcularGeometriaCasillas) solo tiene que sumar
-    // el offset vertical acumulado de los bloques anteriores del ítem, ya
-    // aplicado aquí, más el propio dentro del ítem.
-    ...(bloqueCasillasPosiciones && {
+    // Geometría de TODAS las casillas del ítem, cualquiera que sea su formato
+    // (issue #35: detección determinista de tinta por casilla, previa a
+    // OCR-IA). xPt/yTopPt son absolutos de PÁGINA (mismo origen que dibujar):
+    // el llamador (calcularGeometriaCasillas) solo tiene que sumar el offset
+    // vertical acumulado de los bloques anteriores de la página, el resto
+    // (offset dentro del ítem, lado respuesta/corrección) ya está resuelto
+    // aquí.
+    ...(bloquesCasillas.length > 0 && {
       casillas(xPt, yTopPt) {
-        return bloqueCasillasPosiciones.casillas(xPt, yTopPt + offsetCasillasPosicionesPt);
+        return bloquesCasillas.flatMap(({ bloque: b, offsetPt, lado }) =>
+          b.casillas(xPt, yTopPt + offsetPt).map((c) => (lado ? { ...c, lado } : c))
+        );
       },
     }),
   };

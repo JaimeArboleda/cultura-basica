@@ -666,3 +666,87 @@ efecto de escaneo/foto ya simulado (rotación, ruido, desenfoque) pero nunca
 sustituto perfecto de una foto real. El margen de separación (8.1 vs 4.5) da
 bastante colchón, pero sigue siendo trabajo pendiente antes de confiar en
 esto contra el piloto real sin supervisión.
+
+## Ampliación a los 5 formatos, y un hallazgo real sobre techos exactos (issue #35, mismo día)
+
+Con la detección de tinta funcionando tan bien en ordenar/clasificar, se
+amplió a los otros 3 formatos:
+
+- `hoja.js::calcularGeometriaCasillas` ya no se limita a ordenar/clasificar —
+  cada builder de casillas (`construirFilaCasillas`/`construirBloqueCasillas`/
+  `construirBloqueCasillasDoble`) ya exponía `.casillas()` genéricamente desde
+  la primera ronda; solo faltaba enganchar los 3 formatos restantes en
+  `construirBloqueItem` (abierto necesita dos bloques con `lado` etiquetado a
+  mano, Respuesta/Corrección van apilados, no lado a lado como el resto).
+- `digitalizar.js::conDeteccionDeTinta` calcula, según formato: posiciones en
+  blanco (ordenar/clasificar/opcion_multiple, reutilizando el mismo mecanismo
+  — opcion_multiple tiene una única casilla, así que "en blanco" ahí es "todo
+  el bloque vacío"), nº de casillas con tinta (seleccion_multiple) o longitud
+  del tramo con tinta (abierto, primera a última casilla inkada).
+- `ocrIa.ts`: `ItemEntrada` gana `numSeleccionadasRespuesta/Correccion` y
+  `longitudDetectadaRespuesta/Correccion`, con su propia validación de rango.
+
+**Hallazgo real durante la verificación end-to-end** (contra la API real, las
+4 instancias completas): el primer diseño para `seleccion_multiple` forzaba
+el nº EXACTO de letras detectadas con tinta. En la instancia
+`01-letra-clara`, el ítem `18` (3 opciones correctas realmente marcadas) bajó
+de 25/25 a 24/25 — la 3ª casilla midió una densidad de **7.9, justo por
+debajo del umbral 8** (`comun.js::UMBRAL_TINTA_CASILLA`), el detector contó 2
+en vez de 3, y el esquema forzó exactamente 2 letras: el modelo, aunque
+probablemente veía la 3ª marca, no tenía forma de reportarla — Structured
+Outputs no le deja "desobedecer" el esquema.
+
+A diferencia de forzar posiciones individuales a cadena vacía (ordenar/
+clasificar/opcion_multiple, donde un fallo puntual del detector solo afecta a
+ESA casilla, nunca bloquea el resto del ítem), un **techo exacto sobre un
+conteo agregado es un único punto de fallo**: basta con que UNA casilla caiga
+del lado equivocado del umbral para volver inexpresable una respuesta
+correcta entera. Corregido en dos frentes:
+
+1. **`seleccion_multiple`** ya no fuerza ningún nº exacto de letras — solo usa
+   la detección para "0 casillas con tinta → `null`" (la única señal
+   verdaderamente inequívoca: requiere fallar TODAS las casillas del bloque a
+   la vez, no solo una). Con una o más, el patrón queda tan libre como antes
+   de esta ronda.
+2. **`abierto`** mantiene el techo de longitud (es la mitigación directa del
+   patrón "PLUSV" → "PLUSVALIA"), pero le suma un margen de seguridad fijo
+   (`MARGEN_SEGURIDAD_TECHO = 2` casillas) al tramo detectado antes de usarlo
+   como `maxLength`, para absorber exactamente este mismo tipo de casilla
+   borderline sin arriesgar truncar una respuesta real.
+
+**Corrida de verificación tras el fix** (`gpt-5-mini`, mismo día, mismas 4
+instancias, `probar_ocr_ia.mjs` ahora enderezando y detectando tinta en
+CUALQUIER página de tipo `items`, no solo las de ordenar/clasificar):
+
+| Instancia | Ítems | Demografía |
+|---|---|---|
+| `01-letra-clara` | **25/25 (100%)** | 7/7 (100%) |
+| `02-con-correcciones` | **25/25 (100%)** | 7/7 (100%) |
+| `03-valores-invalidos-e-incompletas` | **23/25 (92%)** | 7/7 (100%) |
+| `04-descuidada-ruidosa` | **24/25 (96%)** | 7/7 (100%) |
+
+**97/100 (97%) de acierto agregado en ítems**, 28/28 (100%) demografía —
+mejora sobre el 96% de la ronda anterior (solo ordenar/clasificar) y el ítem
+`18` que había regresionado con el diseño de techo exacto vuelve a acertar.
+Los 3 fallos que quedan, revisados uno a uno contra el plan/imagen real, son
+errores de lectura genuinos sin relación con la detección de tinta:
+
+- Ítem `10` (`03-valores-invalidos-e-incompletas`, `abierto`): la persona
+  escribió literalmente "4/1" (respuesta deliberadamente incompleta, 3
+  caracteres — `tasaAbiertaIncompleta`), el modelo devolvió "4/" (perdió el
+  último dígito). El esquema permitía hasta 5 caracteres (3 detectados + 2 de
+  margen) — sobraba margen de sobra para los 3 reales, así que NO es un
+  truncamiento del esquema, es una lectura incompleta del propio modelo.
+- Ítem `23` (`03-valores-invalidos-e-incompletas`, `opcion_multiple`): letra
+  incorrecta, sin relación con ningún bloque en blanco.
+- Ítem `22` (`04-descuidada-ruidosa`, `clasificar`): una única categoría mal
+  asignada (Liszt → Impresionismo en vez de Romanticismo) en una posición que
+  el detector correctamente identificó CON tinta — error de lectura, no de
+  huecos.
+
+Ningún fallo de los 3 corresponde a una casilla forzada incorrectamente ni a
+un truncamiento — la lección de este hallazgo (techos exactos son frágiles,
+suelos/posiciones individuales son seguros) queda documentada en los propios
+comentarios de `esquemaCampoRespuestaItemLado` (`worker/src/endpoints/admin/ocrIa.ts`)
+para la próxima vez que se considere restringir el esquema con una señal
+determinista.

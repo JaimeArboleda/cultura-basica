@@ -94,19 +94,49 @@ interface ItemEntrada {
   // como son casillas físicas, la transcripción SIEMPRE mide ese nº exacto
   // de caracteres (huecos = espacio), nunca más ni menos.
   numCasillas?: number;
-  // Posiciones (1-based, sobre "1"..item.n) que el cliente ya sabe de
-  // antemano que están sin rellenar — detectado de forma determinista (sin
-  // LLM) muestreando la tinta de cada casilla sobre la imagen ya enderezada,
-  // ANTES de llamar aquí (public/admin/papel/comun.js::detectarTintaCasillas,
-  // hoja.js::calcularGeometriaCasillas, issue #35). Solo aplica a ordenar/
-  // clasificar: es la causa raíz del fallo de #33 — sin esto, cuando el
-  // modelo no sabe de antemano qué casilla está vacía, lee las letras SIN
-  // hueco en el orden en que aparecen y las reparte secuencialmente entre
-  // TODAS las posiciones, desplazando todo lo que va después del primer
-  // hueco en vez de dejar esa posición como cadena vacía — verificado 4/4
-  // contra la API real forzando estas posiciones en el esquema (issue #35).
+  // Detección determinista de tinta por casilla, SIEMPRE calculada por el
+  // cliente sobre la imagen ya enderezada, ANTES de llamar aquí
+  // (public/admin/papel/comun.js::detectarTintaCasillas, hoja.js::
+  // calcularGeometriaCasillas, issue #35) — nunca por el modelo. Campos
+  // opcionales según formato:
+  //
+  // - ordenar/clasificar/opcion_multiple: posiciones (1-based, sobre
+  //   "1"..item.n) que ya se saben sin rellenar. Es la causa raíz del fallo
+  //   de #33 en ordenar/clasificar — sin esto, cuando el modelo no sabe de
+  //   antemano qué casilla está vacía, lee las letras SIN hueco en el orden
+  //   en que aparecen y las reparte secuencialmente entre TODAS las
+  //   posiciones, desplazando todo lo que va después del primer hueco en vez
+  //   de dejar esa posición como cadena vacía — verificado 4/4 contra la API
+  //   real forzando estas posiciones en el esquema. opcion_multiple tiene una
+  //   única casilla por lado (item.n no aplica: siempre 1), así que "posición
+  //   1 en blanco" == "el bloque entero está vacío".
   posicionesEnBlancoRespuesta?: number[];
   posicionesEnBlancoCorreccion?: number[];
+  // - seleccion_multiple: nº de casillas CON tinta detectadas (0..nº de
+  //   casillas realmente impresas, item.num_correctas ?? item.opciones.length
+  //   — no expuesto aquí, solo numOpciones, así que el Worker valida contra
+  //   ese límite superior más laxo). El esquema SOLO usa esto para "0 -> null"
+  //   (única señal fiable: requiere fallar todas las casillas a la vez) —
+  //   deliberadamente NO fuerza un nº exacto de letras cuando hay al menos
+  //   una: probado contra la API real (issue #35), un conteo exacto es un
+  //   único punto de fallo — una sola casilla borderline mal contada (7.9 de
+  //   densidad contra un umbral de 8, un caso real encontrado en esta misma
+  //   ronda) vuelve inexpresable una respuesta correcta entera, mucho peor
+  //   que el problema que se intentaba evitar.
+  numSeleccionadasRespuesta?: number;
+  numSeleccionadasCorreccion?: number;
+  // - abierto: nº de casillas entre la primera y la última CON tinta (0..
+  //   item.numCasillas; 0 = ninguna, fuerza null) — incluye cualquier hueco
+  //   intermedio sin tinta (son los espacios entre palabras de una respuesta
+  //   de varias palabras). El esquema acota maxLength a este valor MÁS un
+  //   margen de seguridad (MARGEN_SEGURIDAD_TECHO en el propio esquema, no
+  //   exacto) en vez de al nº total de casillas impresas: reduce el
+  //   autocompletado hacia una palabra más larga ("PLUSV" → "PLUSVALIA", el
+  //   único fallo sistemático documentado en ocr_tests/README.md que ni el
+  //   prompt ni el few-shot consiguieron eliminar del todo) sin arriesgar
+  //   truncar una respuesta real por una casilla borderline mal contada.
+  longitudDetectadaRespuesta?: number;
+  longitudDetectadaCorreccion?: number;
 }
 
 interface PaginaEntrada {
@@ -195,12 +225,42 @@ function motivoItemInvalido(it: unknown): string | null {
   for (const campo of ["posicionesEnBlancoRespuesta", "posicionesEnBlancoCorreccion"] as const) {
     const valor = o[campo];
     if (valor === undefined) continue;
-    if (o.formato !== "ordenar" && o.formato !== "clasificar") {
-      return `${campo} solo es válido en ordenar/clasificar, no en "${o.formato}"`;
+    if (o.formato !== "ordenar" && o.formato !== "clasificar" && o.formato !== "opcion_multiple") {
+      return `${campo} solo es válido en ordenar/clasificar/opcion_multiple, no en "${o.formato}"`;
     }
-    const n = o.n as number;
+    // opcion_multiple siempre tiene una única casilla por lado (item.n no
+    // aplica ahí, ver ItemEntrada) — el límite superior es 1, no o.n.
+    const n = o.formato === "opcion_multiple" ? 1 : (o.n as number);
     if (!Array.isArray(valor) || valor.some((p) => typeof p !== "number" || !Number.isInteger(p) || p < 1 || p > n)) {
       return `${campo} debe ser un array de enteros entre 1 y n=${n}: ${JSON.stringify(valor)}`;
+    }
+  }
+  for (const campo of ["numSeleccionadasRespuesta", "numSeleccionadasCorreccion"] as const) {
+    const valor = o[campo];
+    if (valor === undefined) continue;
+    if (o.formato !== "seleccion_multiple") {
+      return `${campo} solo es válido en seleccion_multiple, no en "${o.formato}"`;
+    }
+    // Cota laxa: el límite real (nº de casillas realmente impresas,
+    // item.num_correctas ?? item.opciones.length) no viaja en ItemEntrada,
+    // solo numOpciones (siempre opciones.length, >= el límite real) — una
+    // cota más laxa aquí no supone ningún riesgo de correctud, solo deja
+    // pasar como válido algún valor que el cliente nunca podría producir de
+    // verdad (nunca detecta más casillas con tinta de las que existen).
+    const limite = o.numOpciones as number;
+    if (typeof valor !== "number" || !Number.isInteger(valor) || valor < 0 || valor > limite) {
+      return `${campo} debe ser un entero entre 0 y numOpciones=${limite}: ${JSON.stringify(valor)}`;
+    }
+  }
+  for (const campo of ["longitudDetectadaRespuesta", "longitudDetectadaCorreccion"] as const) {
+    const valor = o[campo];
+    if (valor === undefined) continue;
+    if (o.formato !== "abierto") {
+      return `${campo} solo es válido en abierto, no en "${o.formato}"`;
+    }
+    const limite = o.numCasillas as number;
+    if (typeof valor !== "number" || !Number.isInteger(valor) || valor < 0 || valor > limite) {
+      return `${campo} debe ser un entero entre 0 y numCasillas=${limite}: ${JSON.stringify(valor)}`;
     }
   }
   return null;
@@ -533,27 +593,103 @@ function esquemaCampoRespuestaItem(item: ItemEntrada) {
   }
 }
 
+// true si el ítem trae ALGÚN dato de detección determinista de tinta para
+// CUALQUIERA de los dos lados — issue #35, ampliado de ordenar/clasificar a
+// los 5 formatos (cada uno usa un subconjunto distinto de estos campos, ver
+// ItemEntrada). Cuando es true, Respuesta y Corrección dejan de compartir el
+// mismo esquema `campo` (esquemaCampoRespuestaItem): cada una se construye
+// por separado con esquemaCampoRespuestaItemLado, aplicando SOLO lo que se
+// detectó para ESE lado concreto (el otro lado, si no trae nada, sale con el
+// esquema normal sin restringir — misma lógica que antes para ordenar/
+// clasificar, generalizada).
+function tieneDeteccionDeTinta(item: ItemEntrada): boolean {
+  return (
+    item.posicionesEnBlancoRespuesta != null ||
+    item.posicionesEnBlancoCorreccion != null ||
+    item.numSeleccionadasRespuesta != null ||
+    item.numSeleccionadasCorreccion != null ||
+    item.longitudDetectadaRespuesta != null ||
+    item.longitudDetectadaCorreccion != null
+  );
+}
+
+// Margen de seguridad (nº de casillas) que se suma a cualquier longitud
+// detectada antes de usarla como TECHO (maxLength) — nunca como suelo
+// (minLength/exigir más letras): un techo demasiado ajustado puede volver
+// INEXPRESABLE la respuesta real si el detector se queda corto por una sola
+// casilla borderline, mientras que un suelo de más solo deja más margen sin
+// bloquear nada. Encontrado con datos reales (issue #35, verificación de
+// esta ronda): en un ítem "seleccion_multiple" con 3 casillas realmente
+// escritas, la 3ª midió una densidad de 7.9 — justo por debajo del umbral 8
+// (comun.js::UMBRAL_TINTA_CASILLA) — y forzar el CONTEO EXACTO detectado (2)
+// le impidió al modelo devolver la 3ª letra que sí estaba escrita y él sí
+// podía leer. Con este margen, ese mismo caso (2 detectadas + margen 2 = tope
+// 4) no habría bloqueado la respuesta real de 3.
+const MARGEN_SEGURIDAD_TECHO = 2;
+
+// Esquema de UN lado (Respuesta o Corrección) cuando el ítem trae detección
+// de tinta — variante de esquemaCampoRespuestaItem que, según formato, aplica
+// lo detectado para ESE lado concreto (issue #35):
+//   - ordenar/clasificar: posiciones forzadas a "" (esquemaPosicionesNullable)
+//     — cada posición es independiente, un fallo puntual del detector solo
+//     afecta a ESA casilla, nunca bloquea el resto del ítem: es la razón por
+//     la que este caso, a diferencia de los de abajo, sí puede forzar con
+//     precisión sin margen de seguridad.
+//   - opcion_multiple: única casilla en blanco (posición 1) -> todo el bloque
+//     null, nunca una letra inventada.
+//   - seleccion_multiple: 0 casillas con tinta detectadas -> null (única
+//     señal fiable: requiere fallar las n casillas a la vez). Con AL MENOS
+//     una, el nº de letras NO se restringe (ver MARGEN_SEGURIDAD_TECHO más
+//     arriba: un techo exacto es un punto único de fallo que puede volver
+//     inexpresable una respuesta real).
+//   - abierto: maxLength acotado al tramo detectado + MARGEN_SEGURIDAD_TECHO
+//     (con minLength=1, ya que si hay tinta la respuesta real nunca es
+//     vacía) en vez del nº total de casillas impresas; 0 -> null.
+function esquemaCampoRespuestaItemLado(item: ItemEntrada, lado: "respuesta" | "correccion") {
+  const posiciones = lado === "respuesta" ? item.posicionesEnBlancoRespuesta : item.posicionesEnBlancoCorreccion;
+  switch (item.formato) {
+    case "ordenar":
+      return esquemaPosicionesNullable(item.n!, item.n!, posiciones);
+    case "clasificar":
+      return esquemaPosicionesNullable(item.n!, item.numCategorias!, posiciones);
+    case "opcion_multiple":
+      if (posiciones?.includes(1)) return { type: "null" };
+      return { anyOf: [{ type: "string", enum: ["", ...LETRAS.slice(0, item.numOpciones!)] }, { type: "null" }] };
+    case "seleccion_multiple": {
+      const k = lado === "respuesta" ? item.numSeleccionadasRespuesta : item.numSeleccionadasCorreccion;
+      if (k === 0) return { type: "null" };
+      const letra = letraMax(item.numOpciones!);
+      return { anyOf: [{ type: "string", pattern: `^[A-${letra} ]*$` }, { type: "null" }] };
+    }
+    case "abierto": {
+      const longitud = lado === "respuesta" ? item.longitudDetectadaRespuesta : item.longitudDetectadaCorreccion;
+      if (longitud === 0) return { type: "null" };
+      const n = item.numCasillas!;
+      // Sin longitud detectada para este lado: mismo esquema EXACTO que sin
+      // ninguna detección (esquemaCampoRespuestaItem), sin minLength — sigue
+      // sin forzar ningún relleno, ver el comentario de más arriba.
+      if (longitud == null) {
+        return { anyOf: [{ type: "string", maxLength: n, pattern: `^[A-Z0-9ÁÉÍÓÚÜÑ /]{0,${n}}$` }, { type: "null" }] };
+      }
+      const maxLen = Math.min(n, longitud + MARGEN_SEGURIDAD_TECHO);
+      return {
+        anyOf: [{ type: "string", minLength: 1, maxLength: maxLen, pattern: `^[A-Z0-9ÁÉÍÓÚÜÑ /]{1,${maxLen}}$` }, { type: "null" }],
+      };
+    }
+  }
+}
+
 // {"respuesta_inicial": <bloque Respuesta>, "correccion": <bloque
 // Corrección>} — el modelo ya no resuelve la precedencia entre ambos
 // (SYSTEM_PROMPT_ITEMS), eso se hace en código, ver bloqueTieneContenido
 // más abajo.
-//
-// issue #35: si el ítem trae posicionesEnBlancoRespuesta/
-// posicionesEnBlancoCorreccion (ordenar/clasificar), Respuesta y Corrección
-// dejan de compartir el mismo esquema `campo` — cada una se construye por
-// separado, forzando a cadena vacía las posiciones que ya se saben en blanco
-// de antemano (detección determinista, nunca del modelo).
 function esquemaPregunta(item: ItemEntrada) {
-  if (
-    (item.formato === "ordenar" || item.formato === "clasificar") &&
-    (item.posicionesEnBlancoRespuesta || item.posicionesEnBlancoCorreccion)
-  ) {
-    const numLetrasValidas = item.formato === "ordenar" ? item.n! : item.numCategorias!;
+  if (tieneDeteccionDeTinta(item)) {
     return {
       type: "object",
       properties: {
-        respuesta_inicial: esquemaPosicionesNullable(item.n!, numLetrasValidas, item.posicionesEnBlancoRespuesta),
-        correccion: esquemaPosicionesNullable(item.n!, numLetrasValidas, item.posicionesEnBlancoCorreccion),
+        respuesta_inicial: esquemaCampoRespuestaItemLado(item, "respuesta"),
+        correccion: esquemaCampoRespuestaItemLado(item, "correccion"),
       },
       required: ["respuesta_inicial", "correccion"],
       additionalProperties: false,

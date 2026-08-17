@@ -15,7 +15,15 @@
 //      porque ese código usa <canvas>/ImageData, no hay DOM en Node.
 //   3. Calcula la geometría de cada casilla de ordenar/clasificar sobre esa
 //      imagen ya enderezada (hoja.js::calcularGeometriaCasillas, issue #35
-//      trabajo pendiente #1 — nueva).
+//      trabajo pendiente #1 — nueva). calcularGeometriaCasillas devuelve
+//      geometría de los 5 formatos (ampliado en una ronda posterior del
+//      mismo issue), pero este script se queda deliberadamente solo con
+//      ordenar/clasificar: su ground truth (plan.planItems[id].respuesta[i])
+//      solo tiene sentido como "casilla i-ésima" para esos dos formatos —
+//      para seleccion_multiple es una lista de letras SELECCIONADAS (no una
+//      casilla por posición) y para abierto/opcion_multiple ya se compara
+//      distinto (ver ocr_tests/probar_ocr_ia.mjs, que sí verifica los 5
+//      contra la API real).
 //   4. Muestrea la densidad de tinta del interior de cada casilla (con un
 //      margen para no coger el borde dibujado ni tinta de la casilla vecina).
 //   5. Compara "¿hay tinta?" contra el ground truth EXACTO de qué casillas
@@ -127,7 +135,7 @@ async function main() {
       const plan = construirPlan(itemsOrdenados, persona, semilla);
 
       for (let i = 0; i < manifiesto.length; i++) {
-        const casillas = geometriaPorPagina[i];
+        const casillas = geometriaPorPagina[i].filter((c) => c.formato === "ordenar" || c.formato === "clasificar");
         if (casillas.length === 0) continue;
         const jpegPath = path.join(dir, `pagina-${String(i + 1).padStart(2, "0")}.jpg`);
         const jpegBase64 = await readFile(jpegPath, "base64");

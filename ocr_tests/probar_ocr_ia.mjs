@@ -91,18 +91,18 @@ async function peticion(pathname, opciones = {}) {
 }
 
 // ============================================================
-// Enderezado + detección de tinta (issue #35): antes este script mandaba la
-// foto "cruda" (rotada, con ruido) directamente a OCR-IA — nunca ejercía el
-// paso de enderezado (comun.js::detectarFiduciales+warpearImagen) que sí
-// corre siempre en producción (digitalizar.js/subirLote.js), así que nunca
-// medía lo mismo que verá el modelo de verdad. Ahora, para cualquier página
-// con al menos una casilla de ordenar/clasificar (las únicas que necesitan
-// esta detección), se endereza con el mismo mecanismo real y se calculan
-// posicionesEnBlancoRespuesta/Correccion muestreando la tinta — igual que
-// hará el cliente real, nunca a partir del ground truth del plan. El resto
-// de páginas (sin ordenar/clasificar) se sigue mandando cruda: cambiar eso
-// además afectaría a los números históricos de este README para todos los
-// demás formatos, fuera del alcance del issue #35.
+// Enderezado + detección de tinta (issue #35, ampliado a los 5 formatos):
+// antes este script mandaba la foto "cruda" (rotada, con ruido) directamente
+// a OCR-IA — nunca ejercía el paso de enderezado (comun.js::
+// detectarFiduciales+warpearImagen) que sí corre siempre en producción
+// (digitalizar.js/subirLote.js), así que nunca medía lo mismo que verá el
+// modelo de verdad. Ahora, para cualquier página de tipo "items" (todas
+// tienen casillas de algún formato — hoja.js::calcularGeometriaCasillas ya
+// cubre los 5), se endereza con el mismo mecanismo real y se calcula la
+// detección de tinta correspondiente a cada formato — igual que hará el
+// cliente real, nunca a partir del ground truth del plan. Las páginas de
+// demografía se siguen mandando crudas (esos campos no tienen esta
+// detección, fuera del alcance del issue #35).
 const MIME_ESTATICO = { ".mjs": "text/javascript; charset=utf-8", ".js": "text/javascript; charset=utf-8" };
 function iniciarServidorEstatico() {
   const servidor = createServer(async (req, res) => {
@@ -131,8 +131,8 @@ function iniciarServidorEstatico() {
 }
 
 // Devuelve { imagen: dataURL, itemsEnriquecidos } o { error } — casillasPagina
-// es geometriaPorPagina[i] (hoja.js::calcularGeometriaCasillas), vacío para
-// páginas sin ordenar/clasificar (el llamador ya filtra ese caso antes).
+// es geometriaPorPagina[i] (hoja.js::calcularGeometriaCasillas), vacío solo
+// para páginas de demografía (el llamador ya filtra ese caso antes).
 async function enderezarYDetectarBlancos(paginaBrowser, baseUrl, jpegBase64, casillasPagina, itemsPagina) {
   const salida = await paginaBrowser.evaluate(
     async ({ baseUrl, jpegBase64, casillas, destW, destH }) => {
@@ -164,16 +164,42 @@ async function enderezarYDetectarBlancos(paginaBrowser, baseUrl, jpegBase64, cas
   );
   if (salida.error) return { error: salida.error };
 
+  // Misma lógica por formato que public/admin/papel/digitalizar.js::
+  // conDeteccionDeTinta (duplicada a propósito: ese módulo importa admin.js,
+  // que toca `document` al cargar, no es seguro importarlo en Node — mismo
+  // motivo que el resto de duplicaciones deliberadas de este script, README
+  // §2).
   const itemsEnriquecidos = itemsPagina.map((it) => {
-    if (it.formato !== "ordenar" && it.formato !== "clasificar") return it;
     const casillasItem = salida.conTinta.filter((c) => c.itemId === it.id);
-    const posicionesEnBlancoRespuesta = casillasItem.filter((c) => c.lado === "respuesta" && !c.tieneTinta).map((c) => c.posicion + 1);
-    const posicionesEnBlancoCorreccion = casillasItem.filter((c) => c.lado === "correccion" && !c.tieneTinta).map((c) => c.posicion + 1);
-    return {
-      ...it,
-      ...(posicionesEnBlancoRespuesta.length > 0 && { posicionesEnBlancoRespuesta }),
-      ...(posicionesEnBlancoCorreccion.length > 0 && { posicionesEnBlancoCorreccion }),
-    };
+    if (casillasItem.length === 0) return it;
+    switch (it.formato) {
+      case "ordenar":
+      case "clasificar":
+      case "opcion_multiple": {
+        const posicionesEnBlancoRespuesta = casillasItem.filter((c) => c.lado === "respuesta" && !c.tieneTinta).map((c) => c.posicion + 1);
+        const posicionesEnBlancoCorreccion = casillasItem.filter((c) => c.lado === "correccion" && !c.tieneTinta).map((c) => c.posicion + 1);
+        return {
+          ...it,
+          ...(posicionesEnBlancoRespuesta.length > 0 && { posicionesEnBlancoRespuesta }),
+          ...(posicionesEnBlancoCorreccion.length > 0 && { posicionesEnBlancoCorreccion }),
+        };
+      }
+      case "seleccion_multiple": {
+        const numSeleccionadasRespuesta = casillasItem.filter((c) => c.lado === "respuesta" && c.tieneTinta).length;
+        const numSeleccionadasCorreccion = casillasItem.filter((c) => c.lado === "correccion" && c.tieneTinta).length;
+        return { ...it, numSeleccionadasRespuesta, numSeleccionadasCorreccion };
+      }
+      case "abierto": {
+        const longitud = (lado) => {
+          const inkadas = casillasItem.filter((c) => c.lado === lado && c.tieneTinta).map((c) => c.posicion);
+          if (inkadas.length === 0) return 0;
+          return Math.max(...inkadas) - Math.min(...inkadas) + 1;
+        };
+        return { ...it, longitudDetectadaRespuesta: longitud("respuesta"), longitudDetectadaCorreccion: longitud("correccion") };
+      }
+      default:
+        return it;
+    }
   });
   return { imagen: salida.imagen, itemsEnriquecidos };
 }
