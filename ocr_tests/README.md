@@ -799,6 +799,15 @@ solapamiento que motivó este issue era en efecto el borde impreso de la
 casilla colándose en la región muestreada, y no ruido real. No se ha tocado
 `INSET_RELATIVO_CASILLA`/`UMBRAL_TINTA_CASILLA`: con el desalineamiento
 corregido ya no hay separación peligrosa que recalibrar en las fixtures
-disponibles en este repo (`ocr_tests/05-escaneo-real/`, citado en el issue
-original, no llegó a versionarse — si aparecen escaneos reales nuevos, es el
-sitio natural para volver a verificar antes de tocar esos umbrales).
+disponibles en este repo.
+
+**Verificación adicional contra los 2 escaneos reales del issue original**
+(`ocr_tests/05-escaneo-real/escaneo-1.pdf`/`escaneo-2.pdf`, recuperados de la
+rama `claude/issue-37-implementation-tgdly8` y versionados aquí): con el fix
+aplicado, `detectarFiduciales` + `warpearImagen` (mismo camino que
+`digitalizar.js`/`subirLote.js`) y overlay visual de la geometría de
+`ordenar`/`clasificar` (`calcularGeometriaCasillas`) sobre la imagen ya
+enderezada — inspeccionado a simple vista con capturas ampliadas — confirma
+que el rectángulo completo de cada casilla traza el borde impreso real y la
+región muestreada (tras `INSET_RELATIVO_CASILLA`) queda cómodamente dentro,
+sin tocar el borde ni en casillas vacías ni con tinta, en ambos escaneos.
