@@ -1332,3 +1332,59 @@ blanco"*), pero no eliminado del todo — razonable dejarlo como límite
 conocido: ambos casos son adversariales por diseño (simulan respuestas
 incorrectas/texto sin sentido a propósito), no representativos de una hoja
 real bien rellenada.
+
+**Margen proporcional sobre el techo, probado y descartado**: se probó
+además dar un +25% de margen (redondeado al alza, topado por `numCasillas`)
+sobre `maxLength` en "abierto", pensado para el caso `numTinta ===
+longitudDetectada` (sin ningún hueco, donde el rango de arriba colapsa a un
+único valor exacto) — el caso exacto de "51/4". Verificado contra la API
+real: **no arregló el caso** (el modelo, en vez de usar el carácter de más
+para conservar el último dígito, metió AÚN más espacio — "5 1 /" en vez de
+"5 1/", perdiendo el dígito igual) y **sí introdujo una regresión nueva**:
+el ítem `10` de `03-valores-invalidos-e-incompletas` (`"4/1"`, respuesta
+incompleta a propósito) volvió como `"4/15"` — el margen le dio al modelo
+hueco para "completar" la fracción hacia la respuesta correcta en vez de
+transcribir literalmente lo escrito, reabriendo exactamente el patrón de
+alucinación que el diseño de longitud EXACTA (sin margen) ya había cerrado.
+Descartado — el punto óptimo está más cerca de "sin margen" que de "+25%":
+`numTinta`/`longitudDetectada` siguen siendo ambos mediciones directas sin
+margen añadido, en `abierto` y en `seleccion_multiple` por igual.
+
+## Ground truth completo de los 2 escaneos reales, verificado visualmente (18 de agosto de 2026)
+
+`ocr_tests/05-escaneo-real/real-A-letra-clara.respuestas-esperadas.json` y
+`real-B-letra-descuidada.respuestas-esperadas.json` (nuevos): ground truth
+completo de los 25 ítems + demografía para las 2 personas reales de
+`ocr_tests/05-escaneo-real/` (antes solo existía el ground truth parcial de
+tinta de `verificar_casillas_vacias.mjs`, limitado a los ítems
+`ordenar`/`clasificar`) — mismo formato que
+`ocr_tests/<persona>/respuestas-esperadas.json` (`demografia` +
+`respuestas_esperadas` con los 25 ítems, `null` explícito en los que la
+persona dejó en blanco), para poder reutilizarlo en una futura versión de
+`probar_ocr_ia.mjs` que también calcule un % de acierto contra los PDFs
+reales, no solo contra las fixtures sintéticas.
+
+**Método**: las 3 pasadas de escaneado (`escaneo-1/2/3.pdf`) son la MISMA
+hoja física rellenada una única vez por cada persona, así que el ground
+truth de qué se escribió es el mismo para las 3 — se construyó a partir de
+`escaneo-1.pdf` únicamente. Cada una de las 12 páginas (6 por persona: 1 de
+datos + 5 de ítems) se inspeccionó visualmente a resolución completa
+(imagen ya enderezada, `detectarFiduciales`+`warpearImagen`, igual que el
+pipeline real) contra el JSON que ya había devuelto OCR-IA en la corrida de
+verificación del fix de `numTinta` (sección anterior) — confirmando
+coincidencia exacta en las 25 respuestas + 7 campos de demografía de
+`real-A-letra-clara` y en las 25 + 7 de `real-B-letra-descuidada`, con **una
+única excepción marcada como incierta**: el ítem `17` de
+`real-B-letra-descuidada` (zonas sísmicas) tiene un rasgo cursivo entre "C"
+y "E" indistinguible a simple vista incluso ampliando la imagen — se dejó el
+valor que devolvió el modelo ("E") por falta de una lectura alternativa más
+segura, marcado aquí para quien quiera revisarlo con el papel físico
+delante.
+
+No incluye `exam_id_qr`/`token_id_qr` (solo se leyó el código de la remesa
+impreso como texto, `e3a25685-a7e4-4928-a92b-4a52ed5c532c` — el `exam_id` de
+cada hoja solo está codificado en el QR de cada página, no como texto
+legible, y decodificarlo quedó fuera de alcance de esta ronda), así que
+estos ficheros sirven para comparar `respuestas_esperadas`/`demografia`
+pero no para probar el extremo a extremo (`POST /api/admin/digitalizacion`)
+como sí hace `probar_ocr_ia.mjs` con las fixtures sintéticas.

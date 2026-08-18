@@ -1,0 +1,94 @@
+{
+  "persona": "real-A-letra-clara",
+  "descripcion": "Escaneo real, letra clara (issue #37/#38, verificado visualmente el 18 de agosto de 2026)",
+  "demografia": {
+    "sexo": "Mujer",
+    "ccaa_educacion_secundaria": "Andalucía",
+    "nivel_estudios": "Grado o licenciatura",
+    "area_estudios": "Ciencias sociales y jurídicas",
+    "estudios_mayor_progenitor": "FP grado superior",
+    "libros_en_casa": "26-100",
+    "anio_nacimiento": 1998
+  },
+  "respuestas_esperadas": {
+    "10": "4/15",
+    "11": "VELAZQUEZ",
+    "12": 4,
+    "13": 5,
+    "14": [
+      0,
+      2,
+      6
+    ],
+    "15": [
+      "La Ilíada",
+      "El Coliseo de Roma",
+      "El Corán",
+      "El Cantar del Mío Cid",
+      "El David de Miguel Ángel",
+      "Don Quijote de la Mancha",
+      "La Novena Sinfonía de Beethoven",
+      "Crimen y Castigo de Dostoievsky",
+      "El Guernica de Picasso",
+      "Cien años de soledad"
+    ],
+    "16": 2,
+    "17": 2,
+    "18": [
+      1,
+      4,
+      8
+    ],
+    "19": null,
+    "20": 1,
+    "21": 5,
+    "22": {
+      "Debussy": "Impresionismo",
+      "Palestrina": "Renacimiento",
+      "Beethoven": "Romanticismo",
+      "Chopin": "Romanticismo",
+      "Handel": "Barroco",
+      "Tomás Luis de Victoria": "Renacimiento",
+      "Ravel": "Impresionismo",
+      "Bach": "Barroco",
+      "Liszt": "Romanticismo",
+      "Mozart": "Clasicismo"
+    },
+    "23": 2,
+    "24": null,
+    "25": 4,
+    "01": "FREUD",
+    "02": "ISABEL DE CASTILLA Y FERNANDO DE ARAGON",
+    "03": [
+      "Ramsés II",
+      "Alejandro Magno",
+      "Julio César",
+      "Mahoma",
+      "Santo Tomás de Aquino",
+      "Leonardo Da Vinci",
+      "Isaac Newton",
+      "Napoleón",
+      "Mao Zedong",
+      "Karl Marx"
+    ],
+    "04": {
+      "El entierro del Conde Orgaz": "El Greco",
+      "Ana Karenina": "Lev Tolstói",
+      "La Divina Comedia": "Dante Alighieri",
+      "La maja desnuda": "Francisco de Goya",
+      "Macbeth": "William Shakespeare",
+      "La Piedad": "Miguel Ángel",
+      "Las señoritas de Avignon": "Pablo Picasso",
+      "La Regenta": "Leopoldo Alas \"Clarín\"",
+      "Analectas": "Confucio"
+    },
+    "05": 4,
+    "06": "FOTOSINTESIS",
+    "07": "AMINOACIDOS",
+    "08": "INFLACION",
+    "09": [
+      0,
+      1
+    ]
+  }
+}

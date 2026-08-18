@@ -1,0 +1,80 @@
+{
+  "persona": "real-B-letra-descuidada",
+  "descripcion": "Escaneo real, letra descuidada (issue #37/#38, verificado visualmente el 18 de agosto de 2026)",
+  "demografia": {
+    "sexo": "Hombre",
+    "ccaa_educacion_secundaria": "Cataluña",
+    "nivel_estudios": "ESO",
+    "area_estudios": "Ciencias",
+    "estudios_mayor_progenitor": "Primaria",
+    "libros_en_casa": "11-25",
+    "anio_nacimiento": 1975
+  },
+  "respuestas_esperadas": {
+    "10": null,
+    "11": "VELAZQUEZ",
+    "12": 4,
+    "13": 5,
+    "14": [
+      0,
+      2
+    ],
+    "15": [
+      "La Ilíada",
+      "El Coliseo de Roma",
+      "El Corán",
+      "El Cantar del Mío Cid",
+      "El David de Miguel Ángel",
+      "Don Quijote de la Mancha",
+      "Crimen y Castigo de Dostoievsky",
+      "La Novena Sinfonía de Beethoven",
+      "El Guernica de Picasso",
+      "Cien años de soledad"
+    ],
+    "16": 5,
+    "17": 4,
+    "18": [
+      1,
+      4,
+      6
+    ],
+    "19": "PLUSVALIA",
+    "20": 1,
+    "21": 5,
+    "22": {
+      "Debussy": "Impresionismo",
+      "Palestrina": "Renacimiento",
+      "Beethoven": "Clasicismo",
+      "Chopin": "Romanticismo",
+      "Handel": "Barroco",
+      "Tomás Luis de Victoria": "Renacimiento"
+    },
+    "23": 2,
+    "24": [
+      0,
+      1,
+      2
+    ],
+    "25": 2,
+    "01": "SIGMUND FREUD",
+    "02": "LOS REYES CATOLICOS",
+    "03": null,
+    "04": {
+      "El entierro del Conde Orgaz": "El Greco",
+      "Ana Karenina": "Lev Tolstói",
+      "La Divina Comedia": "Dante Alighieri",
+      "Macbeth": "William Shakespeare",
+      "La Piedad": "Miguel Ángel",
+      "Las señoritas de Avignon": "Pablo Picasso",
+      "Analectas": "Confucio"
+    },
+    "05": 4,
+    "06": "FOTOSINTESIS",
+    "07": null,
+    "08": "INFLACIÓN",
+    "09": [
+      0,
+      1
+    ]
+  }
+}
