@@ -43,7 +43,7 @@
 // binario original.
 //
 // Uso: node ocr_tests/verificar_casillas_vacias.mjs
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -98,7 +98,7 @@ const UMBRALES_A_PROBAR = [8, 12, 16, 20, 25, 30, 40, 55, 70, 90];
 // ============================================================
 // Escaneos reales (issue #37, seguimiento de #35 "trabajo pendiente #3":
 // calibrar contra fotos/escaneos reales, no solo estas fixtures sintéticas).
-// ocr_tests/05-escaneo-real/escaneo-{1,2}.pdf: dos PDFs con efecto de
+// ocr_tests/05-escaneo-real/escaneo-{1,2,3}.pdf: tres PDFs con efecto de
 // escaneado real (obtenidos con una herramienta online, issue #37, comentario
 // del propio autor) sobre el MISMO par de hojas físicas ya impresas por este
 // sistema y rellenadas a mano por dos personas distintas — cada PDF es una
@@ -134,6 +134,17 @@ const HOJAS_REALES = [
   },
   {
     archivo: "escaneo-2.pdf",
+    personas: [
+      { id: "real-A-letra-clara", paginaInicial: 0, groundTruth: { "03": { respuesta: 10, correccion: 0 }, "22": { respuesta: 10, correccion: 0 } } },
+      {
+        id: "real-B-letra-descuidada",
+        paginaInicial: 6,
+        groundTruth: { "03": { respuesta: 0, correccion: 0 }, "22": { respuesta: 6, correccion: 0 } },
+      },
+    ],
+  },
+  {
+    archivo: "escaneo-3.pdf",
     personas: [
       { id: "real-A-letra-clara", paginaInicial: 0, groundTruth: { "03": { respuesta: 10, correccion: 0 }, "22": { respuesta: 10, correccion: 0 } } },
       {
@@ -663,6 +674,32 @@ async function main() {
         );
       }
     }
+  }
+
+  // Volcado opcional de los puntos crudos (densidad/varianza/ground truth) a
+  // JSON, para análisis fuera de este script (gráficas, cálculo de la
+  // separación de margen máximo) — no se activa por defecto, no forma parte
+  // de la salida normal del test.
+  if (process.env.CULTURA_BASICA_VOLCAR_JSON) {
+    const aPunto = (r) => ({
+      dataset: resultados.includes(r) ? "sintetico" : "real",
+      persona: r.persona,
+      itemId: r.itemId,
+      lado: r.lado,
+      posicion: r.posicion,
+      densidad: r.densidad,
+      blancoLocal: r.blancoLocal,
+      densidadRelativa: r.densidad - r.blancoLocal,
+      varianza: r.varianza,
+      otsuSeparabilidad: r.otsuSeparabilidad,
+      extensionComponenteMayor: r.extensionComponenteMayor,
+      fraccionComponenteMayor: r.fraccionComponenteMayor,
+      tieneTintaReal: r.tieneTintaReal,
+      zona: r.zona,
+    });
+    const puntos = [...resultados.map(aPunto), ...resultadosReales.map(aPunto)];
+    await writeFile(process.env.CULTURA_BASICA_VOLCAR_JSON, JSON.stringify(puntos, null, 2));
+    console.log(`\nVolcados ${puntos.length} puntos a ${process.env.CULTURA_BASICA_VOLCAR_JSON}`);
   }
 }
 

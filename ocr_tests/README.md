@@ -1070,3 +1070,38 @@ personas, más condiciones de foto/escaneo) antes de decidir si estrechar
 `MARGEN_BLANCO_SEGURO`/`MARGEN_TINTA_SEGURA` o eliminar la zona dudosa por
 completo — la separación limpia actual se apoya en una muestra de solo 2
 personas físicas.
+
+## Tercer escaneo real + densidad vs. varianza como margen máximo (18 de agosto de 2026)
+
+Se amplió `HOJAS_REALES` con un tercer escaneo (`ocr_tests/05-escaneo-real/escaneo-3.pdf`,
+mismo par de hojas físicas, tercera pasada de escaneado) — 240 casillas reales
+en total (antes 160). Con este tercer punto de datos, **la densidad relativa
+sola vuelve a solapar** (máx. en blanco 0.97, mín. con tinta −2.26 — 3.2
+puntos de solape, causado por una letra fina de trazo pobre en `escaneo-2` y
+unas casillas en blanco algo más ruidosas en `escaneo-3`). El mejor corte
+único da 239/240 aciertos (1 falso negativo, inocuo).
+
+**La varianza, en cambio, sigue separando limpio y con muchísimo más margen**:
+máx. en blanco 20.2, mín. con tinta 789.2 — margen de 769 puntos, ~40× de
+proporción entre las dos clases, sin estrecharse al añadir el tercer
+escaneo. Calculado el separador de margen máximo combinando ambas señales
+(densidad relativa + `log1p(varianza)`, estandarizadas, envolvente convexa +
+par de puntos más cercano entre clases — equivalente a un SVM de margen
+duro): **0 errores sobre las 240 casillas**, pero el coeficiente de la
+densidad en ese hiperplano es ~20× menor que el de la varianza — la varianza
+domina la decisión casi por completo, combinar no aporta mucho más que usar
+varianza sola.
+
+**Consecuencia práctica, pendiente de decidir**: la varianza podría pasar a
+ser la señal principal de seguridad (con margen de sobra sobre lo
+observado, no el punto medio exacto: candidato ≈60 para `zona blanco`, ≈200
+para `zona tinta`, dado que la muestra son solo 2 personas físicas), dejando
+la densidad como señal secundaria — en vez de al revés, como está hoy en
+`zonaTintaCasilla`. No implementado todavía: conviene ampliar el dataset
+real (más personas, más condiciones) antes de tocar el diseño de producción
+otra vez.
+
+`CULTURA_BASICA_VOLCAR_JSON=<ruta>` (nueva variable de entorno de
+`verificar_casillas_vacias.mjs`): vuelca todos los puntos evaluados
+(densidad, varianza, separabilidad de Otsu, componentes, ground truth) a un
+JSON, para poder analizarlos o graficarlos fuera del propio script.
