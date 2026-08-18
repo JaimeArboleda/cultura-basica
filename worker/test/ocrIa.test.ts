@@ -201,43 +201,7 @@ describe("POST /api/admin/ocr-ia", () => {
     expect(res.status).toBe(400);
   });
 
-  it("400 con numSeleccionadasRespuesta en un formato que no es seleccion_multiple", async () => {
-    const auth = await tokenAdmin();
-    const res = await postOcrIa(
-      {
-        paginas: [
-          {
-            id: "p1",
-            imagen: IMAGEN_VALIDA,
-            tipo: "items",
-            items: [{ id: "x", formato: "opcion_multiple", numero: 1, numOpciones: 3, numSeleccionadasRespuesta: 1 }],
-          },
-        ],
-      },
-      auth
-    );
-    expect(res.status).toBe(400);
-  });
-
-  it("400 con numSeleccionadasRespuesta fuera de rango (> numOpciones)", async () => {
-    const auth = await tokenAdmin();
-    const res = await postOcrIa(
-      {
-        paginas: [
-          {
-            id: "p1",
-            imagen: IMAGEN_VALIDA,
-            tipo: "items",
-            items: [{ id: "x", formato: "seleccion_multiple", numero: 1, numOpciones: 3, numSeleccionadasRespuesta: 4 }],
-          },
-        ],
-      },
-      auth
-    );
-    expect(res.status).toBe(400);
-  });
-
-  it("400 con longitudDetectadaRespuesta en un formato que no es abierto", async () => {
+  it("400 con longitudDetectadaRespuesta en un formato que no es abierto ni seleccion_multiple", async () => {
     const auth = await tokenAdmin();
     const res = await postOcrIa(
       {
@@ -381,7 +345,7 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     expect(bloqueRespuesta(pregunta, "correccion")).toEqual(bloqueRespuesta(pregunta, "respuesta_inicial"));
   });
 
-  it("opcion_multiple: posicionesEnBlancoRespuesta=[1] fuerza el bloque entero a null, nunca una letra inventada (issue #35)", () => {
+  it("opcion_multiple: posicionesEnBlancoRespuesta=[1] fuerza el bloque respuesta a null; el otro lado, sin nada detectado, TAMBIÉN se fuerza a una letra (única casilla posible por lado, 2 zonas sin término medio)", () => {
     const esquema = construirEsquemaCompleto([
       {
         id: "p",
@@ -392,10 +356,7 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     ]);
     const pregunta = propiedad(esquema, "1");
     expect(bloqueRespuesta(pregunta, "respuesta_inicial")).toEqual({ type: "null" });
-    // El otro lado, sin nada detectado, sigue con el esquema normal.
-    expect(bloqueRespuesta(pregunta, "correccion")).toEqual({
-      anyOf: [{ type: "string", enum: ["", "A", "B", "C"] }, { type: "null" }],
-    });
+    expect(bloqueRespuesta(pregunta, "correccion")).toEqual({ type: "string", enum: ["A", "B", "C"] });
   });
 
   it("seleccion_multiple: patrón que admite letras válidas y espacios, sin límite de longitud, o null", () => {
@@ -413,31 +374,35 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     });
   });
 
-  it("seleccion_multiple: con AL MENOS una casilla detectada, el patrón NO se restringe a un nº exacto (issue #35 — un techo exacto es un único punto de fallo, ver comentario junto a MARGEN_SEGURIDAD_TECHO)", () => {
+  it("seleccion_multiple: longitudDetectadaRespuesta fuerza la longitud EXACTA detectada (minLength=maxLength), no un techo con margen (issue #37, 2 zonas)", () => {
     const esquema = construirEsquemaCompleto([
       {
         id: "p",
         imagen: "x",
         tipo: "items",
-        items: [{ id: "i", formato: "seleccion_multiple", numero: 1, numOpciones: 4, numSeleccionadasRespuesta: 2 }],
+        items: [{ id: "i", formato: "seleccion_multiple", numero: 1, numOpciones: 4, longitudDetectadaRespuesta: 2 }],
       },
     ]);
     const pregunta = propiedad(esquema, "1");
-    // Mismo esquema que sin ninguna detección: el modelo sigue libre de
-    // marcar más o menos letras de las que el detector contó, para no
-    // arriesgar bloquear una respuesta real por una casilla mal contada.
     expect(bloqueRespuesta(pregunta, "respuesta_inicial")).toEqual({
+      type: "string",
+      minLength: 2,
+      maxLength: 2,
+      pattern: "^[A-D ]{2}$",
+    });
+    // El otro lado, sin nada detectado, sigue con el esquema permisivo normal.
+    expect(bloqueRespuesta(pregunta, "correccion")).toEqual({
       anyOf: [{ type: "string", pattern: "^[A-D ]*$" }, { type: "null" }],
     });
   });
 
-  it("seleccion_multiple: numSeleccionadasRespuesta=0 fuerza null (ninguna casilla con tinta)", () => {
+  it("seleccion_multiple: longitudDetectadaRespuesta=0 fuerza null (ninguna casilla con tinta)", () => {
     const esquema = construirEsquemaCompleto([
       {
         id: "p",
         imagen: "x",
         tipo: "items",
-        items: [{ id: "i", formato: "seleccion_multiple", numero: 1, numOpciones: 4, numSeleccionadasRespuesta: 0 }],
+        items: [{ id: "i", formato: "seleccion_multiple", numero: 1, numOpciones: 4, longitudDetectadaRespuesta: 0 }],
       },
     ]);
     expect(bloqueRespuesta(propiedad(esquema, "1"), "respuesta_inicial")).toEqual({ type: "null" });
@@ -456,7 +421,7 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     expect(bloque.anyOf[0].properties["3"]).toEqual({ type: "string", pattern: "^[A-C]?$" });
   });
 
-  it("ordenar: posicionesEnBlancoRespuesta fuerza esas posiciones a SOLO cadena vacía, el resto sigue con el patrón normal (issue #35)", () => {
+  it("ordenar: posicionesEnBlancoRespuesta fuerza esas posiciones a SOLO cadena vacía; TODAS LAS DEMÁS se fuerzan a una letra, sin '?' (2 zonas, issue #37)", () => {
     const esquema = construirEsquemaCompleto([
       {
         id: "p",
@@ -466,12 +431,10 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
       },
     ]);
     const pregunta = propiedad(esquema, "1");
-    const bloque = bloqueRespuesta(pregunta, "respuesta_inicial") as {
-      anyOf: [{ properties: Record<string, unknown> }, { type: string }];
-    };
-    expect(bloque.anyOf[0].properties["2"]).toEqual({ type: "string", enum: [""] });
-    expect(bloque.anyOf[0].properties["1"]).toEqual({ type: "string", pattern: "^[A-C]?$" });
-    expect(bloque.anyOf[0].properties["3"]).toEqual({ type: "string", pattern: "^[A-C]?$" });
+    const bloque = bloqueRespuesta(pregunta, "respuesta_inicial") as { properties: Record<string, unknown> };
+    expect(bloque.properties["2"]).toEqual({ type: "string", enum: [""] });
+    expect(bloque.properties["1"]).toEqual({ type: "string", pattern: "^[A-C]$" });
+    expect(bloque.properties["3"]).toEqual({ type: "string", pattern: "^[A-C]$" });
   });
 
   it("ordenar: posicionesEnBlancoRespuesta y posicionesEnBlancoCorreccion se aplican por SEPARADO a cada bloque", () => {
@@ -486,33 +449,39 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
       },
     ]);
     const pregunta = propiedad(esquema, "1");
-    const respuesta = bloqueRespuesta(pregunta, "respuesta_inicial") as {
-      anyOf: [{ properties: Record<string, unknown> }, { type: string }];
-    };
-    const correccion = bloqueRespuesta(pregunta, "correccion") as {
-      anyOf: [{ properties: Record<string, unknown> }, { type: string }];
-    };
-    expect(respuesta.anyOf[0].properties["1"]).toEqual({ type: "string", enum: [""] });
-    expect(respuesta.anyOf[0].properties["3"]).toEqual({ type: "string", pattern: "^[A-C]?$" });
-    expect(correccion.anyOf[0].properties["1"]).toEqual({ type: "string", pattern: "^[A-C]?$" });
-    expect(correccion.anyOf[0].properties["3"]).toEqual({ type: "string", enum: [""] });
+    const respuesta = bloqueRespuesta(pregunta, "respuesta_inicial") as { properties: Record<string, unknown> };
+    const correccion = bloqueRespuesta(pregunta, "correccion") as { properties: Record<string, unknown> };
+    expect(respuesta.properties["1"]).toEqual({ type: "string", enum: [""] });
+    expect(respuesta.properties["3"]).toEqual({ type: "string", pattern: "^[A-C]$" });
+    expect(correccion.properties["1"]).toEqual({ type: "string", pattern: "^[A-C]$" });
+    expect(correccion.properties["3"]).toEqual({ type: "string", enum: [""] });
   });
 
-  it("ordenar: sin posicionesEnBlanco*, el esquema es idéntico al de antes (sin esta feature)", () => {
-    const sinFeature = construirEsquemaCompleto([
-      { id: "p", imagen: "x", tipo: "items", items: [{ id: "i", formato: "ordenar", numero: 1, n: 3 }] },
-    ]);
-    const conFeatureVacia = construirEsquemaCompleto([
+  it("ordenar: si posicionesEnBlancoRespuesta cubre TODAS las posiciones, el bloque entero se fuerza a null (no un objeto con todo en '')", () => {
+    const esquema = construirEsquemaCompleto([
       {
         id: "p",
         imagen: "x",
         tipo: "items",
-        items: [{ id: "i", formato: "ordenar", numero: 1, n: 3, posicionesEnBlancoRespuesta: [], posicionesEnBlancoCorreccion: [] }],
+        items: [{ id: "i", formato: "ordenar", numero: 1, n: 3, posicionesEnBlancoRespuesta: [1, 2, 3] }],
       },
     ]);
-    expect(bloqueRespuesta(propiedad(conFeatureVacia, "1"), "respuesta_inicial")).toEqual(
-      bloqueRespuesta(propiedad(sinFeature, "1"), "respuesta_inicial")
-    );
+    expect(bloqueRespuesta(propiedad(esquema, "1"), "respuesta_inicial")).toEqual({ type: "null" });
+  });
+
+  it("ordenar: posicionesEnBlancoRespuesta=[] (detección activa pero ninguna posición vacía) fuerza TODAS las posiciones a una letra", () => {
+    const esquema = construirEsquemaCompleto([
+      {
+        id: "p",
+        imagen: "x",
+        tipo: "items",
+        items: [{ id: "i", formato: "ordenar", numero: 1, n: 3, posicionesEnBlancoRespuesta: [] }],
+      },
+    ]);
+    const bloque = bloqueRespuesta(propiedad(esquema, "1"), "respuesta_inicial") as { properties: Record<string, unknown> };
+    expect(bloque.properties["1"]).toEqual({ type: "string", pattern: "^[A-C]$" });
+    expect(bloque.properties["2"]).toEqual({ type: "string", pattern: "^[A-C]$" });
+    expect(bloque.properties["3"]).toEqual({ type: "string", pattern: "^[A-C]$" });
   });
 
   it("clasificar: posicionesEnBlancoRespuesta usa las letras de CATEGORÍA para las posiciones no forzadas (distinto de n)", () => {
@@ -524,12 +493,9 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
         items: [{ id: "i", formato: "clasificar", numero: 1, n: 5, numCategorias: 2, posicionesEnBlancoRespuesta: [3] }],
       },
     ]);
-    const pregunta = propiedad(esquema, "1");
-    const bloque = bloqueRespuesta(pregunta, "respuesta_inicial") as {
-      anyOf: [{ properties: Record<string, unknown> }, { type: string }];
-    };
-    expect(bloque.anyOf[0].properties["3"]).toEqual({ type: "string", enum: [""] });
-    expect(bloque.anyOf[0].properties["1"]).toEqual({ type: "string", pattern: "^[A-B]?$" }); // numCategorias=2, no n=5
+    const bloque = bloqueRespuesta(propiedad(esquema, "1"), "respuesta_inicial") as { properties: Record<string, unknown> };
+    expect(bloque.properties["3"]).toEqual({ type: "string", enum: [""] });
+    expect(bloque.properties["1"]).toEqual({ type: "string", pattern: "^[A-B]$" }); // numCategorias=2, no n=5
   });
 
   it("clasificar: cada elemento restringido a las letras de CATEGORÍA (distinto de n)", () => {
@@ -564,7 +530,7 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     });
   });
 
-  it("abierto: longitudDetectadaRespuesta acota maxLength al tramo detectado MÁS el margen de seguridad (con minLength=1) en vez de numCasillas — reduce el autocompletado (issue #35)", () => {
+  it("abierto: longitudDetectadaRespuesta fuerza la longitud EXACTA detectada (minLength=maxLength), no un techo con margen (issue #37, 2 zonas)", () => {
     const esquema = construirEsquemaCompleto([
       {
         id: "p",
@@ -574,12 +540,11 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
       },
     ]);
     const pregunta = propiedad(esquema, "1");
-    // maxLength = 5 + MARGEN_SEGURIDAD_TECHO (2) = 7, nunca el tramo exacto —
-    // un techo exacto podría volver inexpresable una respuesta real si el
-    // detector se queda corto por una sola casilla borderline (issue #35,
-    // caso real encontrado con seleccion_multiple en esta misma ronda).
     expect(bloqueRespuesta(pregunta, "respuesta_inicial")).toEqual({
-      anyOf: [{ type: "string", minLength: 1, maxLength: 7, pattern: "^[A-Z0-9ÁÉÍÓÚÜÑ /]{1,7}$" }, { type: "null" }],
+      type: "string",
+      minLength: 5,
+      maxLength: 5,
+      pattern: "^[A-Z0-9ÁÉÍÓÚÜÑ /]{5}$",
     });
     // El otro lado, sin nada detectado, sigue con el esquema normal (0..numCasillas, sin minLength).
     expect(bloqueRespuesta(pregunta, "correccion")).toEqual({
@@ -587,17 +552,21 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     });
   });
 
-  it("abierto: el margen de seguridad nunca excede numCasillas (tope real de la hoja)", () => {
+  it("abierto: longitudDetectadaRespuesta puede llegar hasta numCasillas (el tramo cubre toda la casilla)", () => {
     const esquema = construirEsquemaCompleto([
       {
         id: "p",
         imagen: "x",
         tipo: "items",
-        items: [{ id: "i", formato: "abierto", numero: 1, numCasillas: 6, longitudDetectadaRespuesta: 5 }],
+        items: [{ id: "i", formato: "abierto", numero: 1, numCasillas: 6, longitudDetectadaRespuesta: 6 }],
       },
     ]);
-    const bloque = bloqueRespuesta(propiedad(esquema, "1"), "respuesta_inicial") as { anyOf: [{ maxLength: number }] };
-    expect(bloque.anyOf[0].maxLength).toBe(6); // min(6, 5+2) = 6, no 7
+    const bloque = bloqueRespuesta(propiedad(esquema, "1"), "respuesta_inicial") as {
+      minLength: number;
+      maxLength: number;
+    };
+    expect(bloque.minLength).toBe(6);
+    expect(bloque.maxLength).toBe(6);
   });
 
   it("abierto: longitudDetectadaRespuesta=0 fuerza null (ninguna casilla con tinta)", () => {

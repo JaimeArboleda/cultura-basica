@@ -97,7 +97,15 @@ interface ItemEntrada {
   // Detección determinista de tinta por casilla, SIEMPRE calculada por el
   // cliente sobre la imagen ya enderezada, ANTES de llamar aquí
   // (public/admin/papel/comun.js::detectarTintaCasillas, hoja.js::
-  // calcularGeometriaCasillas, issue #35) — nunca por el modelo. Campos
+  // calcularGeometriaCasillas, issue #35). Desde la ronda del 18 de agosto de
+  // 2026 del issue #37, la detección es de 2 ZONAS (blanco/tinta, sin banda
+  // "dudosa" intermedia) — densidad relativa al blanco local + varianza de
+  // intensidad, separador de margen máximo calibrado contra 552 casillas de
+  // ocr_tests/ (312 sintéticas + 240 reales de 3 escaneos distintos, margen
+  // de separación de 769 puntos de varianza entre clases): con esa certeza,
+  // "no está en la lista de blancas" significa "tiene tinta" con la misma
+  // confianza que estar en ella, así que el esquema ya puede forzar CONTENIDO
+  // no vacío, no solo forzar vacío. Nunca calculado por el modelo. Campos
   // opcionales según formato:
   //
   // - ordenar/clasificar/opcion_multiple: posiciones (1-based, sobre
@@ -106,35 +114,28 @@ interface ItemEntrada {
   //   antemano qué casilla está vacía, lee las letras SIN hueco en el orden
   //   en que aparecen y las reparte secuencialmente entre TODAS las
   //   posiciones, desplazando todo lo que va después del primer hueco en vez
-  //   de dejar esa posición como cadena vacía — verificado 4/4 contra la API
-  //   real forzando estas posiciones en el esquema. opcion_multiple tiene una
-  //   única casilla por lado (item.n no aplica: siempre 1), así que "posición
-  //   1 en blanco" == "el bloque entero está vacío".
+  //   de dejar esa posición como cadena vacía. Las posiciones que NO están en
+  //   esta lista se fuerzan a una letra (nunca cadena vacía) — 2 zonas, sin
+  //   término medio. Si la lista cubre TODAS las posiciones del bloque, el
+  //   bloque entero se fuerza a null, no a un objeto con todas las
+  //   posiciones en "". opcion_multiple tiene una única casilla por lado
+  //   (item.n no aplica: siempre 1), así que "posición 1 en blanco" == "el
+  //   bloque entero está vacío"; si no, se fuerza una letra.
   posicionesEnBlancoRespuesta?: number[];
   posicionesEnBlancoCorreccion?: number[];
-  // - seleccion_multiple: nº de casillas CON tinta detectadas (0..nº de
-  //   casillas realmente impresas, item.num_correctas ?? item.opciones.length
-  //   — no expuesto aquí, solo numOpciones, así que el Worker valida contra
-  //   ese límite superior más laxo). El esquema SOLO usa esto para "0 -> null"
-  //   (única señal fiable: requiere fallar todas las casillas a la vez) —
-  //   deliberadamente NO fuerza un nº exacto de letras cuando hay al menos
-  //   una: probado contra la API real (issue #35), un conteo exacto es un
-  //   único punto de fallo — una sola casilla borderline mal contada (7.9 de
-  //   densidad contra un umbral de 8, un caso real encontrado en esta misma
-  //   ronda) vuelve inexpresable una respuesta correcta entera, mucho peor
-  //   que el problema que se intentaba evitar.
-  numSeleccionadasRespuesta?: number;
-  numSeleccionadasCorreccion?: number;
-  // - abierto: nº de casillas entre la primera y la última CON tinta (0..
-  //   item.numCasillas; 0 = ninguna, fuerza null) — incluye cualquier hueco
-  //   intermedio sin tinta (son los espacios entre palabras de una respuesta
-  //   de varias palabras). El esquema acota maxLength a este valor MÁS un
-  //   margen de seguridad (MARGEN_SEGURIDAD_TECHO en el propio esquema, no
-  //   exacto) en vez de al nº total de casillas impresas: reduce el
-  //   autocompletado hacia una palabra más larga ("PLUSV" → "PLUSVALIA", el
-  //   único fallo sistemático documentado en ocr_tests/README.md que ni el
-  //   prompt ni el few-shot consiguieron eliminar del todo) sin arriesgar
-  //   truncar una respuesta real por una casilla borderline mal contada.
+  // - abierto/seleccion_multiple: nº de casillas entre la primera y la última
+  //   CON tinta (0..item.numCasillas para abierto, 0..item.numOpciones para
+  //   seleccion_multiple; 0 = ninguna, fuerza null) — incluye cualquier hueco
+  //   intermedio sin tinta (en abierto son los espacios entre palabras; en
+  //   selección múltiple, casillas de opciones no marcadas entre dos que sí
+  //   lo están). El esquema fuerza esa longitud EXACTA (minLength = maxLength
+  //   = este valor) — antes (issue #35) solo se usaba como techo con un
+  //   margen de seguridad, porque el umbral absoluto de densidad podía
+  //   quedarse corto por una casilla borderline (7.9 de densidad contra un
+  //   umbral de 8, el caso real que motivó el #37 entero); con la detección
+  //   de 2 zonas ya no hay ese margen de error — la varianza separa con 769
+  //   puntos de margen en las 552 casillas calibradas, así que exigir la
+  //   longitud exacta es seguro.
   longitudDetectadaRespuesta?: number;
   longitudDetectadaCorreccion?: number;
 }
@@ -235,32 +236,19 @@ function motivoItemInvalido(it: unknown): string | null {
       return `${campo} debe ser un array de enteros entre 1 y n=${n}: ${JSON.stringify(valor)}`;
     }
   }
-  for (const campo of ["numSeleccionadasRespuesta", "numSeleccionadasCorreccion"] as const) {
-    const valor = o[campo];
-    if (valor === undefined) continue;
-    if (o.formato !== "seleccion_multiple") {
-      return `${campo} solo es válido en seleccion_multiple, no en "${o.formato}"`;
-    }
-    // Cota laxa: el límite real (nº de casillas realmente impresas,
-    // item.num_correctas ?? item.opciones.length) no viaja en ItemEntrada,
-    // solo numOpciones (siempre opciones.length, >= el límite real) — una
-    // cota más laxa aquí no supone ningún riesgo de correctud, solo deja
-    // pasar como válido algún valor que el cliente nunca podría producir de
-    // verdad (nunca detecta más casillas con tinta de las que existen).
-    const limite = o.numOpciones as number;
-    if (typeof valor !== "number" || !Number.isInteger(valor) || valor < 0 || valor > limite) {
-      return `${campo} debe ser un entero entre 0 y numOpciones=${limite}: ${JSON.stringify(valor)}`;
-    }
-  }
   for (const campo of ["longitudDetectadaRespuesta", "longitudDetectadaCorreccion"] as const) {
     const valor = o[campo];
     if (valor === undefined) continue;
-    if (o.formato !== "abierto") {
-      return `${campo} solo es válido en abierto, no en "${o.formato}"`;
+    if (o.formato !== "abierto" && o.formato !== "seleccion_multiple") {
+      return `${campo} solo es válido en abierto/seleccion_multiple, no en "${o.formato}"`;
     }
-    const limite = o.numCasillas as number;
+    // El límite es numCasillas en abierto (nº de casillas físicas) o
+    // numOpciones en seleccion_multiple (una casilla por opción impresa) —
+    // formatos distintos, mismo campo, mismo significado ("longitud del
+    // tramo entre la primera y la última casilla con tinta").
+    const limite = o.formato === "abierto" ? (o.numCasillas as number) : (o.numOpciones as number);
     if (typeof valor !== "number" || !Number.isInteger(valor) || valor < 0 || valor > limite) {
-      return `${campo} debe ser un entero entre 0 y numCasillas=${limite}: ${JSON.stringify(valor)}`;
+      return `${campo} debe ser un entero entre 0 y ${o.formato === "abierto" ? "numCasillas" : "numOpciones"}=${limite}: ${JSON.stringify(valor)}`;
     }
   }
   return null;
@@ -606,75 +594,84 @@ function tieneDeteccionDeTinta(item: ItemEntrada): boolean {
   return (
     item.posicionesEnBlancoRespuesta != null ||
     item.posicionesEnBlancoCorreccion != null ||
-    item.numSeleccionadasRespuesta != null ||
-    item.numSeleccionadasCorreccion != null ||
     item.longitudDetectadaRespuesta != null ||
     item.longitudDetectadaCorreccion != null
   );
 }
 
-// Margen de seguridad (nº de casillas) que se suma a cualquier longitud
-// detectada antes de usarla como TECHO (maxLength) — nunca como suelo
-// (minLength/exigir más letras): un techo demasiado ajustado puede volver
-// INEXPRESABLE la respuesta real si el detector se queda corto por una sola
-// casilla borderline, mientras que un suelo de más solo deja más margen sin
-// bloquear nada. Encontrado con datos reales (issue #35, verificación de
-// esta ronda): en un ítem "seleccion_multiple" con 3 casillas realmente
-// escritas, la 3ª midió una densidad de 7.9 — justo por debajo del umbral 8
-// (comun.js::UMBRAL_TINTA_CASILLA) — y forzar el CONTEO EXACTO detectado (2)
-// le impidió al modelo devolver la 3ª letra que sí estaba escrita y él sí
-// podía leer. Con este margen, ese mismo caso (2 detectadas + margen 2 = tope
-// 4) no habría bloqueado la respuesta real de 3.
-const MARGEN_SEGURIDAD_TECHO = 2;
+// Esquema de posiciones (ordenar/clasificar) cuando SÍ hay detección de tinta
+// — a diferencia de esquemaPosicionesNullable (usada en
+// esquemaCampoRespuestaItem, la variante SIN detección, donde cada posición
+// admite letra-o-vacío sin ninguna certeza), aquí cada posición YA se sabe
+// con certeza si tiene tinta o no: 2 zonas (issue #37, ronda del 18 de agosto
+// de 2026), no hay una tercera opción "dudosa" que dejar sin restringir. Las
+// posiciones en `posicionesForzadasVacias` se fuerzan a "" (igual que antes);
+// TODAS LAS DEMÁS se fuerzan a una letra — sin el "?" del patrón anterior,
+// que todavía admitía cadena vacía incluso en una posición ya detectada con
+// tinta. Si la lista cubre TODAS las posiciones, el bloque entero es null en
+// vez de un objeto con cada posición en "".
+function esquemaPosicionesConDeteccion(numPosiciones: number, numLetrasValidas: number, posicionesForzadasVacias: number[]) {
+  const forzadas = new Set(posicionesForzadasVacias);
+  if (forzadas.size >= numPosiciones) return { type: "null" };
+  const letra = letraMax(numLetrasValidas);
+  const properties: Record<string, unknown> = {};
+  const required: string[] = [];
+  for (let i = 1; i <= numPosiciones; i++) {
+    properties[String(i)] = forzadas.has(i) ? { type: "string", enum: [""] } : { type: "string", pattern: `^[A-${letra}]$` };
+    required.push(String(i));
+  }
+  return { type: "object", properties, required, additionalProperties: false };
+}
 
 // Esquema de UN lado (Respuesta o Corrección) cuando el ítem trae detección
 // de tinta — variante de esquemaCampoRespuestaItem que, según formato, aplica
-// lo detectado para ESE lado concreto (issue #35):
-//   - ordenar/clasificar: posiciones forzadas a "" (esquemaPosicionesNullable)
-//     — cada posición es independiente, un fallo puntual del detector solo
-//     afecta a ESA casilla, nunca bloquea el resto del ítem: es la razón por
-//     la que este caso, a diferencia de los de abajo, sí puede forzar con
-//     precisión sin margen de seguridad.
+// lo detectado para ESE lado concreto. Diseño de 2 zonas (issue #37, ronda
+// del 18 de agosto de 2026, tras corregir el desalineamiento de fiduciales
+// del #38 y calibrar densidad+varianza contra 552 casillas con 769 puntos de
+// margen): ya no existe una zona "dudosa" intermedia que dejar sin forzar, así
+// que en los 4 formatos con detección se fuerza tanto el lado vacío (null o
+// "") como el lado con contenido (una letra, o una longitud exacta) — antes
+// (issue #35) solo se forzaba el vacío, nunca el contenido, precisamente
+// porque el umbral absoluto de densidad podía confundir una casilla
+// borderline con tinta real.
+//   - ordenar/clasificar: cada posición se fuerza a "" o a una letra
+//     (esquemaPosicionesConDeteccion) — nunca queda sin restringir.
 //   - opcion_multiple: única casilla en blanco (posición 1) -> todo el bloque
-//     null, nunca una letra inventada.
-//   - seleccion_multiple: 0 casillas con tinta detectadas -> null (única
-//     señal fiable: requiere fallar las n casillas a la vez). Con AL MENOS
-//     una, el nº de letras NO se restringe (ver MARGEN_SEGURIDAD_TECHO más
-//     arriba: un techo exacto es un punto único de fallo que puede volver
-//     inexpresable una respuesta real).
-//   - abierto: maxLength acotado al tramo detectado + MARGEN_SEGURIDAD_TECHO
-//     (con minLength=1, ya que si hay tinta la respuesta real nunca es
-//     vacía) en vez del nº total de casillas impresas; 0 -> null.
+//     null; si no, se fuerza una letra (nunca "" ni null).
+//   - abierto/seleccion_multiple: 0 casillas con tinta -> null; si no, se
+//     fuerza la longitud EXACTA detectada (minLength = maxLength), no un
+//     techo con margen — la varianza ya separa con margen de sobra (769
+//     puntos en las 552 casillas calibradas), así que un conteo exacto ya no
+//     es el punto único de fallo que era con el umbral absoluto de #35.
 function esquemaCampoRespuestaItemLado(item: ItemEntrada, lado: "respuesta" | "correccion") {
-  const posiciones = lado === "respuesta" ? item.posicionesEnBlancoRespuesta : item.posicionesEnBlancoCorreccion;
+  const posiciones = (lado === "respuesta" ? item.posicionesEnBlancoRespuesta : item.posicionesEnBlancoCorreccion) ?? [];
   switch (item.formato) {
     case "ordenar":
-      return esquemaPosicionesNullable(item.n!, item.n!, posiciones);
+      return esquemaPosicionesConDeteccion(item.n!, item.n!, posiciones);
     case "clasificar":
-      return esquemaPosicionesNullable(item.n!, item.numCategorias!, posiciones);
+      return esquemaPosicionesConDeteccion(item.n!, item.numCategorias!, posiciones);
     case "opcion_multiple":
-      if (posiciones?.includes(1)) return { type: "null" };
-      return { anyOf: [{ type: "string", enum: ["", ...LETRAS.slice(0, item.numOpciones!)] }, { type: "null" }] };
+      if (posiciones.includes(1)) return { type: "null" };
+      return { type: "string", enum: [...LETRAS.slice(0, item.numOpciones!)] };
     case "seleccion_multiple": {
-      const k = lado === "respuesta" ? item.numSeleccionadasRespuesta : item.numSeleccionadasCorreccion;
-      if (k === 0) return { type: "null" };
+      const longitud = lado === "respuesta" ? item.longitudDetectadaRespuesta : item.longitudDetectadaCorreccion;
       const letra = letraMax(item.numOpciones!);
-      return { anyOf: [{ type: "string", pattern: `^[A-${letra} ]*$` }, { type: "null" }] };
+      if (longitud === 0) return { type: "null" };
+      // Sin longitud detectada para este lado: mismo esquema que sin ninguna
+      // detección (esquemaCampoRespuestaItem) — sin forzar ningún relleno.
+      if (longitud == null) {
+        return { anyOf: [{ type: "string", pattern: `^[A-${letra} ]*$` }, { type: "null" }] };
+      }
+      return { type: "string", minLength: longitud, maxLength: longitud, pattern: `^[A-${letra} ]{${longitud}}$` };
     }
     case "abierto": {
       const longitud = lado === "respuesta" ? item.longitudDetectadaRespuesta : item.longitudDetectadaCorreccion;
-      if (longitud === 0) return { type: "null" };
       const n = item.numCasillas!;
-      // Sin longitud detectada para este lado: mismo esquema EXACTO que sin
-      // ninguna detección (esquemaCampoRespuestaItem), sin minLength — sigue
-      // sin forzar ningún relleno, ver el comentario de más arriba.
+      if (longitud === 0) return { type: "null" };
       if (longitud == null) {
         return { anyOf: [{ type: "string", maxLength: n, pattern: `^[A-Z0-9ÁÉÍÓÚÜÑ /]{0,${n}}$` }, { type: "null" }] };
       }
-      const maxLen = Math.min(n, longitud + MARGEN_SEGURIDAD_TECHO);
-      return {
-        anyOf: [{ type: "string", minLength: 1, maxLength: maxLen, pattern: `^[A-Z0-9ÁÉÍÓÚÜÑ /]{1,${maxLen}}$` }, { type: "null" }],
-      };
+      return { type: "string", minLength: longitud, maxLength: longitud, pattern: `^[A-Z0-9ÁÉÍÓÚÜÑ /]{${longitud}}$` };
     }
   }
 }

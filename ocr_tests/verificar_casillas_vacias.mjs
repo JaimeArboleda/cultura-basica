@@ -32,15 +32,19 @@
 //      generar ninguna imagen).
 //
 // Ampliado en el issue #37 con una segunda fuente de datos: además de las 4
-// fixtures sintéticas de arriba, procesa también los 2 PDFs con efecto de
+// fixtures sintéticas de arriba, procesa también los 3 PDFs con efecto de
 // escaneado REAL de ocr_tests/05-escaneo-real/ (ver HOJAS_REALES más abajo)
 // — necesarios porque las fixtures sintéticas, con un fondo casi
 // perfectamente blanco, nunca ejercitaron el caso borderline que motivó el
 // #37 (una casilla con tinta real midiendo 7.9, justo por debajo del umbral
 // 8 antiguo). Comparte el mismo criterio (comparación pura de imagen contra
-// ground truth, sin LLM) y añade el reporte de las 3 zonas de
-// comun.js::zonaTintaCasilla (blanco/dudoso/tinta) en vez del único umbral
-// binario original.
+// ground truth, sin LLM) y añade el reporte de la clasificación de
+// comun.js::zonaTintaCasilla en vez del único umbral binario original — tras
+// el fix del desalineamiento de fiduciales (#38) y la calibración del
+// separador densidad+varianza contra las 552 casillas de este mismo dataset
+// (18 de agosto de 2026), la separación entre clases quedó tan limpia que ya
+// no hace falta una zona "dudosa" intermedia: zonaTintaCasilla devuelve
+// únicamente "blanco" o "tinta" (2 zonas, sin término medio).
 //
 // Uso: node ocr_tests/verificar_casillas_vacias.mjs
 import { readFile, writeFile } from "node:fs/promises";
@@ -541,45 +545,49 @@ async function main() {
   }
 
   // ============================================================
-  // Zonas (issue #37): mismo chequeo que arriba, pero con la clasificación en
-  // 3 zonas de comun.js::zonaTintaCasilla en vez del umbral binario. El único
-  // caso PELIGROSO bajo el diseño ya implementado (digitalizar.js/
-  // probar_ocr_ia.mjs solo fuerzan vacío para zona "blanco", nunca para
-  // "dudoso") es tinta real clasificada como "blanco" — "dudoso" nunca fuerza
-  // nada, así que caer ahí nunca puede borrar contenido real, solo renuncia a
-  // restringir el esquema para esa posición (igual que si no hubiera
-  // detección).
+  // Zonas (issue #37): mismo chequeo que arriba, pero con la clasificación de
+  // comun.js::zonaTintaCasilla en vez del umbral binario. Diseño de 2 zonas
+  // (sin banda "dudosa" intermedia, ronda del 18 de agosto de 2026): el
+  // esquema de OCR-IA ahora fuerza CONTENIDO en zona "tinta" además de vacío
+  // en zona "blanco" (worker/src/endpoints/admin/ocrIa.ts::
+  // esquemaCampoRespuestaItemLado), así que hay DOS formas de caso peligroso,
+  // no solo una — cualquier casilla mal clasificada fuerza directamente algo
+  // incorrecto en el esquema:
+  //   - tinta real -> zona "blanco": se forzaría vacío sobre contenido real.
+  //   - blanco real -> zona "tinta": se forzaría una letra/longitud inventada
+  //     sobre una casilla sin nada escrito.
   function informeZonas(nombre, datos) {
     if (datos.length === 0) {
       console.log(`\n[${nombre}] sin datos.`);
       return;
     }
     let blancoOk = 0;
-    let dudosoTinta = 0;
-    let dudosoBlanco = 0;
     let tintaOk = 0;
-    let peligroso = 0; // tinta real -> zona "blanco" (se fuerza vacío sobre contenido real)
-    let desaprovechado = 0; // blanco real -> zona "tinta" (inocuo hoy, no forzamos nada en esa dirección)
+    let peligrosoBlanco = 0; // tinta real -> zona "blanco" (se fuerza vacío sobre contenido real)
+    let peligrosoTinta = 0; // blanco real -> zona "tinta" (se fuerza contenido inventado sobre una casilla vacía)
     for (const r of datos) {
       if (r.zona === "blanco") {
-        if (r.tieneTintaReal) peligroso++;
+        if (r.tieneTintaReal) peligrosoBlanco++;
         else blancoOk++;
-      } else if (r.zona === "tinta") {
-        if (r.tieneTintaReal) tintaOk++;
-        else desaprovechado++;
       } else {
-        if (r.tieneTintaReal) dudosoTinta++;
-        else dudosoBlanco++;
+        if (r.tieneTintaReal) tintaOk++;
+        else peligrosoTinta++;
       }
     }
     const total = datos.length;
-    const dudoso = dudosoTinta + dudosoBlanco;
-    console.log(`\n[${nombre}] ${total} casillas — zona blanco=${blancoOk + peligroso} (${peligroso} peligrosas), zona dudoso=${dudoso} (${dudosoTinta} con tinta real / ${dudosoBlanco} en blanco real), zona tinta=${tintaOk + desaprovechado} (${desaprovechado} en blanco real, inocuo).`);
+    const peligroso = peligrosoBlanco + peligrosoTinta;
+    console.log(
+      `\n[${nombre}] ${total} casillas — zona blanco=${blancoOk + peligrosoBlanco} (${peligrosoBlanco} peligrosas), ` +
+        `zona tinta=${tintaOk + peligrosoTinta} (${peligrosoTinta} peligrosas).`
+    );
     if (peligroso > 0) {
-      console.error(`  ATENCIÓN: ${peligroso} casilla(s) con tinta real cayeron en zona "blanco" — se forzaría vacío sobre contenido real.`);
+      console.error(
+        `  ATENCIÓN: ${peligrosoBlanco} casilla(s) con tinta real en zona "blanco" y ${peligrosoTinta} casilla(s) en blanco real ` +
+          `en zona "tinta" — con 2 zonas, ambas direcciones fuerzan algo incorrecto en el esquema de OCR-IA.`
+      );
       process.exitCode = 1;
     } else {
-      console.log(`  0 casos peligrosos (tinta real -> zona "blanco").`);
+      console.log(`  0 casos peligrosos en ninguna dirección.`);
     }
     const FEATURES = [
       { campo: "densidadRelativa", etiqueta: "densidad relativa al blanco local (densidad - blancoLocal)" },
@@ -608,15 +616,7 @@ async function main() {
       }
     }
 
-    // Dataset COMPLETO (no solo la zona dudosa): con el desalineamiento de
-    // fiduciales corregido (issue #38), vale la pena comprobar si cada señal
-    // ahora separa bien sobre TODAS las casillas, no solo dentro de la banda
-    // que hoy queda como dudosa con el criterio de densidad — la propia banda
-    // dudosa puede haberse encogido tras el fix (menos casos que evaluar ahí).
     compararFeature("todas", datos);
-    if (dudoso > 0) {
-      compararFeature("dudoso", datos.filter((r) => r.zona === "dudoso"));
-    }
   }
 
   function medianaSimple(arr) {
@@ -625,7 +625,7 @@ async function main() {
   }
 
   informeZonas("Fixtures sintéticas (ordenar/clasificar, 4 instancias)", resultados);
-  informeZonas("Escaneos reales (issue #37, 2 personas x 2 escaneados)", resultadosReales);
+  informeZonas("Escaneos reales (issue #37, 2 personas x 3 escaneados)", resultadosReales);
 
   if (resultadosReales.length > 0) {
     const blancosLocales = [...new Set(resultadosReales.map((r) => r.blancoLocal))];
@@ -656,12 +656,12 @@ async function main() {
       const separacionLimpia = Math.max(...relSinReal) < Math.min(...relConReal);
       console.log(
         separacionLimpia
-          ? "Separación LIMPIA también en escaneos reales con densidad relativa al baseline adaptativo: un único corte (2 zonas) ya " +
-              "bastaría para este dataset, sin necesitar una banda dudosa — aunque con muestra pequeña (2 personas), conviene ampliar " +
-              "el dataset antes de decidir eliminar la zona dudosa (ver comentario del propio issue #37)."
-          : "Las distribuciones se SOLAPAN incluso en densidad RELATIVA al blanco local (a diferencia de las fixtures sintéticas): la " +
-              "zona dudosa de 3 zonas sigue aportando valor real sobre un único corte — consistente con el caso de producción que " +
-              "motivó el issue (7.9 de densidad, justo en esta banda)."
+          ? "Separación LIMPIA también en escaneos reales con densidad relativa al baseline adaptativo: consistente con el diseño de " +
+              "2 zonas ya en producción (zonaTintaCasilla, sin banda dudosa)."
+          : "Las distribuciones se SOLAPAN en densidad RELATIVA al blanco local por sí sola en este dataset (a diferencia de las " +
+              "fixtures sintéticas) — zonaTintaCasilla combina densidad Y varianza (ver comun.js::COEF_DENSIDAD/COEF_LOG_VARIANZA), " +
+              "así que un solapamiento aquí, mirando solo densidad, no implica que la clasificación combinada falle: ver el informe " +
+              "de zonas más arriba para el resultado real."
       );
     }
     const peligrosos = resultadosReales.filter((r) => r.zona === "blanco" && r.tieneTintaReal);

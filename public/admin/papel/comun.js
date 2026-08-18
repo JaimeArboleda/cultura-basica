@@ -993,52 +993,47 @@ export function muestrearBlancoLocal(imageData, escala = ESCALA_DIGITALIZACION) 
 }
 
 // ============================================================
-// Clasificación en 3 zonas (issue #37, seguimiento de #35): en vez de un
-// único corte binario tinta/blanco, dos márgenes por ENCIMA del baseline de
-// blanco local (muestrearBlancoLocal): por debajo de MARGEN_BLANCO_SEGURO ->
-// "blanco" (mismo comportamiento que el diseño anterior: fuerza la posición
-// a cadena vacía en el esquema de OCR-IA); por encima de MARGEN_TINTA_SEGURA
-// -> "tinta" (zona nueva: candidata a exigir contenido no vacío en el
-// esquema, issue #37 trabajo pendiente #3); entre medias -> "dudoso" (no se
-// fuerza nada en el esquema, pero sí se informa al modelo por texto — issue
-// #37 trabajo pendiente #2). Los valores de margen se calibraron primero para
-// reproducir aproximadamente el umbral absoluto histórico (8, con blanco casi
-// 0 en las fixtures sintéticas), pero verificarlos contra escaneos REALES
-// (ocr_tests/05-escaneo-real/, ocr_tests/verificar_casillas_vacias.mjs) reveló
-// que el baseline de blanco muestreado en el margen de página NO SIEMPRE es
-// representativo de la densidad de fondo cerca de una casilla concreta —
-// hallazgo real de esta ronda: en un escaneo de menor calidad, una letra fina
-// ("I") midió una densidad relativa al margen de -3.5 (MÁS CLARA que el propio
-// margen de la foto), mientras que casillas genuinamente en blanco llegaron
-// hasta +3.6 — un solapamiento real que el margen [4, 7] original (calibrado
-// solo con las fixtures sintéticas, donde el margen sí es un blanco casi
-// perfecto) no cubría con seguridad: 2 casillas con tinta real habrían caído
-// en zona "blanco" y forzado vacío sobre contenido real. Ampliado con margen
-// de sobra a ambos lados de ese solapamiento observado — sacrifica algo de
-// cobertura "segura" (más casillas caen en zona "dudosa" en escaneos
-// ruidosos) a cambio de la garantía de seguridad (0 casos peligrosos
-// verificados contra las 4 fixtures sintéticas + los 2 escaneos reales x 2
-// personas). El muestreo de margen sigue siendo un baseline GLOBAL por foto —
-// no descarta que un efecto de sombra/viñeteado LOCALIZADO (más oscuro cerca
-// del borde de la página que cerca del centro, donde viven las casillas) siga
-// sesgando este baseline; un baseline muestreado más cerca de cada bloque de
-// casillas en vez de solo en el margen de página es candidato para una futura
-// ronda de calibración (ver ocr_tests/README.md).
-export const MARGEN_BLANCO_SEGURO = -5;
-export const MARGEN_TINTA_SEGURA = 9;
+// Clasificación en 2 zonas: densidad + varianza, separador de margen máximo
+// (issue #37, ronda del 18 de agosto de 2026, tras corregir el
+// desalineamiento de fiduciales del #38): la banda "dudosa" de 3 zonas
+// (arriba en el historial de este fichero, ver `git log`) dejó de hacer
+// falta — con el desalineamiento corregido, la varianza de intensidad separa
+// "con tinta" de "en blanco" con un margen enorme (mínimo con tinta 789,
+// máximo en blanco 20, en las 552 casillas de todo ocr_tests/: 312
+// sintéticas + 240 reales de 3 escaneos distintos) y la densidad relativa al
+// blanco local aporta un poco más de separación combinada con ella.
+//
+// Calibración: envolvente convexa de cada clase sobre densidad relativa +
+// log(varianza), ESTANDARIZADAS ponderando las casillas reales x2 frente a
+// las sintéticas (para que dispositivos de escaneo más ruidosos que los 3
+// PDFs de ocr_tests/05-escaneo-real/ pesen más que las fixtures sintéticas,
+// más limpias) — el separador de margen máximo es la bisectriz perpendicular
+// del par de puntos más cercano entre ambas envolventes, equivalente a un
+// SVM de margen duro. 0 errores sobre las 552 casillas, con o sin ponderar
+// (el hiperplano prácticamente no se mueve al ponderar: <0.1% de cambio en
+// el umbral de varianza que implica, a cualquier densidad). Ver
+// ocr_tests/README.md para el detalle completo y el script de calibración.
+//
+// COEF_DENSIDAD/COEF_LOG_VARIANZA/CORTE_SEPARADOR son los coeficientes de esa
+// recta en unidades originales (ya con la ponderación aplicada) — el peso de
+// la varianza es ~26x mayor que el de la densidad en el óptimo estandarizado,
+// así que la varianza domina la decisión casi por completo; la densidad se
+// mantiene con un coeficiente pequeño porque sí aporta algo, aunque poco.
+export const COEF_DENSIDAD = -0.002231;
+export const COEF_LOG_VARIANZA = 0.332195;
+export const CORTE_SEPARADOR = 1.616889;
 
-export function zonaTintaCasilla(densidad, blancoLocal) {
-  if (densidad < blancoLocal + MARGEN_BLANCO_SEGURO) return "blanco";
-  if (densidad >= blancoLocal + MARGEN_TINTA_SEGURA) return "tinta";
-  return "dudoso";
+export function zonaTintaCasilla(densidad, blancoLocal, varianza) {
+  const valor = COEF_DENSIDAD * (densidad - blancoLocal) + COEF_LOG_VARIANZA * Math.log1p(varianza);
+  return valor > CORTE_SEPARADOR ? "tinta" : "blanco";
 }
 
 // casillas: array de {xPt, yTopPt, wPt, hPt, ...} en pt (hoja.js::
 // calcularGeometriaCasillas) — cualquier otra propiedad (itemId, lado,
 // posicion...) se conserva sin tocar. Devuelve el mismo array con `densidad`,
-// `varianza`, `zona` ("blanco"/"dudoso"/"tinta") y `tieneTinta` (boolean,
-// zona === "tinta" — se mantiene por compatibilidad con quien solo necesite
-// el criterio binario anterior) añadidos a cada elemento.
+// `varianza`, `zona` ("blanco"/"tinta") y `tieneTinta` (boolean, zona ===
+// "tinta" — se mantiene por compatibilidad con quien solo necesite el
+// criterio binario) añadidos a cada elemento.
 //
 // blancoLocal (opcional): si no se pasa, se muestrea de esta misma imagen
 // (muestrearBlancoLocal) — permite al llamador reutilizar un único muestreo
@@ -1058,7 +1053,7 @@ export function detectarTintaCasillas(canvasEnderezado, casillas, escala = ESCAL
     const densidad = densidadPromedio(imageData, xPx + mx, yPx + my, xPx + wPx - mx, yPx + hPx - my);
     const varianza = varianzaEnRegion(imageData, xPx + mx, yPx + my, xPx + wPx - mx, yPx + hPx - my);
     const componentes = analizarComponentesCasilla(imageData, xPx + mx, yPx + my, xPx + wPx - mx, yPx + hPx - my);
-    const zona = zonaTintaCasilla(densidad, blanco);
+    const zona = zonaTintaCasilla(densidad, blanco, varianza);
     return { ...c, densidad, varianza, ...componentes, zona, tieneTinta: zona === "tinta" };
   });
 }

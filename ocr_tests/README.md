@@ -1117,3 +1117,91 @@ diseño de producción otra vez.
 `verificar_casillas_vacias.mjs`): vuelca todos los puntos evaluados
 (densidad, varianza, separabilidad de Otsu, componentes, ground truth) a un
 JSON, para poder analizarlos o graficarlos fuera del propio script.
+
+## Separador ponderado (2× real) y diseño de 2 zonas en producción, con sus 4 consecuencias en el esquema de OCR-IA (issue #37, 18 de agosto de 2026, misma sesión)
+
+**Separador ponderado.** Recalculado el hiperplano de margen máximo (misma
+técnica de la ronda anterior: envolvente convexa de cada clase + par de
+puntos más cercano entre envolventes, sobre densidad relativa y
+`log1p(varianza)` estandarizadas) dando **2× de peso a las 240 casillas de
+escaneos reales frente a las 312 sintéticas** en el cálculo de la media/
+desviación de estandarización (la envolvente convexa en sí es puramente
+geométrica, no ponderable: no hay "casillas de sobra" que mover con más
+peso, solo cambia qué cuenta como "una desviación típica" de cada eje). El
+motivo: proteger contra dispositivos de escaneado con MENOS ruido que los 3
+usados aquí, sin descartar la información real por representar solo 2
+personas físicas. Resultado: el hiperplano prácticamente no se mueve — el
+umbral de varianza implícito, evaluado en varias densidades relativas entre
+−20 y 60, cambia consistentemente **menos del 0.05%** frente al hiperplano
+sin ponderar. Con una separación esta limpia, **no hace falta zona
+"dudosa"**: dos zonas bastan (blanco / tinta), sin banda intermedia.
+
+Coeficientes finales, en `public/admin/papel/comun.js`:
+
+```js
+export const COEF_DENSIDAD = -0.002231;
+export const COEF_LOG_VARIANZA = 0.332195;
+export const CORTE_SEPARADOR = 1.616889;
+
+export function zonaTintaCasilla(densidad, blancoLocal, varianza) {
+  const valor = COEF_DENSIDAD * (densidad - blancoLocal) + COEF_LOG_VARIANZA * Math.log1p(varianza);
+  return valor > CORTE_SEPARADOR ? "tinta" : "blanco";
+}
+```
+
+**Consecuencia de diseño**: con 2 zonas y esta certeza, "no está en la lista
+de blancas" ya significa "tiene tinta" con la misma confianza que estar en
+ella — el esquema de OCR-IA puede forzar CONTENIDO no vacío, no solo forzar
+vacío como hacía el diseño anterior de 3 zonas (issue #35). Implementadas
+las 4 consecuencias pedidas, todas en
+`worker/src/endpoints/admin/ocrIa.ts::esquemaCampoRespuestaItemLado` +
+`esquemaPosicionesConDeteccion` (nueva, sustituye a
+`esquemaPosicionesNullable` cuando SÍ hay detección):
+
+1. **Abierto**: si todas las casillas están en blanco, se fuerza `null`; si
+   hay alguna con tinta, se fuerza una longitud EXACTA (`minLength =
+   maxLength` = nº de casillas entre la primera y la última con tinta) — ya
+   no un techo con margen de seguridad (`MARGEN_SEGURIDAD_TECHO`, issue #35,
+   retirado: era un parche para un umbral absoluto que ya no existe).
+2. **Opción múltiple**: `null` si la única casilla está en blanco, o se
+   fuerza una letra concreta (nunca `""` ni `null` en el mismo bloque) si
+   tiene tinta.
+3. **Selección múltiple**: mismo tratamiento que abierto — `null` si ninguna
+   casilla tiene tinta, longitud EXACTA forzada si alguna la tiene. Se
+   retiró `numSeleccionadasRespuesta/Correccion` (el campo de la ronda
+   anterior, un CONTEO sin importar posición) en favor de
+   `longitudDetectadaRespuesta/Correccion` (el mismo campo que ya usaba
+   abierto: nº de casillas entre la primera y la última con tinta,
+   independientemente de huecos intermedios) — un único campo para los dos
+   formatos que lo necesitan, mismo significado en ambos.
+4. **Ordenar/clasificar**: cada posición se fuerza a `""` (sin tinta) o a
+   una letra concreta — nunca queda sin restringir con el patrón permisivo
+   `^[A-Z]?$` de antes. Si la lista de posiciones vacías cubre TODAS las
+   posiciones del bloque, el bloque entero se fuerza a `null` en vez de un
+   objeto con todo en `""`.
+
+**Bug encontrado y corregido durante esta ronda**: tanto
+`digitalizar.js::conDeteccionDeTinta` como su duplicado en
+`probar_ocr_ia.mjs` solo incluían `posicionesEnBlancoRespuesta/Correccion`
+en el objeto mandado al Worker cuando había AL MENOS una posición vacía
+(`...(posiciones.length > 0 && {...})`, heredado del diseño de 3 zonas,
+donde un array vacío no aportaba nada que forzar). Con 2 zonas, un array
+vacío significa "todas las posiciones tienen tinta" — justo el caso más
+común (un bloque de ordenar/clasificar completamente relleno) — y
+`tieneDeteccionDeTinta` en `ocrIa.ts` necesita ver el campo presente para
+activar el forzado de letras. Omitirlo dejaba ese caso sin ninguna
+restricción, exactamente el escenario que esta ronda pretendía cubrir.
+Corregido mandando el campo siempre (nunca condicionado a su longitud)
+cuando el ítem tiene casillas de ese formato.
+
+**Verificación**: `node ocr_tests/verificar_casillas_vacias.mjs` re-escrito
+para reportar 2 direcciones de caso peligroso (antes solo "tinta real →
+zona blanco" importaba, porque "dudoso" nunca forzaba nada; ahora "blanco
+real → zona tinta" también fuerza algo incorrecto en el esquema). **0 casos
+peligrosos en ninguna dirección**, en las 552 casillas (312 sintéticas + 240
+reales de los 3 escaneos). `npm test` (47 tests nuevos/actualizados en
+`worker/test/ocrIa.test.ts`, 207 en total) y `tsc --noEmit` sin errores.
+
+Gráfica interactiva con la nube de puntos completa (densidad y varianza por
+separado, más el plano combinado con la frontera del separador):
+https://claude.ai/code/artifact/8965f7b0-80ea-4835-a4f1-66c80d866d7b
