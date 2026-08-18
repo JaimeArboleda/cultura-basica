@@ -564,8 +564,8 @@ function refinarCentroide(imageData, cx, cy, radio) {
       const oscuridad = 255 - (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
       if (oscuridad < 120) continue;
       sumaPeso += oscuridad;
-      sumaX += x * oscuridad;
-      sumaY += y * oscuridad;
+      sumaX += (x + 0.5) * oscuridad;
+      sumaY += (y + 0.5) * oscuridad;
     }
   }
   return sumaPeso > 0 ? { x: sumaX / sumaPeso, y: sumaY / sumaPeso } : null;
@@ -620,9 +620,19 @@ function localizarBlobEnRegion(imageData, x0, y0, x1, y1) {
     const proporcion = anchoBlob / altoBlob;
     if (proporcion < 0.6 || proporcion > 1.7) continue;
 
+    // issue #38: `refinarCentroide` usa un radio fijo (FIDUCIAL_BLOQUE * 1.5 =
+    // 18px) que a la resolución habitual de trabajo es MENOR que el semilado
+    // real de un fiducial de FIDUCIAL_SIZE_MM (~26px) — su ventana ve solo una
+    // porción truncada y asimétrica del blob, y el centroide heredaba ese
+    // sesgo sin corregirlo. Las extensiones medidas arriba SÍ recorren el blob
+    // completo (radioMax es grande) y revelan directamente el descentrado
+    // (ext≠izq, abajo≠arriba): se usan aquí para recentrar el punto devuelto,
+    // no solo para validar tamaño/aspecto.
+    const centro = { x: refinado.x + (ext - izq) / 2, y: refinado.y + (abajo - arriba) / 2 };
+
     const radioBlob = Math.max(anchoBlob, altoBlob) / 2;
-    const foso = densidadEnAnillo(imageData, refinado.x, refinado.y, radioBlob * 1.5, radioBlob * 3.5);
-    if (foso < FIDUCIAL_UMBRAL_FOSO) return refinado;
+    const foso = densidadEnAnillo(imageData, centro.x, centro.y, radioBlob * 1.5, radioBlob * 3.5);
+    if (foso < FIDUCIAL_UMBRAL_FOSO) return centro;
   }
   return null;
 }

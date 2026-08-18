@@ -750,3 +750,64 @@ suelos/posiciones individuales son seguros) queda documentada en los propios
 comentarios de `esquemaCampoRespuestaItemLado` (`worker/src/endpoints/admin/ocrIa.ts`)
 para la próxima vez que se considere restringir el esquema con una señal
 determinista.
+
+## Desalineamiento sistemático de fiduciales, ~9-10px (issue #38, 18 de agosto de 2026)
+
+Investigando por qué varianza/Otsu/componentes conexas (exploradas en una
+ronda anterior no documentada aquí) no separaban en escaneos reales pese a
+funcionar en las fixtures sintéticas, se encontró que `detectarFiduciales`
+(`comun.js`) devolvía centros sistemáticamente desplazados ~9-10px
+(~0.9-1mm a `ANCHO_OBJETIVO = 2200`) respecto a su posición teórica
+(`geometria.js::fiducialesFijos()`) — reproducido incluso con un PDF "puro"
+(`construirHoja()`, sin cámara/escáner/JPEG de por medio), así que no era
+ruido de escaneo: el propio grid de referencia usado para recortar cada
+casilla estaba mal.
+
+**Causa confirmada** en `localizarBlobEnRegion`/`refinarCentroide`
+(`comun.js`): `refinarCentroide` acota su ventana a un radio fijo
+(`FIDUCIAL_BLOQUE * 1.5 = 18px`) que a la resolución de trabajo es MENOR que
+el semilado real de un fiducial de `FIDUCIAL_SIZE_MM = 5mm` (~26px a
+`ANCHO_OBJETIVO = 2200`, ~10.5 px/mm) — la ventana solo ve una porción
+truncada y asimétrica del blob, y el centroide heredaba ese sesgo. Un poco
+más abajo, `localizarBlobEnRegion` SÍ mide la extensión real del blob en las
+4 direcciones (`medirExtensionEje`, con un radio de sobra) para el chequeo de
+aspect-ratio/tamaño, pero esa información solo se usaba para validar, nunca
+para recentrar el punto devuelto — el descentrado quedaba ahí, sin usar,
+disponible como `ext - izq` / `abajo - arriba`. Menor, no la magnitud
+completa: `refinarCentroide` también ponderaba con el índice de píxel
+(`x`/`y`) en vez de su centro (`x+0.5`/`y+0.5`), un sesgo fijo de -0.5px en
+ambos ejes.
+
+**Reproducido de forma aislada** (sin PDF/Playwright, `detectarFiduciales`
+contra una `ImageData` sintética con 4 cuadrados en su posición teórica
+exacta): -9.3 a -11.1px por eje/esquina antes del fix, prácticamente
+idéntico a los números medidos contra el PDF real del issue (-9.26 a
+-11.10). Confirma que la causa es enteramente el sesgo de
+`localizarBlobEnRegion`, no ruido de renderizado/impresión.
+
+**Fix**: recentrar con `ext`/`izq`/`arriba`/`abajo` (ya calculados, antes
+descartados) y sumar el `+0.5` de centro de píxel en `refinarCentroide`. Sin
+tocar `FIDUCIAL_BLOQUE`/el radio de refinamiento — no hacía falta asumir
+ninguna escala px/mm concreta (frágil: una foto real recorta la hoja con
+zoom/encuadre variable), el propio blob ya revelaba su descentrado.
+Resultado sobre la misma `ImageData` sintética: <1.1px de desviación
+(reducción >90%). `node ocr_tests/verificar_casillas_vacias.mjs` sigue en
+312/312 (100%, 0 falsos positivos peligrosos) tras el fix, con el margen
+entre "con tinta" y "en blanco" ligeramente MEJOR (mínimo con tinta 8.1→9.2,
+máximo en blanco sin cambios en 4.5) — consistente con que parte del
+solapamiento que motivó este issue era en efecto el borde impreso de la
+casilla colándose en la región muestreada, y no ruido real. No se ha tocado
+`INSET_RELATIVO_CASILLA`/`UMBRAL_TINTA_CASILLA`: con el desalineamiento
+corregido ya no hay separación peligrosa que recalibrar en las fixtures
+disponibles en este repo.
+
+**Verificación adicional contra los 2 escaneos reales del issue original**
+(`ocr_tests/05-escaneo-real/escaneo-1.pdf`/`escaneo-2.pdf`, recuperados de la
+rama `claude/issue-37-implementation-tgdly8` y versionados aquí): con el fix
+aplicado, `detectarFiduciales` + `warpearImagen` (mismo camino que
+`digitalizar.js`/`subirLote.js`) y overlay visual de la geometría de
+`ordenar`/`clasificar` (`calcularGeometriaCasillas`) sobre la imagen ya
+enderezada — inspeccionado a simple vista con capturas ampliadas — confirma
+que el rectángulo completo de cada casilla traza el borde impreso real y la
+región muestreada (tras `INSET_RELATIVO_CASILLA`) queda cómodamente dentro,
+sin tocar el borde ni en casillas vacías ni con tinta, en ambos escaneos.
