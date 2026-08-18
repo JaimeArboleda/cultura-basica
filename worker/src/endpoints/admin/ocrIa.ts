@@ -128,16 +128,40 @@ interface ItemEntrada {
   //   seleccion_multiple; 0 = ninguna, fuerza null) — incluye cualquier hueco
   //   intermedio sin tinta (en abierto son los espacios entre palabras; en
   //   selección múltiple, casillas de opciones no marcadas entre dos que sí
-  //   lo están). El esquema fuerza esa longitud EXACTA (minLength = maxLength
-  //   = este valor) — antes (issue #35) solo se usaba como techo con un
-  //   margen de seguridad, porque el umbral absoluto de densidad podía
-  //   quedarse corto por una casilla borderline (7.9 de densidad contra un
-  //   umbral de 8, el caso real que motivó el #37 entero); con la detección
-  //   de 2 zonas ya no hay ese margen de error — la varianza separa con 769
-  //   puntos de margen en las 552 casillas calibradas, así que exigir la
-  //   longitud exacta es seguro.
+  //   lo están). Es el TECHO del esquema (maxLength) — ver numTinta* más
+  //   abajo para el suelo (minLength). Exigir aquí longitud EXACTA
+  //   (minLength = maxLength = este valor, diseño original del issue #37) se
+  //   probó contra la API real (issue #37, ronda del 18 de agosto de 2026,
+  //   ocr_tests/README.md) y resultó inseguro pese a que la detección de
+  //   tinta en sí es fiable: el ítem "abierto" que envuelve a una 2ª fila de
+  //   casillas falló repetidamente (sintéticas + escaneo real) con relleno
+  //   inventado al final de la cadena — el mismo patrón que ya se había
+  //   corregido antes (issue #35) quitando minLength por completo. La causa
+  //   no es que la detección de tinta se equivoque sobre SI una casilla
+  //   concreta tiene tinta (eso sigue siendo fiable, margen de 769 puntos de
+  //   varianza en las 552 casillas calibradas): es que el nº de casillas
+  //   detectadas con tinta dentro del tramo NO tiene por qué coincidir con el
+  //   nº de caracteres que el modelo transcribe (huecos entre palabras,
+  //   ambigüedad de una casilla borderline en el extremo del tramo en un
+  //   escaneo real con más ruido que las fixtures sintéticas) — forzar un
+  //   ÚNICO valor exacto convierte cualquier desajuste de ±1 en relleno o
+  //   truncamiento inventado, por el mismo motivo (grammar-constrained
+  //   decoding de Structured Outputs) que ya documentaba el issue #35.
   longitudDetectadaRespuesta?: number;
   longitudDetectadaCorreccion?: number;
+  // Nº de casillas que SÍ tienen tinta dentro de ese mismo tramo (0..longitud
+  // del lado correspondiente) — el SUELO del esquema (minLength). A
+  // diferencia del techo (el tramo completo, que incluye huecos en blanco
+  // como espacios entre palabras), este valor cuenta solo las casillas con
+  // tinta de verdad, así que el contenido real nunca puede tener MENOS
+  // caracteres que este número. Con minLength=numTinta y maxLength=longitud,
+  // los dos extremos del rango son, cada uno por separado, una medición
+  // directa sobre la imagen (nunca una estimación puntual): el modelo queda
+  // libre para transcribir cualquier longitud dentro de ese rango en vez de
+  // verse forzado a inventar relleno o truncar cuando el tramo detectado no
+  // coincide exactamente con la longitud real de lo escrito.
+  numTintaRespuesta?: number;
+  numTintaCorreccion?: number;
 }
 
 interface PaginaEntrada {
@@ -249,6 +273,28 @@ function motivoItemInvalido(it: unknown): string | null {
     const limite = o.formato === "abierto" ? (o.numCasillas as number) : (o.numOpciones as number);
     if (typeof valor !== "number" || !Number.isInteger(valor) || valor < 0 || valor > limite) {
       return `${campo} debe ser un entero entre 0 y ${o.formato === "abierto" ? "numCasillas" : "numOpciones"}=${limite}: ${JSON.stringify(valor)}`;
+    }
+  }
+  // numTinta* (suelo del rango, minLength) nunca puede superar la longitud
+  // detectada del MISMO lado (techo, maxLength) — sería un rango inválido
+  // (minLength > maxLength). Se valida junto al campo longitud correspondiente
+  // en vez de en el bucle de arriba porque es una comprobación cruzada entre
+  // dos campos, no una comprobación de un campo aislado.
+  for (const [campoTinta, campoLongitud] of [
+    ["numTintaRespuesta", "longitudDetectadaRespuesta"],
+    ["numTintaCorreccion", "longitudDetectadaCorreccion"],
+  ] as const) {
+    const valor = o[campoTinta];
+    if (valor === undefined) continue;
+    if (o.formato !== "abierto" && o.formato !== "seleccion_multiple") {
+      return `${campoTinta} solo es válido en abierto/seleccion_multiple, no en "${o.formato}"`;
+    }
+    const longitud = o[campoLongitud];
+    if (typeof longitud !== "number") {
+      return `${campoTinta} requiere ${campoLongitud} en el mismo ítem`;
+    }
+    if (typeof valor !== "number" || !Number.isInteger(valor) || valor < 0 || valor > longitud) {
+      return `${campoTinta} debe ser un entero entre 0 y ${campoLongitud}=${longitud}: ${JSON.stringify(valor)}`;
     }
   }
   return null;
@@ -639,10 +685,27 @@ function esquemaPosicionesConDeteccion(numPosiciones: number, numLetrasValidas: 
 //   - opcion_multiple: única casilla en blanco (posición 1) -> todo el bloque
 //     null; si no, se fuerza una letra (nunca "" ni null).
 //   - abierto/seleccion_multiple: 0 casillas con tinta -> null; si no, se
-//     fuerza la longitud EXACTA detectada (minLength = maxLength), no un
-//     techo con margen — la varianza ya separa con margen de sobra (769
-//     puntos en las 552 casillas calibradas), así que un conteo exacto ya no
-//     es el punto único de fallo que era con el umbral absoluto de #35.
+//     fuerza un RANGO [minLength, maxLength], no un único valor exacto
+//     (issue #37 seguimiento, 18 de agosto de 2026 — ver el comentario junto
+//     a numTintaRespuesta/Correccion en ItemEntrada): maxLength es el tramo
+//     detectado (primera a última casilla con tinta, como antes), minLength
+//     es el nº de casillas de ESE tramo que tienen tinta de verdad (nunca
+//     más que el tramo). Los dos límites son mediciones directas sobre la
+//     imagen, cada una segura por separado — forzar un único valor exacto
+//     (minLength = maxLength) se probó contra la API real y resultó inseguro
+//     en cuanto el tramo detectado no coincidía exactamente con la longitud
+//     real transcrita (huecos entre palabras, una casilla borderline en el
+//     extremo del tramo): el modelo rellenaba o truncaba en vez de admitir
+//     el desajuste.
+// "{n}" cuando min===max (equivalente a un valor exacto), "{min,max}" si no
+// — puramente cosmético (la validación de Structured Outputs es idéntica en
+// ambos casos), pero mantiene el patrón legible para el caso, todavía
+// habitual, en que el tramo detectado coincide exactamente con el nº de
+// casillas con tinta.
+function cuantificadorLongitud(min: number, max: number): string {
+  return min === max ? `{${min}}` : `{${min},${max}}`;
+}
+
 function esquemaCampoRespuestaItemLado(item: ItemEntrada, lado: "respuesta" | "correccion") {
   const posiciones = (lado === "respuesta" ? item.posicionesEnBlancoRespuesta : item.posicionesEnBlancoCorreccion) ?? [];
   switch (item.formato) {
@@ -655,6 +718,7 @@ function esquemaCampoRespuestaItemLado(item: ItemEntrada, lado: "respuesta" | "c
       return { type: "string", enum: [...LETRAS.slice(0, item.numOpciones!)] };
     case "seleccion_multiple": {
       const longitud = lado === "respuesta" ? item.longitudDetectadaRespuesta : item.longitudDetectadaCorreccion;
+      const numTinta = lado === "respuesta" ? item.numTintaRespuesta : item.numTintaCorreccion;
       const letra = letraMax(item.numOpciones!);
       if (longitud === 0) return { type: "null" };
       // Sin longitud detectada para este lado: mismo esquema que sin ninguna
@@ -662,16 +726,24 @@ function esquemaCampoRespuestaItemLado(item: ItemEntrada, lado: "respuesta" | "c
       if (longitud == null) {
         return { anyOf: [{ type: "string", pattern: `^[A-${letra} ]*$` }, { type: "null" }] };
       }
-      return { type: "string", minLength: longitud, maxLength: longitud, pattern: `^[A-${letra} ]{${longitud}}$` };
+      const min = numTinta ?? longitud;
+      return { type: "string", minLength: min, maxLength: longitud, pattern: `^[A-${letra} ]${cuantificadorLongitud(min, longitud)}$` };
     }
     case "abierto": {
       const longitud = lado === "respuesta" ? item.longitudDetectadaRespuesta : item.longitudDetectadaCorreccion;
+      const numTinta = lado === "respuesta" ? item.numTintaRespuesta : item.numTintaCorreccion;
       const n = item.numCasillas!;
       if (longitud === 0) return { type: "null" };
       if (longitud == null) {
         return { anyOf: [{ type: "string", maxLength: n, pattern: `^[A-Z0-9ÁÉÍÓÚÜÑ /]{0,${n}}$` }, { type: "null" }] };
       }
-      return { type: "string", minLength: longitud, maxLength: longitud, pattern: `^[A-Z0-9ÁÉÍÓÚÜÑ /]{${longitud}}$` };
+      const min = numTinta ?? longitud;
+      return {
+        type: "string",
+        minLength: min,
+        maxLength: longitud,
+        pattern: `^[A-Z0-9ÁÉÍÓÚÜÑ /]${cuantificadorLongitud(min, longitud)}$`,
+      };
     }
   }
 }

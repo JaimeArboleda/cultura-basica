@@ -188,12 +188,20 @@ async function enderezarYDetectarBlancos(paginaBrowser, baseUrl, jpegBase64, cas
       }
       case "seleccion_multiple":
       case "abierto": {
-        const longitud = (lado) => {
+        const tramo = (lado) => {
           const inkadas = casillasItem.filter((c) => c.lado === lado && c.tieneTinta).map((c) => c.posicion);
-          if (inkadas.length === 0) return 0;
-          return Math.max(...inkadas) - Math.min(...inkadas) + 1;
+          if (inkadas.length === 0) return { longitud: 0, numTinta: 0 };
+          return { longitud: Math.max(...inkadas) - Math.min(...inkadas) + 1, numTinta: inkadas.length };
         };
-        return { ...it, longitudDetectadaRespuesta: longitud("respuesta"), longitudDetectadaCorreccion: longitud("correccion") };
+        const respuesta = tramo("respuesta");
+        const correccion = tramo("correccion");
+        return {
+          ...it,
+          longitudDetectadaRespuesta: respuesta.longitud,
+          longitudDetectadaCorreccion: correccion.longitud,
+          numTintaRespuesta: respuesta.numTinta,
+          numTintaCorreccion: correccion.numTinta,
+        };
       }
       default:
         return it;
