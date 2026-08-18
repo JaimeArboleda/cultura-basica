@@ -751,6 +751,187 @@ comentarios de `esquemaCampoRespuestaItemLado` (`worker/src/endpoints/admin/ocrI
 para la próxima vez que se considere restringir el esquema con una señal
 determinista.
 
+## Baseline de blanco adaptativo + 3 zonas + varianza, verificado contra escaneos reales (issue #37, 17 de agosto de 2026)
+
+Seguimiento directo del "trabajo pendiente #3" que dejó abierto el #35 arriba
+("calibrar el umbral contra fotos/escaneos reales de calidad muy distinta —
+esta verificación es 100% contra las 4 fixtures sintéticas"): un caso real
+llegó a producción (`01-letra-clara`, ítem `18`, `seleccion_multiple`) donde
+una casilla con tinta real midió **7.9**, justo por debajo del umbral fijo 8
+— el detector la contó como vacía. La mitigación desplegada entonces
+(`MARGEN_SEGURIDAD_TECHO`, no forzar conteos exactos) fue un parche
+defensivo: renunciaba a restringir el esquema en vez de detectar la zona
+insegura y tratarla distinto.
+
+**Cambios en `comun.js` (`detectarTintaCasillas`/`zonaTintaCasilla`):**
+
+1. **Baseline de blanco adaptativo por foto** (`muestrearBlancoLocal`): en vez
+   de un umbral absoluto fijo, se muestrea la densidad del margen de página de
+   la MISMA foto (franja `[2mm, 12mm]` del borde, dentro del margen de 15mm
+   que `hoja.js` garantiza siempre en blanco y con margen de sobra antes de
+   los fiduciales) — 24 parches (6 por banda × 4 bandas), mediana para ser
+   robusta a una mancha o sombra puntual en un único parche.
+2. **3 zonas en vez de un único corte** (`zonaTintaCasilla`): `densidad <
+   blancoLocal + MARGEN_BLANCO_SEGURO` → `"blanco"` (fuerza vacío en el
+   esquema, igual que antes); `densidad >= blancoLocal + MARGEN_TINTA_SEGURA`
+   → `"tinta"` (zona nueva, ver "no implementado" más abajo); entre medias →
+   `"dudoso"` (no se fuerza nada, exactamente como si no hubiera detección
+   para esa posición).
+3. **Varianza de intensidad como señal secundaria** (`varianzaEnRegion`):
+   calculada y expuesta junto a la densidad, para evaluar si separa mejor
+   dentro de la zona dudosa (resultado más abajo). No se implementó la
+   alternativa de alta frecuencia/Fourier que también menciona el issue — la
+   varianza es una proxy mucho más simple de calcular sobre una región tan
+   pequeña sin añadir ninguna dependencia de DSP.
+4. **`digitalizar.js`/`probar_ocr_ia.mjs`**: `posicionesEnBlancoRespuesta/
+   Correccion` ahora solo incluyen posiciones en zona `"blanco"` — antes
+   (`!tieneTinta`) habrían incluido también las dudosas, exactamente el fallo
+   que motivó este issue (forzar vacío sobre una casilla borderline).
+
+**Dataset ampliado con 2 escaneos reales** (`ocr_tests/05-escaneo-real/`,
+issue #37, adjuntados por el propio autor): dos PDFs con efecto de escaneado
+obtenido con una herramienta online, cada uno una pasada de escaneado
+DISTINTA sobre el MISMO par de hojas físicas ya impresas por este sistema y
+rellenadas a mano por dos personas (letra clara / letra descuidada) — 12
+páginas cada uno (2 hojas de 6 páginas). Sin `generar.mjs` ni
+`respuestas-esperadas.json` posible para contenido real: el ground truth de
+qué posiciones tienen tinta se estableció leyendo las imágenes a mano,
+limitado a los 2 únicos ítems `ordenar`/`clasificar` del banco (ítem impreso
+nº4, `ordenar` 10 posiciones, y nº7, `clasificar` 10 posiciones) — mismo
+criterio que el resto de este script (son los únicos formatos donde
+"posición i-ésima" tiene ground truth exacto sin ambigüedad). 160 casillas
+nuevas (2 personas × 2 escaneados × 2 ítems × ~20 casillas Respuesta+
+Corrección), sumadas a las 312 sintéticas ya existentes.
+
+**Primer hallazgo, con los márgenes iniciales (`MARGEN_BLANCO_SEGURO = 4`,
+`MARGEN_TINTA_SEGURA = 7`, pensados para reproducir el umbral 8 antiguo):**
+2 casillas con tinta real (`escaneo-2.pdf`, persona de letra clara, ítem
+`03`, posiciones 5 y 6 — las letras "I" y "F", ambas con poca superficie de
+trazo) cayeron en zona `"blanco"` — exactamente el mismo tipo de fallo
+peligroso que motivó el issue, ahora reproducido con datos reales en vez de
+solo con el caso de producción ya conocido. La causa: el baseline de blanco
+muestreado en el margen de esa foto (25.6) resultó ser **más oscuro** que la
+densidad de esas dos casillas con tinta real (22.1 y 27.8) — la densidad
+RELATIVA al margen de una letra fina en un escaneo de menor calidad puede
+ser negativa (-3.5), mientras que casillas genuinamente en blanco del mismo
+dataset llegan hasta +3.6: un solapamiento real de ~7 puntos que el margen
+original no cubría con seguridad.
+
+**Recalibrado con margen de sobra a ambos lados de ese solapamiento
+observado** (`MARGEN_BLANCO_SEGURO = -5`, `MARGEN_TINTA_SEGURA = 9`): 0 casos
+peligrosos verificados contra las 312 casillas sintéticas + las 160 reales.
+El precio de esta seguridad, medido con los mismos datos: en las fixtures
+SINTÉTICAS (fondo casi perfectamente blanco, `blancoLocal` 1-4), NINGUNA de
+las 146 casillas en blanco alcanza ya el nuevo margen (`zona blanco` pasa de
+146 a **0** — todas caen en `"dudoso"`, nunca en `"tinta"`, así que sigue
+siendo seguro, solo menos útil) — un efecto secundario real de calibrar con
+seguridad de por medio contra un caso adversarial encontrado en solo 2 hojas
+reales. En los escaneos reales, en cambio, si vale la pena (`zona blanco`
+99/108 blancos reales, 92%) — consistente con que el margen de esas fotos
+tiende a leer MÁS oscuro que el interior de una casilla en blanco (posible
+viñeteado/sombra del efecto de escaneado, más pronunciado cerca del borde de
+la página que cerca del centro, donde viven las casillas — no confirmado,
+candidato a revisar en una futura ronda).
+
+**Varianza como señal secundaria: prometedora en las fixtures sintéticas,
+no concluyente en los escaneos reales.** Dentro de la zona dudosa (donde
+importa, porque ahí es donde densidad sola no basta): en las 150 casillas
+dudosas sintéticas, la varianza mediana separa con claridad (908 con tinta
+real vs. 1 en blanco real — un trazo real, aunque tenue, tiene mucho más
+contraste local que ruido uniforme). En las 14 casillas dudosas de los
+escaneos reales, sin embargo, NO separa (1156 con tinta real vs. 2024 en
+blanco real — la casilla en blanco con más varianza de todo el dataset real,
+2406, no tiene tinta ninguna, posiblemente una mancha/artefacto de
+compresión JPEG puntual). Con solo 14 casillas dudosas reales, la muestra es
+demasiado pequeña para concluir nada firme — queda como trabajo pendiente
+ampliar el dataset real antes de usar la varianza para ESTRECHAR la zona
+dudosa (que es la motivación original de añadirla, issue #37 "ideas
+adicionales #2").
+
+**Verificación**: `node ocr_tests/verificar_casillas_vacias.mjs` (ampliado,
+sigue sin llamar a ninguna API, solo necesita red para el mirror de Google
+Fonts que ya usaba `generar.mjs` — el PDF de escaneos reales se renderiza con
+`pdfjs-dist` ya instalado en `node_modules/`, servido como blob local en vez
+de por CDN, porque el Chromium que lanza Playwright en algunos entornos de
+desarrollo en la nube no hereda la configuración de proxy de red del
+proceso Node que lo lanza).
+
+**No implementado en esta ronda** (issue #37 trabajo pendiente #2-#3,
+deliberadamente fuera de alcance): el esquema de "contenido seguro
+obligatorio" (no permitir cadena vacía en zona `"tinta"`) y la pista textual
+para la zona `"dudosa"` en el prompt. El propio issue pide explícitamente
+verificar el efecto de la pista textual contra la API real antes de fijar su
+diseño ("podría ayudar... o podría sesgar al modelo a confiar ciegamente en
+la estimación en vez de mirar de verdad") — sin un Worker desplegado con
+`wrangler dev` disponible en esta ronda, implementar esa parte sin poder
+verificarla habría repetido exactamente el patrón de riesgo que este issue
+existe para evitar. `zona === "tinta"` ya se calcula y se expone (0 casos de
+`"blanco real -> tinta"` en las 472 casillas de ambos datasets, buena señal
+para cuando se retome), pero no se usa todavía para restringir ni informar
+nada — el comportamiento actual, para esa zona, es idéntico al de antes del
+#37.
+
+## Componentes conexas + Otsu: "trazo coherente vs ruido estocástico" (issue #37, misma sesión)
+
+La varianza (arriba) mide CUÁNTO contraste local hay, pero no distingue su
+CAUSA — un artefacto de compresión JPEG o un borde impreso mal recortado por
+el warp pueden tener tanto contraste como un trazo real (el caso de la
+casilla en blanco con varianza 2406 de la sección anterior). Hipótesis a
+probar: un trazo de letra es una mancha COHERENTE que ocupa una fracción
+sustancial de la casilla, mientras que un artefacto puntual es pequeño en
+comparación — la FORMA del contraste, no solo su magnitud.
+
+`comun.js::analizarComponentesCasilla` implementa: (1) umbral de Otsu sobre
+el histograma de la propia región (asume bimodalidad fondo/trazo, sin
+depender de ningún blanco externo) — de propina da `otsuSeparabilidad`
+(varianza entre clases normalizada 0-1: qué tan bimodal es de verdad la
+región); (2) componentes conexas por flood-fill sobre la binarización
+resultante; (3) de la componente más grande, `extensionComponenteMayor`
+(cuánto ancho/alto de la casilla cubre su caja delimitadora) y
+`fraccionComponenteMayor` (qué parte de todos los píxeles "trazo" concentra).
+Expuesto en `detectarTintaCasillas` pero **sin usarse todavía en
+`zonaTintaCasilla`** — solo verificado, no integrado, por lo que sigue abajo.
+
+**Resultado: prometedor en las fixtures sintéticas, no se sostiene en los
+escaneos reales — la hipótesis de partida no se confirma con estos datos.**
+Dentro de la zona dudosa de cada dataset:
+
+| Feature | Sintéticas (150 dudosas) | Reales (14 dudosas) |
+|---|---|---|
+| Varianza | limpia (908 vs 1) | se solapan (1156 vs 2024, invertido) |
+| Separabilidad de Otsu | limpia (0.88 vs 0.68) | limpia (0.85 vs **0.91**, invertido) |
+| Extensión de la componente mayor | se solapan (0.50 vs 0.68, máx. blanco=1.00) | se solapan (ambas ≈ 1.00) |
+| Fracción de la componente mayor | limpia (1.00 vs 0.30) | se solapan (ambas ≈ 1.00) |
+
+Dos hallazgos concretos que explican por qué no se sostiene:
+
+1. **La separabilidad de Otsu se invierte entre datasets**: en los escaneos
+   reales, las casillas EN BLANCO dudosas miden más separabilidad (0.86-0.94)
+   que las CON TINTA (0.83-0.86) — lo contrario de lo esperado. Hipótesis:
+   Otsu mide qué tan NÍTIDO es el corte, no si hay tinta — un artefacto
+   pequeño y compacto (un bloque JPEG) puede tener un borde más nítido que
+   una letra fina y borrosa por la propia compresión. Mide "nitidez del
+   borde", no "trazo vs ruido".
+2. **La extensión de la componente mayor no es pequeña para el ruido real**:
+   la hipótesis de partida ("un artefacto ocupa poco de la casilla") no se
+   cumple — en los escaneos reales, tanto las casillas con tinta como las
+   "en blanco" dudosas terminan con una componente que cubre ~100% de la
+   región. Motivo probable: en una región sin bimodalidad real (ruido/textura
+   de papel, no dos clases limpias), Otsu igualmente DEVUELVE un corte (tiene
+   que barrer los 256 posibles y quedarse con el mejor, aunque sea malo) y
+   ese corte puede partir la región en un único blob grande en vez de en
+   manchas pequeñas dispersas — la premisa "ruido = muchas manchas pequeñas"
+   no se cumplió en la práctica.
+
+**Conclusión**: no se integra en `zonaTintaCasilla` con estos datos — con
+solo 14 casillas dudosas reales (y ya una señal invertida respecto a las
+sintéticas), forzar una regla con esto sería sobreajustar a un caso
+adversarial concreto, el mismo riesgo que ya obligó a recalibrar los
+márgenes de densidad en la sección anterior. Los campos quedan calculados y
+expuestos (`otsuSeparabilidad`, `numComponentes`, `extensionComponenteMayor`,
+`fraccionComponenteMayor`) para poder revisarlos cuando el dataset real sea
+más grande, pero el comportamiento de producción no cambia.
+
 ## Desalineamiento sistemático de fiduciales, ~9-10px (issue #38, 18 de agosto de 2026)
 
 Investigando por qué varianza/Otsu/componentes conexas (exploradas en una
@@ -811,3 +992,216 @@ enderezada — inspeccionado a simple vista con capturas ampliadas — confirma
 que el rectángulo completo de cada casilla traza el borde impreso real y la
 región muestreada (tras `INSET_RELATIVO_CASILLA`) queda cómodamente dentro,
 sin tocar el borde ni en casillas vacías ni con tinta, en ambos escaneos.
+
+Nota: la verificación de este fix (issue #38) se hizo contra el diseño de
+umbral único anterior (`UMBRAL_TINTA_CASILLA` absoluto, sin las 3 zonas ni el
+baseline adaptativo del #37 — esa rama aún no estaba fusionada cuando se
+investigó y corrigió el #38). Con el desalineamiento ya corregido, toca
+repetir la evaluación de varianza/separabilidad de Otsu/componentes conexas
+de las dos secciones anteriores para ver si ahora sí aportan algo sobre la
+zona dudosa — ver la sección siguiente.
+
+## Veredicto de las 4 estrategias, tras fusionar el fix del #38 (18 de agosto de 2026)
+
+Con el desalineamiento de fiduciales corregido, se repitió la comparación de
+`ocr_tests/verificar_casillas_vacias.mjs` sobre el dataset COMPLETO (no solo
+la zona dudosa, que ahora es mucho más pequeña) — 312 casillas sintéticas +
+160 reales — para las 4 señales evaluadas en esta ronda del issue #37:
+
+| Señal | Sintéticas (312) | Reales (160) |
+|---|---|---|
+| **Densidad relativa al blanco local** | limpia (8.3-38.5 tinta vs -0.5-0.4 blanco) | **limpia** (-2.3-55.4 tinta vs -18.2 a -6.4 blanco) |
+| **Varianza** | limpia (848-4374 tinta vs 0.5-8.0 blanco) | **limpia** (789-5383 tinta vs 0.0-6.2 blanco) |
+| Separabilidad de Otsu | limpia (0.83-0.90 tinta vs 0.61-0.74 blanco) | se solapan (0.80-0.87 tinta vs **0.00-1.00** blanco) |
+| Extensión de la componente mayor | se solapan (0.48-0.74 tinta vs 0.20-1.00 blanco) | se solapan (0.85-1.00 tinta vs 0.00-1.00 blanco) |
+| Fracción de la componente mayor | se solapan (siempre 1.00 tinta vs 0.08-1.00 blanco) | se solapan (0.89-1.00 tinta vs 0.00-1.00 blanco) |
+
+**Confirma exactamente la sospecha del issue #38**: la densidad relativa al
+baseline adaptativo, que antes del fix se solapaba en los escaneos reales
+(máx. blanco +3.6 vs mín. tinta -3.5), ahora separa limpio con margen de
+sobra (máx. blanco -6.4 vs mín. tinta -2.3 — casi 4 puntos de margen, en la
+dirección correcta). La varianza, que antes se solapaba e incluso se
+invertía en reales, ahora TAMBIÉN separa limpio en ambos datasets — la
+contaminación por el borde impreso explicaba efectivamente el fallo
+anterior, no una limitación real de la señal.
+
+**Veredicto por señal:**
+
+1. **Densidad media relativa al blanco local — GANADORA, confirmada.** Es la
+   única señal que ya sostenía la clasificación en producción y sigue siendo
+   la más simple y la más limpia. Con el desalineamiento corregido, los
+   márgenes actuales (`MARGEN_BLANCO_SEGURO = -5`, `MARGEN_TINTA_SEGURA = 9`)
+   son ahora demasiado conservadores — se calibraron para absorber un
+   solapamiento que en gran parte era el bug del #38, no ruido real. **Con
+   los datos actuales cabría un corte único sin banda dudosa** (ver el aviso
+   que imprime el propio script), pero con solo 2 personas reales, conviene
+   ampliar el dataset antes de eliminar la zona dudosa del todo — de momento
+   se deja como trabajo pendiente recalibrar los márgenes más ajustados
+   (candidato: algo cercano al `MARGEN` original de +4/+7, o incluso más
+   ajustado, dado el nuevo margen de casi 4 puntos sin solapar).
+2. **Varianza — REVALORIZADA.** Pasa de "no concluyente en reales" a limpia
+   en ambos datasets. No aporta nada que la densidad no aporte ya (ambas
+   separan limpio, redundante como señal principal), pero es barata de
+   calcular y podría servir de chequeo de confianza cruzado (dos señales
+   independientes de acuerdo = más confianza) si en el futuro se retoma la
+   idea de "forzar contenido" en zona tinta (issue #37, trabajo diferido).
+3. **Separabilidad de Otsu — DESCARTADA.** Sigue sin ser fiable en reales
+   incluso con el desalineamiento corregido: el rango en casillas blancas
+   reales es 0.00-1.00, el rango completo posible — no aporta señal. El fix
+   del #38 solo explicaba PARTE del problema de esta métrica; el resto (qué
+   tan nítido es un corte de Otsu sobre ruido/textura de papel real, sin
+   relación con si hay tinta) sigue siendo una limitación real de la señal,
+   no del desalineamiento.
+4. **Extensión/fracción de la componente mayor — DESCARTADAS.** Ninguna de
+   las dos separa ya ni siquiera en las fixtures sintéticas evaluadas sobre
+   el dataset completo (antes solo se habían mirado dentro de la zona
+   dudosa, una muestra sesgada). La hipótesis de partida ("un trazo ocupa
+   una fracción sustancial y coherente de la casilla, un artefacto no") no
+   se sostiene con este método de medición — `analizarComponentesCasilla` y
+   sus campos quedan en el código (documentados, sin usarse en
+   `zonaTintaCasilla`) por si una futura ronda quiere retomarlos con otra
+   aproximación (p. ej. coherencia de orientación de gradiente, discutida en
+   la propia conversación de este issue pero no implementada).
+
+**Siguiente paso recomendado** (no implementado en esta ronda, para no volver
+a recalibrar sin más evidencia): repetir `node
+ocr_tests/verificar_casillas_vacias.mjs` con más escaneos reales (más
+personas, más condiciones de foto/escaneo) antes de decidir si estrechar
+`MARGEN_BLANCO_SEGURO`/`MARGEN_TINTA_SEGURA` o eliminar la zona dudosa por
+completo — la separación limpia actual se apoya en una muestra de solo 2
+personas físicas.
+
+## Tercer escaneo real + densidad vs. varianza como margen máximo (18 de agosto de 2026)
+
+Se amplió `HOJAS_REALES` con un tercer escaneo (`ocr_tests/05-escaneo-real/escaneo-3.pdf`,
+mismo par de hojas físicas, tercera pasada de escaneado) — 240 casillas reales
+en total (antes 160). Con este tercer punto de datos, **la densidad relativa
+sola vuelve a solapar** (máx. en blanco 0.97, mín. con tinta −2.26 — 3.2
+puntos de solape, causado por una letra fina de trazo pobre en `escaneo-2` y
+unas casillas en blanco algo más ruidosas en `escaneo-3`). El mejor corte
+único da 239/240 aciertos (1 falso negativo, inocuo).
+
+**La varianza, en cambio, sigue separando limpio y con muchísimo más margen**:
+máx. en blanco 20.2, mín. con tinta 789.2 — margen de 769 puntos, ~40× de
+proporción entre las dos clases, sin estrecharse al añadir el tercer
+escaneo. Calculado el separador de margen máximo combinando ambas señales
+(densidad relativa + `log1p(varianza)`, estandarizadas, envolvente convexa +
+par de puntos más cercano entre clases — equivalente a un SVM de margen
+duro): **0 errores sobre las 240 casillas reales**, y comparando los pesos
+del hiperplano ya estandarizados (la forma correcta de comparar importancia
+entre dos variables con escalas distintas) la varianza pesa ~7.4× más que
+la densidad en esa decisión.
+
+**Repetido con las 552 casillas de TODO `ocr_tests/`** (las 312 sintéticas +
+las 240 reales — la primera vez solo se había calibrado con las reales,
+pregunta directa del propio autor del proyecto): el hiperplano apenas se
+mueve y sigue dando **0 errores sobre las 552**, pero el peso relativo de la
+varianza frente a la densidad SUBE a ~28.5× (las fixtures sintéticas, con
+densidad muy separada pero varianza igual de separada, refuerzan aún más el
+peso de la varianza en el óptimo). Conclusión: la varianza domina la
+decisión casi por completo, con o sin las fixtures sintéticas de por medio
+— combinar ambas señales no aporta mucho más que usar varianza sola con un
+buen umbral.
+
+**Consecuencia práctica, pendiente de decidir**: la varianza podría pasar a
+ser la señal principal de seguridad (con margen de sobra sobre lo
+observado, no el punto medio exacto: candidato ≈60 para `zona blanco`, ≈200
+para `zona tinta`, dado que la muestra REAL son solo 2 personas físicas —
+el sintético ya está saturado de casos, ampliarlo no movería el hiperplano),
+dejando la densidad como señal secundaria — en vez de al revés, como está
+hoy en `zonaTintaCasilla`. No implementado todavía: conviene ampliar el
+dataset real (más personas, más condiciones de escaneo) antes de tocar el
+diseño de producción otra vez.
+
+`CULTURA_BASICA_VOLCAR_JSON=<ruta>` (nueva variable de entorno de
+`verificar_casillas_vacias.mjs`): vuelca todos los puntos evaluados
+(densidad, varianza, separabilidad de Otsu, componentes, ground truth) a un
+JSON, para poder analizarlos o graficarlos fuera del propio script.
+
+## Separador ponderado (2× real) y diseño de 2 zonas en producción, con sus 4 consecuencias en el esquema de OCR-IA (issue #37, 18 de agosto de 2026, misma sesión)
+
+**Separador ponderado.** Recalculado el hiperplano de margen máximo (misma
+técnica de la ronda anterior: envolvente convexa de cada clase + par de
+puntos más cercano entre envolventes, sobre densidad relativa y
+`log1p(varianza)` estandarizadas) dando **2× de peso a las 240 casillas de
+escaneos reales frente a las 312 sintéticas** en el cálculo de la media/
+desviación de estandarización (la envolvente convexa en sí es puramente
+geométrica, no ponderable: no hay "casillas de sobra" que mover con más
+peso, solo cambia qué cuenta como "una desviación típica" de cada eje). El
+motivo: proteger contra dispositivos de escaneado con MENOS ruido que los 3
+usados aquí, sin descartar la información real por representar solo 2
+personas físicas. Resultado: el hiperplano prácticamente no se mueve — el
+umbral de varianza implícito, evaluado en varias densidades relativas entre
+−20 y 60, cambia consistentemente **menos del 0.05%** frente al hiperplano
+sin ponderar. Con una separación esta limpia, **no hace falta zona
+"dudosa"**: dos zonas bastan (blanco / tinta), sin banda intermedia.
+
+Coeficientes finales, en `public/admin/papel/comun.js`:
+
+```js
+export const COEF_DENSIDAD = -0.002231;
+export const COEF_LOG_VARIANZA = 0.332195;
+export const CORTE_SEPARADOR = 1.616889;
+
+export function zonaTintaCasilla(densidad, blancoLocal, varianza) {
+  const valor = COEF_DENSIDAD * (densidad - blancoLocal) + COEF_LOG_VARIANZA * Math.log1p(varianza);
+  return valor > CORTE_SEPARADOR ? "tinta" : "blanco";
+}
+```
+
+**Consecuencia de diseño**: con 2 zonas y esta certeza, "no está en la lista
+de blancas" ya significa "tiene tinta" con la misma confianza que estar en
+ella — el esquema de OCR-IA puede forzar CONTENIDO no vacío, no solo forzar
+vacío como hacía el diseño anterior de 3 zonas (issue #35). Implementadas
+las 4 consecuencias pedidas, todas en
+`worker/src/endpoints/admin/ocrIa.ts::esquemaCampoRespuestaItemLado` +
+`esquemaPosicionesConDeteccion` (nueva, sustituye a
+`esquemaPosicionesNullable` cuando SÍ hay detección):
+
+1. **Abierto**: si todas las casillas están en blanco, se fuerza `null`; si
+   hay alguna con tinta, se fuerza una longitud EXACTA (`minLength =
+   maxLength` = nº de casillas entre la primera y la última con tinta) — ya
+   no un techo con margen de seguridad (`MARGEN_SEGURIDAD_TECHO`, issue #35,
+   retirado: era un parche para un umbral absoluto que ya no existe).
+2. **Opción múltiple**: `null` si la única casilla está en blanco, o se
+   fuerza una letra concreta (nunca `""` ni `null` en el mismo bloque) si
+   tiene tinta.
+3. **Selección múltiple**: mismo tratamiento que abierto — `null` si ninguna
+   casilla tiene tinta, longitud EXACTA forzada si alguna la tiene. Se
+   retiró `numSeleccionadasRespuesta/Correccion` (el campo de la ronda
+   anterior, un CONTEO sin importar posición) en favor de
+   `longitudDetectadaRespuesta/Correccion` (el mismo campo que ya usaba
+   abierto: nº de casillas entre la primera y la última con tinta,
+   independientemente de huecos intermedios) — un único campo para los dos
+   formatos que lo necesitan, mismo significado en ambos.
+4. **Ordenar/clasificar**: cada posición se fuerza a `""` (sin tinta) o a
+   una letra concreta — nunca queda sin restringir con el patrón permisivo
+   `^[A-Z]?$` de antes. Si la lista de posiciones vacías cubre TODAS las
+   posiciones del bloque, el bloque entero se fuerza a `null` en vez de un
+   objeto con todo en `""`.
+
+**Bug encontrado y corregido durante esta ronda**: tanto
+`digitalizar.js::conDeteccionDeTinta` como su duplicado en
+`probar_ocr_ia.mjs` solo incluían `posicionesEnBlancoRespuesta/Correccion`
+en el objeto mandado al Worker cuando había AL MENOS una posición vacía
+(`...(posiciones.length > 0 && {...})`, heredado del diseño de 3 zonas,
+donde un array vacío no aportaba nada que forzar). Con 2 zonas, un array
+vacío significa "todas las posiciones tienen tinta" — justo el caso más
+común (un bloque de ordenar/clasificar completamente relleno) — y
+`tieneDeteccionDeTinta` en `ocrIa.ts` necesita ver el campo presente para
+activar el forzado de letras. Omitirlo dejaba ese caso sin ninguna
+restricción, exactamente el escenario que esta ronda pretendía cubrir.
+Corregido mandando el campo siempre (nunca condicionado a su longitud)
+cuando el ítem tiene casillas de ese formato.
+
+**Verificación**: `node ocr_tests/verificar_casillas_vacias.mjs` re-escrito
+para reportar 2 direcciones de caso peligroso (antes solo "tinta real →
+zona blanco" importaba, porque "dudoso" nunca forzaba nada; ahora "blanco
+real → zona tinta" también fuerza algo incorrecto en el esquema). **0 casos
+peligrosos en ninguna dirección**, en las 552 casillas (312 sintéticas + 240
+reales de los 3 escaneos). `npm test` (47 tests nuevos/actualizados en
+`worker/test/ocrIa.test.ts`, 207 en total) y `tsc --noEmit` sin errores.
+
+Gráfica interactiva con la nube de puntos completa (densidad y varianza por
+separado, más el plano combinado con la frontera del separador):
+https://claude.ai/code/artifact/8965f7b0-80ea-4835-a4f1-66c80d866d7b

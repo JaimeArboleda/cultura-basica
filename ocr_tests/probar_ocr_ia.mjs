@@ -176,19 +176,17 @@ async function enderezarYDetectarBlancos(paginaBrowser, baseUrl, jpegBase64, cas
       case "ordenar":
       case "clasificar":
       case "opcion_multiple": {
-        const posicionesEnBlancoRespuesta = casillasItem.filter((c) => c.lado === "respuesta" && !c.tieneTinta).map((c) => c.posicion + 1);
-        const posicionesEnBlancoCorreccion = casillasItem.filter((c) => c.lado === "correccion" && !c.tieneTinta).map((c) => c.posicion + 1);
-        return {
-          ...it,
-          ...(posicionesEnBlancoRespuesta.length > 0 && { posicionesEnBlancoRespuesta }),
-          ...(posicionesEnBlancoCorreccion.length > 0 && { posicionesEnBlancoCorreccion }),
-        };
+        // 2 zonas (blanco/tinta, sin banda dudosa), issue #37 ronda del 18 de
+        // agosto de 2026 — ver el mismo comentario en
+        // public/admin/papel/digitalizar.js::conDeteccionDeTinta. Se manda
+        // SIEMPRE, incluso como array vacío (nunca condicionado a length>0):
+        // un array vacío significa "todas las posiciones tienen tinta", y el
+        // Worker necesita esa señal para forzar una letra en todas ellas.
+        const posicionesEnBlancoRespuesta = casillasItem.filter((c) => c.lado === "respuesta" && c.zona === "blanco").map((c) => c.posicion + 1);
+        const posicionesEnBlancoCorreccion = casillasItem.filter((c) => c.lado === "correccion" && c.zona === "blanco").map((c) => c.posicion + 1);
+        return { ...it, posicionesEnBlancoRespuesta, posicionesEnBlancoCorreccion };
       }
-      case "seleccion_multiple": {
-        const numSeleccionadasRespuesta = casillasItem.filter((c) => c.lado === "respuesta" && c.tieneTinta).length;
-        const numSeleccionadasCorreccion = casillasItem.filter((c) => c.lado === "correccion" && c.tieneTinta).length;
-        return { ...it, numSeleccionadasRespuesta, numSeleccionadasCorreccion };
-      }
+      case "seleccion_multiple":
       case "abierto": {
         const longitud = (lado) => {
           const inkadas = casillasItem.filter((c) => c.lado === lado && c.tieneTinta).map((c) => c.posicion);

@@ -19,7 +19,17 @@
 // `data/build-paginacion.mjs` como parche para hacerlo determinista):
 // sustituido por ./hoja.js (pdf-lib, aritmética pura sobre métricas de fuente
 // reales), así que tampoco queda nada de eso.
-import { cajaQrGrande, cajaQrPagina, ESCALA_DIGITALIZACION, fiducialesFijos, PT_POR_MM, PX_POR_MM } from "./geometria.js";
+import {
+  cajaQrGrande,
+  cajaQrPagina,
+  ESCALA_DIGITALIZACION,
+  fiducialesFijos,
+  PADDING_MM,
+  PAGE_H_MM,
+  PAGE_W_MM,
+  PT_POR_MM,
+  PX_POR_MM,
+} from "./geometria.js";
 import { decodificarQr } from "./qr.js";
 
 export { ESCALA_DIGITALIZACION };
@@ -525,6 +535,192 @@ export function densidadPromedio(imageData, x0, y0, x1, y1) {
   return n > 0 ? suma / n : 0;
 }
 
+// Varianza de intensidad (misma luma 0-255 que densidadPromedio) dentro de
+// una región — issue #37, idea adicional nº2: un trazo de tinta real tiene
+// alto CONTRASTE local (línea oscura sobre fondo claro), mientras que una
+// mancha, sombra o ruido uniforme puede tener una media de densidad parecida
+// pero mucho menos variación interna. Señal secundaria a la densidad media
+// para separar mejor la zona dudosa (ver zonaTintaCasilla más abajo). No es
+// una transformada de Fourier (el issue también menciona "coeficientes de
+// alta frecuencia" como alternativa) — la varianza es una proxy mucho más
+// simple de calcular sobre una región pequeña (22% de inset de una casilla)
+// sin arrastrar ninguna librería de DSP, y mide esencialmente lo mismo para
+// este caso de uso: cuánto varía la intensidad punto a punto.
+export function varianzaEnRegion(imageData, x0, y0, x1, y1) {
+  const d = imageData.data;
+  const w = imageData.width;
+  const h = imageData.height;
+  const xi = Math.max(0, Math.round(x0));
+  const xf = Math.min(w, Math.round(x1));
+  const yi = Math.max(0, Math.round(y0));
+  const yf = Math.min(h, Math.round(y1));
+  let suma = 0;
+  let n = 0;
+  for (let y = yi; y < yf; y++) {
+    for (let x = xi; x < xf; x++) {
+      const i = (y * w + x) * 4;
+      suma += 255 - (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+      n++;
+    }
+  }
+  if (n === 0) return 0;
+  const media = suma / n;
+  let sumaCuad = 0;
+  for (let y = yi; y < yf; y++) {
+    for (let x = xi; x < xf; x++) {
+      const i = (y * w + x) * 4;
+      const luma = 255 - (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+      sumaCuad += (luma - media) * (luma - media);
+    }
+  }
+  return sumaCuad / n;
+}
+
+// Trazo coherente vs ruido estocástico (issue #37, seguimiento a la
+// varianza de arriba): la varianza de intensidad no distingue la CAUSA del
+// contraste — un artefacto de compresión JPEG (bloques de 8x8) o un ligero
+// desalineamiento del warp que atrapa el borde impreso de la casilla pueden
+// producir tanto contraste local como un trazo real; verificado contra
+// escaneos reales (ocr_tests/README.md, ronda del 17 de agosto de 2026): la
+// casilla EN BLANCO con más varianza de todo el dataset real superaba a
+// varias casillas CON tinta real. La diferencia real entre un trazo y ruido
+// no es solo cuánto contraste hay, sino su FORMA: un trazo de letra es una
+// mancha COHERENTE que ocupa una fracción sustancial de la casilla, mientras
+// que un artefacto de bloque o un borde mal recortado es más pequeño y no
+// domina la región.
+//
+// 1. Umbral de Otsu (histograma de oscuridad de la propia región, sin
+//    depender de ningún blanco muestreado fuera de ella): asume que la
+//    región es bimodal (fondo + trazo) y busca el corte que maximiza la
+//    varianza ENTRE las dos clases resultantes. Esa varianza entre clases
+//    (normalizada a 0-1, otsuSeparabilidad) es ya una medida de "qué tan
+//    bimodal es de verdad" la región: alta si hay una separación clara
+//    fondo/trazo, baja si es solo ruido disperso sin una moda oscura clara.
+// 2. Se binariza con ese umbral y se etiquetan las componentes conexas
+//    (flood-fill de 4 vecinos con una pila — la región es tan pequeña, unos
+//    pocos miles de píxeles, que ni siquiera hace falta un algoritmo más
+//    sofisticado que O(nº píxeles)).
+// 3. De la componente más grande se mide su EXTENSIÓN relativa al tamaño de
+//    la región (cuánto ancho/alto de la casilla cubre su caja delimitadora)
+//    y qué fracción de todos los píxeles "trazo" concentra — un trazo real
+//    debería dominar ambas métricas más que ruido disperso o un artefacto
+//    puntual, aunque el margen exacto hay que verificarlo con datos (ver
+//    ocr_tests/verificar_casillas_vacias.mjs).
+export function analizarComponentesCasilla(imageData, x0, y0, x1, y1) {
+  const d = imageData.data;
+  const w = imageData.width;
+  const h = imageData.height;
+  const xi = Math.max(0, Math.round(x0));
+  const xf = Math.min(w, Math.round(x1));
+  const yi = Math.max(0, Math.round(y0));
+  const yf = Math.min(h, Math.round(y1));
+  const rw = xf - xi;
+  const rh = yf - yi;
+  const vacio = { otsuUmbral: 0, otsuSeparabilidad: 0, numComponentes: 0, extensionComponenteMayor: 0, fraccionComponenteMayor: 0 };
+  if (rw <= 0 || rh <= 0) return vacio;
+
+  // Un único recorrido: oscuridad de cada píxel en un buffer local (para no
+  // volver a tocar imageData en los pasos siguientes) + histograma para Otsu.
+  const n = rw * rh;
+  const valores = new Uint8ClampedArray(n);
+  const histograma = new Array(256).fill(0);
+  for (let y = 0; y < rh; y++) {
+    for (let x = 0; x < rw; x++) {
+      const i = ((yi + y) * w + (xi + x)) * 4;
+      const oscuridad = Math.round(255 - (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]));
+      valores[y * rw + x] = oscuridad;
+      histograma[oscuridad]++;
+    }
+  }
+
+  let sumaTotal = 0;
+  for (let v = 0; v < 256; v++) sumaTotal += v * histograma[v];
+
+  // Otsu: barre los 256 cortes posibles buscando el que maximiza la varianza
+  // entre clases (fondo/trazo) — clásico, O(256) tras el histograma.
+  let mejorUmbral = 0;
+  let mejorVarianzaEntre = 0;
+  let pesoFondoAcum = 0;
+  let sumaFondoAcum = 0;
+  for (let t = 0; t < 255; t++) {
+    pesoFondoAcum += histograma[t];
+    sumaFondoAcum += t * histograma[t];
+    const pesoTrazo = n - pesoFondoAcum;
+    if (pesoFondoAcum === 0 || pesoTrazo === 0) continue;
+    const mediaFondo = sumaFondoAcum / pesoFondoAcum;
+    const mediaTrazo = (sumaTotal - sumaFondoAcum) / pesoTrazo;
+    const varianzaEntre = pesoFondoAcum * pesoTrazo * (mediaFondo - mediaTrazo) * (mediaFondo - mediaTrazo);
+    if (varianzaEntre > mejorVarianzaEntre) {
+      mejorVarianzaEntre = varianzaEntre;
+      mejorUmbral = t + 1; // píxeles con oscuridad >= t+1 son la clase "trazo"
+    }
+  }
+  if (mejorUmbral === 0) return vacio; // región perfectamente uniforme, ni un corte mejora sobre 0
+
+  // Varianza total de la región, para normalizar la varianza entre clases a
+  // 0-1 (comparable entre casillas con distinto contraste absoluto).
+  const media = sumaTotal / n;
+  let varianzaTotal = 0;
+  for (let v = 0; v < 256; v++) varianzaTotal += histograma[v] * (v - media) * (v - media);
+  varianzaTotal /= n;
+  const otsuSeparabilidad = varianzaTotal > 0 ? mejorVarianzaEntre / (n * n) / varianzaTotal : 0;
+
+  // Componentes conexas (flood-fill, 4 vecinos) de los píxeles "trazo".
+  const visitado = new Uint8Array(n);
+  const dx4 = [-1, 1, 0, 0];
+  const dy4 = [0, 0, -1, 1];
+  let numComponentes = 0;
+  let mayorArea = 0;
+  let mayorBboxW = 0;
+  let mayorBboxH = 0;
+  let totalTrazo = 0;
+  const pila = [];
+  for (let start = 0; start < n; start++) {
+    if (visitado[start] || valores[start] < mejorUmbral) continue;
+    numComponentes++;
+    pila.push(start);
+    visitado[start] = 1;
+    let area = 0;
+    let minX = rw;
+    let maxX = -1;
+    let minY = rh;
+    let maxY = -1;
+    while (pila.length > 0) {
+      const idx = pila.pop();
+      const x = idx % rw;
+      const y = (idx / rw) | 0;
+      area++;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      for (let k = 0; k < 4; k++) {
+        const nx = x + dx4[k];
+        const ny = y + dy4[k];
+        if (nx < 0 || nx >= rw || ny < 0 || ny >= rh) continue;
+        const v = ny * rw + nx;
+        if (visitado[v] || valores[v] < mejorUmbral) continue;
+        visitado[v] = 1;
+        pila.push(v);
+      }
+    }
+    totalTrazo += area;
+    if (area > mayorArea) {
+      mayorArea = area;
+      mayorBboxW = maxX - minX + 1;
+      mayorBboxH = maxY - minY + 1;
+    }
+  }
+
+  return {
+    otsuUmbral: mejorUmbral,
+    otsuSeparabilidad,
+    numComponentes,
+    extensionComponenteMayor: numComponentes > 0 ? Math.max(mayorBboxW / rw, mayorBboxH / rh) : 0,
+    fraccionComponenteMayor: totalTrazo > 0 ? mayorArea / totalTrazo : 0,
+  };
+}
+
 function densidadEnAnillo(imageData, cx, cy, rInt, rExt) {
   const d = imageData.data;
   const w = imageData.width;
@@ -684,19 +880,23 @@ export function destinoFiducialesEscalado(escala = ESCALA_DIGITALIZACION) {
 }
 
 // ============================================================
-// Detección determinista de tinta por casilla (issue #35): sobre la imagen YA
-// enderezada (post-warpearImagen, en coordenadas canónicas fijas —
-// hoja.js::calcularGeometriaCasillas conoce la posición exacta de cada
-// casilla de ordenar/clasificar), decide "tinta / sin tinta" por umbral —
-// mismo mecanismo que ya usa detectarFiduciales (densidadPromedio), aplicado
-// a un problema mucho más simple (binario, nunca "qué letra hay"). Umbral e
-// inset calibrados y verificados contra las 4 instancias sintéticas de
-// ocr_tests/ (ocr_tests/verificar_casillas_vacias.mjs): separación limpia
-// entre "con tinta" (mínimo de densidad 8.1) y "en blanco" (máximo 4.5) en
-// las 312 casillas evaluadas — ver ese script para volver a calibrar si hace
-// falta (fotos reales de calidad muy distinta, issue #35 trabajo pendiente
-// #3, todavía no probado más allá de estas fixtures sintéticas).
+// Detección determinista de tinta por casilla (issue #35, ampliada en el
+// #37 con baseline adaptativo + 3 zonas): sobre la imagen YA enderezada
+// (post-warpearImagen, en coordenadas canónicas fijas — hoja.js::
+// calcularGeometriaCasillas conoce la posición exacta de cada casilla),
+// decide "tinta / dudoso / sin tinta" — mismo mecanismo que ya usa
+// detectarFiduciales (densidadPromedio), aplicado a un problema mucho más
+// simple (nunca "qué letra hay"). Umbral e inset calibrados y verificados
+// contra las 4 instancias sintéticas de ocr_tests/
+// (ocr_tests/verificar_casillas_vacias.mjs): separación limpia entre "con
+// tinta" (mínimo de densidad 8.1) y "en blanco" (máximo 4.5) en las 312
+// casillas evaluadas — ver ese script para volver a calibrar si hace falta.
 export const INSET_RELATIVO_CASILLA = 0.22;
+// Umbral absoluto histórico (issue #35) — se mantiene exportado por
+// compatibilidad con quien lo importe directamente, pero detectarTintaCasillas
+// ya NO lo usa como umbral fijo: en su lugar resta un baseline de blanco
+// muestreado en la propia foto (ver UMBRAL_TINTA_CASILLA/UMBRAL_BLANCO_CASILLA
+// más abajo, ahora relativos a ese baseline) — issue #37.
 export const UMBRAL_TINTA_CASILLA = 8;
 
 // pt (mismo sistema de coordenadas que hoja.js, origen arriba-izquierda de la
@@ -706,13 +906,143 @@ export function ptAPxCanonico(pt, escala = ESCALA_DIGITALIZACION) {
   return (pt / PT_POR_MM) * PX_POR_MM * escala;
 }
 
+// mm (mismo sistema que geometria.js) -> px del canvas ya enderezado, misma
+// escala que ptAPxCanonico (destinoFiducialesEscalado usa fiducialesFijos(),
+// en mm, multiplicado por PX_POR_MM * escala).
+function mmAPxCanonico(mm, escala = ESCALA_DIGITALIZACION) {
+  return mm * PX_POR_MM * escala;
+}
+
+// ============================================================
+// Baseline de blanco adaptativo por foto (issue #37, "trabajo pendiente #4"
+// del propio issue original #35): en vez de comparar la densidad de cada
+// casilla contra un umbral absoluto fijo (calibrado solo contra las
+// fixtures sintéticas, con fondo blanco casi perfecto), se muestrea la
+// densidad del MARGEN DE PÁGINA de la MISMA foto — una franja que hoja.js
+// garantiza SIEMPRE en blanco (nada se dibuja más cerca del borde que
+// PADDING_MM, geometria.js) — y se usa ese valor como referencia de "blanco"
+// para ESA foto concreta. Debería hacer la detección más robusta a
+// variaciones de escaneado/foto (papel amarilleado, sombras, exposición,
+// compresión JPEG distinta entre móviles) que un umbral absoluto no puede
+// capturar.
+//
+// Franja de muestreo: entre BLANCO_MARGEN_INSET_MM y BLANCO_MARGEN_FIN_MM del
+// borde de la página — dentro del margen de PADDING_MM (15mm) garantizado en
+// blanco y con margen de sobra antes del fiducial (que empieza justo en
+// PADDING_MM, geometria.js::FIDUCIAL_INSET_MM), así que ninguna de las 4
+// bandas (arriba/abajo/izquierda/derecha) puede solaparse con un fiducial ni
+// con los QR (ambos viven dentro del área de contenido, no en el margen).
+const BLANCO_MARGEN_INSET_MM = 2;
+const BLANCO_MARGEN_FIN_MM = 12;
+const BLANCO_MARGEN_NUM_PARCHES = 6;
+
+function medianaDe(valores) {
+  const s = [...valores].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+
+// Reparte NUM_PARCHES rectángulos a lo largo de un eje (horizontal para las
+// bandas superior/inferior, vertical para las laterales) y devuelve la
+// densidad de cada uno — varios parches en vez de un único rectángulo grande
+// para que una única mancha, pliegue o sombra puntual en el margen (posible
+// en una foto real) no arrastre sola la mediana.
+function densidadesEnBanda(imageData, escala, horizontal, ini, fin, cruzIni, cruzFin) {
+  const valores = [];
+  const paso = (fin - ini) / BLANCO_MARGEN_NUM_PARCHES;
+  for (let k = 0; k < BLANCO_MARGEN_NUM_PARCHES; k++) {
+    const a = mmAPxCanonico(ini + k * paso, escala);
+    const b = mmAPxCanonico(ini + (k + 1) * paso, escala);
+    const c0 = mmAPxCanonico(cruzIni, escala);
+    const c1 = mmAPxCanonico(cruzFin, escala);
+    valores.push(horizontal ? densidadPromedio(imageData, a, c0, b, c1) : densidadPromedio(imageData, c0, a, c1, b));
+  }
+  return valores;
+}
+
+// Densidad "de referencia" del blanco de ESTA foto concreta, muestreada en
+// sus 4 márgenes — mediana de todos los parches (24 por defecto: 6 por
+// banda x 4 bandas) para ser robusta a un parche contaminado por una sombra
+// o mancha local. Exportada para que ocr_tests/verificar_casillas_vacias.mjs
+// pueda reportarla junto al resto de estadísticas de calibración.
+export function muestrearBlancoLocal(imageData, escala = ESCALA_DIGITALIZACION) {
+  const anchoMm = PAGE_W_MM;
+  const altoMm = PAGE_H_MM;
+  const valores = [
+    ...densidadesEnBanda(imageData, escala, true, BLANCO_MARGEN_INSET_MM, anchoMm - BLANCO_MARGEN_INSET_MM, BLANCO_MARGEN_INSET_MM, BLANCO_MARGEN_FIN_MM),
+    ...densidadesEnBanda(
+      imageData,
+      escala,
+      true,
+      BLANCO_MARGEN_INSET_MM,
+      anchoMm - BLANCO_MARGEN_INSET_MM,
+      altoMm - BLANCO_MARGEN_FIN_MM,
+      altoMm - BLANCO_MARGEN_INSET_MM
+    ),
+    ...densidadesEnBanda(imageData, escala, false, BLANCO_MARGEN_INSET_MM, altoMm - BLANCO_MARGEN_INSET_MM, BLANCO_MARGEN_INSET_MM, BLANCO_MARGEN_FIN_MM),
+    ...densidadesEnBanda(
+      imageData,
+      escala,
+      false,
+      BLANCO_MARGEN_INSET_MM,
+      altoMm - BLANCO_MARGEN_INSET_MM,
+      anchoMm - BLANCO_MARGEN_FIN_MM,
+      anchoMm - BLANCO_MARGEN_INSET_MM
+    ),
+  ];
+  return medianaDe(valores);
+}
+
+// ============================================================
+// Clasificación en 2 zonas: densidad + varianza, separador de margen máximo
+// (issue #37, ronda del 18 de agosto de 2026, tras corregir el
+// desalineamiento de fiduciales del #38): la banda "dudosa" de 3 zonas
+// (arriba en el historial de este fichero, ver `git log`) dejó de hacer
+// falta — con el desalineamiento corregido, la varianza de intensidad separa
+// "con tinta" de "en blanco" con un margen enorme (mínimo con tinta 789,
+// máximo en blanco 20, en las 552 casillas de todo ocr_tests/: 312
+// sintéticas + 240 reales de 3 escaneos distintos) y la densidad relativa al
+// blanco local aporta un poco más de separación combinada con ella.
+//
+// Calibración: envolvente convexa de cada clase sobre densidad relativa +
+// log(varianza), ESTANDARIZADAS ponderando las casillas reales x2 frente a
+// las sintéticas (para que dispositivos de escaneo más ruidosos que los 3
+// PDFs de ocr_tests/05-escaneo-real/ pesen más que las fixtures sintéticas,
+// más limpias) — el separador de margen máximo es la bisectriz perpendicular
+// del par de puntos más cercano entre ambas envolventes, equivalente a un
+// SVM de margen duro. 0 errores sobre las 552 casillas, con o sin ponderar
+// (el hiperplano prácticamente no se mueve al ponderar: <0.1% de cambio en
+// el umbral de varianza que implica, a cualquier densidad). Ver
+// ocr_tests/README.md para el detalle completo y el script de calibración.
+//
+// COEF_DENSIDAD/COEF_LOG_VARIANZA/CORTE_SEPARADOR son los coeficientes de esa
+// recta en unidades originales (ya con la ponderación aplicada) — el peso de
+// la varianza es ~26x mayor que el de la densidad en el óptimo estandarizado,
+// así que la varianza domina la decisión casi por completo; la densidad se
+// mantiene con un coeficiente pequeño porque sí aporta algo, aunque poco.
+export const COEF_DENSIDAD = -0.002231;
+export const COEF_LOG_VARIANZA = 0.332195;
+export const CORTE_SEPARADOR = 1.616889;
+
+export function zonaTintaCasilla(densidad, blancoLocal, varianza) {
+  const valor = COEF_DENSIDAD * (densidad - blancoLocal) + COEF_LOG_VARIANZA * Math.log1p(varianza);
+  return valor > CORTE_SEPARADOR ? "tinta" : "blanco";
+}
+
 // casillas: array de {xPt, yTopPt, wPt, hPt, ...} en pt (hoja.js::
 // calcularGeometriaCasillas) — cualquier otra propiedad (itemId, lado,
-// posicion...) se conserva sin tocar. Devuelve el mismo array con
-// `tieneTinta` (boolean) añadido a cada elemento.
-export function detectarTintaCasillas(canvasEnderezado, casillas, escala = ESCALA_DIGITALIZACION) {
+// posicion...) se conserva sin tocar. Devuelve el mismo array con `densidad`,
+// `varianza`, `zona` ("blanco"/"tinta") y `tieneTinta` (boolean, zona ===
+// "tinta" — se mantiene por compatibilidad con quien solo necesite el
+// criterio binario) añadidos a cada elemento.
+//
+// blancoLocal (opcional): si no se pasa, se muestrea de esta misma imagen
+// (muestrearBlancoLocal) — permite al llamador reutilizar un único muestreo
+// para varias llamadas sobre la misma página (varios ítems) sin repetir el
+// recorrido de los 4 márgenes en cada una.
+export function detectarTintaCasillas(canvasEnderezado, casillas, escala = ESCALA_DIGITALIZACION, blancoLocal) {
   const ctx = canvasEnderezado.getContext("2d");
   const imageData = ctx.getImageData(0, 0, canvasEnderezado.width, canvasEnderezado.height);
+  const blanco = blancoLocal ?? muestrearBlancoLocal(imageData, escala);
   return casillas.map((c) => {
     const xPx = ptAPxCanonico(c.xPt, escala);
     const yPx = ptAPxCanonico(c.yTopPt, escala);
@@ -721,6 +1051,9 @@ export function detectarTintaCasillas(canvasEnderezado, casillas, escala = ESCAL
     const mx = wPx * INSET_RELATIVO_CASILLA;
     const my = hPx * INSET_RELATIVO_CASILLA;
     const densidad = densidadPromedio(imageData, xPx + mx, yPx + my, xPx + wPx - mx, yPx + hPx - my);
-    return { ...c, tieneTinta: densidad >= UMBRAL_TINTA_CASILLA };
+    const varianza = varianzaEnRegion(imageData, xPx + mx, yPx + my, xPx + wPx - mx, yPx + hPx - my);
+    const componentes = analizarComponentesCasilla(imageData, xPx + mx, yPx + my, xPx + wPx - mx, yPx + hPx - my);
+    const zona = zonaTintaCasilla(densidad, blanco, varianza);
+    return { ...c, densidad, varianza, ...componentes, zona, tieneTinta: zona === "tinta" };
   });
 }

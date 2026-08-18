@@ -281,26 +281,31 @@ export function renderConfirmacionYCrear(
 // ============================================================
 
 // casillasPagina (opcional): la entrada de geometriaCasillas (obtenerManifiesto)
-// correspondiente a ESTA página. issue #35 (ampliado a los 5 formatos): antes
-// de mandar la página a OCR-IA, se muestrea la tinta de cada casilla sobre el
-// propio warpCanvas (ya enderezado) y se manda al Worker lo que ya se sabe
-// con certeza por cada lado (Respuesta/Corrección), en la forma que necesita
-// cada formato:
-//   - ordenar/clasificar/opcion_multiple: qué posiciones concretas están sin
-//     tinta (1-based) — el Worker las fuerza a cadena vacía en el esquema en
-//     vez de dejar que el modelo decida, la causa raíz del fallo de #33 (con
-//     un hueco en medio de la rejilla, el modelo desplazaba las letras
-//     siguientes en vez de dejar la posición vacía). opcion_multiple tiene
-//     una única casilla por lado, así que "en blanco" == "el bloque entero
-//     está vacío", fuerza null.
-//   - seleccion_multiple: cuántas casillas tienen tinta — el Worker fuerza
-//     esa MISMA cantidad de letras válidas en la respuesta (ni más ni menos),
-//     0 fuerza null.
-//   - abierto: cuántas casillas hay entre la primera y la última con tinta
-//     (incluye huecos intermedios: son los espacios entre palabras) — el
-//     Worker acota la longitud máxima a ese tramo en vez de al nº total de
-//     casillas impresas, para reducir el autocompletado ("PLUSV" →
-//     "PLUSVALIA"); 0 (ninguna casilla con tinta) fuerza null.
+// correspondiente a ESTA página. issue #35 (ampliado a los 5 formatos, baseline
+// de blanco adaptativo en el #37, y desde la ronda del 18 de agosto de 2026 de
+// ese mismo issue, clasificación en 2 zonas densidad+varianza en vez de 3 con
+// banda dudosa — ver el comentario grande junto a comun.js::zonaTintaCasilla):
+// antes de mandar la página a OCR-IA, se muestrea la tinta de cada casilla
+// sobre el propio warpCanvas (ya enderezado) y se manda al Worker CADA
+// posición ya clasificada con certeza (zona "blanco" o "tinta", nunca una
+// tercera opción intermedia), en la forma que necesita cada formato:
+//   - ordenar/clasificar/opcion_multiple: qué posiciones concretas están en
+//     zona "blanco" (1-based) — el Worker las fuerza a cadena vacía en el
+//     esquema, y fuerza una LETRA (nunca cadena vacía) en el resto de
+//     posiciones del bloque, ya que con 2 zonas "no está en blanco" ==
+//     "tiene tinta" con la misma certeza. Si NINGUNA posición tiene tinta, el
+//     Worker fuerza el bloque entero a null (equivalente a que todas estén en
+//     la lista de blancas). opcion_multiple tiene una única casilla por lado,
+//     así que "en blanco" == "el bloque entero está vacío", fuerza null; si
+//     no, fuerza una letra.
+//   - abierto/seleccion_multiple: cuántas casillas hay entre la primera y la
+//     última con tinta (incluye huecos intermedios: en abierto son los
+//     espacios entre palabras; en selección múltiple, las casillas de
+//     opciones no marcadas entre dos que sí lo están) — el Worker fuerza esa
+//     longitud EXACTA (ya no un techo con margen de seguridad: con el
+//     desalineamiento de fiduciales corregido y la varianza como señal
+//     principal, la detección es fiable de sobra); 0 (ninguna casilla con
+//     tinta) fuerza null.
 function conDeteccionDeTinta(itemManifiesto, warpCanvas, casillasPagina) {
   const casillasItem = casillasPagina.filter((c) => c.itemId === itemManifiesto.id);
   if (casillasItem.length === 0) return itemManifiesto;
@@ -310,19 +315,19 @@ function conDeteccionDeTinta(itemManifiesto, warpCanvas, casillasPagina) {
     case "ordenar":
     case "clasificar":
     case "opcion_multiple": {
-      const posicionesEnBlancoRespuesta = conTinta.filter((c) => c.lado === "respuesta" && !c.tieneTinta).map((c) => c.posicion + 1);
-      const posicionesEnBlancoCorreccion = conTinta.filter((c) => c.lado === "correccion" && !c.tieneTinta).map((c) => c.posicion + 1);
-      return {
-        ...itemManifiesto,
-        ...(posicionesEnBlancoRespuesta.length > 0 && { posicionesEnBlancoRespuesta }),
-        ...(posicionesEnBlancoCorreccion.length > 0 && { posicionesEnBlancoCorreccion }),
-      };
+      // Se manda SIEMPRE (incluso como array vacío) cuando hay casillas para
+      // este ítem, nunca condicionado a que haya alguna posición en blanco:
+      // con 2 zonas, un array vacío significa "todas las posiciones tienen
+      // tinta", y el Worker necesita esa señal para forzar una letra en TODAS
+      // ellas (tieneDeteccionDeTinta en ocrIa.ts) — omitir el campo aquí
+      // dejaría ese caso (el más común: un bloque completamente relleno) sin
+      // ninguna restricción, exactamente lo contrario de lo que pide esta
+      // ronda del issue #37.
+      const posicionesEnBlancoRespuesta = conTinta.filter((c) => c.lado === "respuesta" && c.zona === "blanco").map((c) => c.posicion + 1);
+      const posicionesEnBlancoCorreccion = conTinta.filter((c) => c.lado === "correccion" && c.zona === "blanco").map((c) => c.posicion + 1);
+      return { ...itemManifiesto, posicionesEnBlancoRespuesta, posicionesEnBlancoCorreccion };
     }
-    case "seleccion_multiple": {
-      const numSeleccionadasRespuesta = conTinta.filter((c) => c.lado === "respuesta" && c.tieneTinta).length;
-      const numSeleccionadasCorreccion = conTinta.filter((c) => c.lado === "correccion" && c.tieneTinta).length;
-      return { ...itemManifiesto, numSeleccionadasRespuesta, numSeleccionadasCorreccion };
-    }
+    case "seleccion_multiple":
     case "abierto": {
       const longitudDetectada = (lado) => {
         const inkadas = conTinta.filter((c) => c.lado === lado && c.tieneTinta).map((c) => c.posicion);
