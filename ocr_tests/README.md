@@ -1087,19 +1087,31 @@ proporción entre las dos clases, sin estrecharse al añadir el tercer
 escaneo. Calculado el separador de margen máximo combinando ambas señales
 (densidad relativa + `log1p(varianza)`, estandarizadas, envolvente convexa +
 par de puntos más cercano entre clases — equivalente a un SVM de margen
-duro): **0 errores sobre las 240 casillas**, pero el coeficiente de la
-densidad en ese hiperplano es ~20× menor que el de la varianza — la varianza
-domina la decisión casi por completo, combinar no aporta mucho más que usar
-varianza sola.
+duro): **0 errores sobre las 240 casillas reales**, y comparando los pesos
+del hiperplano ya estandarizados (la forma correcta de comparar importancia
+entre dos variables con escalas distintas) la varianza pesa ~7.4× más que
+la densidad en esa decisión.
+
+**Repetido con las 552 casillas de TODO `ocr_tests/`** (las 312 sintéticas +
+las 240 reales — la primera vez solo se había calibrado con las reales,
+pregunta directa del propio autor del proyecto): el hiperplano apenas se
+mueve y sigue dando **0 errores sobre las 552**, pero el peso relativo de la
+varianza frente a la densidad SUBE a ~28.5× (las fixtures sintéticas, con
+densidad muy separada pero varianza igual de separada, refuerzan aún más el
+peso de la varianza en el óptimo). Conclusión: la varianza domina la
+decisión casi por completo, con o sin las fixtures sintéticas de por medio
+— combinar ambas señales no aporta mucho más que usar varianza sola con un
+buen umbral.
 
 **Consecuencia práctica, pendiente de decidir**: la varianza podría pasar a
 ser la señal principal de seguridad (con margen de sobra sobre lo
 observado, no el punto medio exacto: candidato ≈60 para `zona blanco`, ≈200
-para `zona tinta`, dado que la muestra son solo 2 personas físicas), dejando
-la densidad como señal secundaria — en vez de al revés, como está hoy en
-`zonaTintaCasilla`. No implementado todavía: conviene ampliar el dataset
-real (más personas, más condiciones) antes de tocar el diseño de producción
-otra vez.
+para `zona tinta`, dado que la muestra REAL son solo 2 personas físicas —
+el sintético ya está saturado de casos, ampliarlo no movería el hiperplano),
+dejando la densidad como señal secundaria — en vez de al revés, como está
+hoy en `zonaTintaCasilla`. No implementado todavía: conviene ampliar el
+dataset real (más personas, más condiciones de escaneo) antes de tocar el
+diseño de producción otra vez.
 
 `CULTURA_BASICA_VOLCAR_JSON=<ruta>` (nueva variable de entorno de
 `verificar_casillas_vacias.mjs`): vuelca todos los puntos evaluados
