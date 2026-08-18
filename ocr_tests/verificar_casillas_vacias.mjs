@@ -570,17 +570,17 @@ async function main() {
     } else {
       console.log(`  0 casos peligrosos (tinta real -> zona "blanco").`);
     }
-    if (dudoso > 0) {
-      const dudosos = datos.filter((r) => r.zona === "dudoso");
-      const FEATURES = [
-        { campo: "varianza", etiqueta: "varianza" },
-        { campo: "otsuSeparabilidad", etiqueta: "separabilidad de Otsu (0-1)" },
-        { campo: "extensionComponenteMayor", etiqueta: "extensión de la componente mayor (0-1)" },
-        { campo: "fraccionComponenteMayor", etiqueta: "fracción de píxeles en la componente mayor (0-1)" },
-      ];
+    const FEATURES = [
+      { campo: "densidadRelativa", etiqueta: "densidad relativa al blanco local (densidad - blancoLocal)" },
+      { campo: "varianza", etiqueta: "varianza" },
+      { campo: "otsuSeparabilidad", etiqueta: "separabilidad de Otsu (0-1)" },
+      { campo: "extensionComponenteMayor", etiqueta: "extensión de la componente mayor (0-1)" },
+      { campo: "fraccionComponenteMayor", etiqueta: "fracción de píxeles en la componente mayor (0-1)" },
+    ];
+    function compararFeature(etiquetaGrupo, subset) {
       for (const { campo, etiqueta } of FEATURES) {
-        const conTinta = dudosos.filter((r) => r.tieneTintaReal).map((r) => r[campo]);
-        const enBlanco = dudosos.filter((r) => !r.tieneTintaReal).map((r) => r[campo]);
+        const conTinta = subset.filter((r) => r.tieneTintaReal).map((r) => (campo === "densidadRelativa" ? r.densidad - r.blancoLocal : r[campo]));
+        const enBlanco = subset.filter((r) => !r.tieneTintaReal).map((r) => (campo === "densidadRelativa" ? r.densidad - r.blancoLocal : r[campo]));
         if (conTinta.length === 0 || enBlanco.length === 0) continue;
         const medTinta = medianaSimple(conTinta);
         const medBlanco = medianaSimple(enBlanco);
@@ -590,11 +590,21 @@ async function main() {
         const maxBlanco = Math.max(...enBlanco);
         const limpia = maxBlanco < minTinta || maxTinta < minBlanco;
         console.log(
-          `  [dudoso] ${etiqueta} — con tinta: min=${minTinta.toFixed(4)} mediana=${medTinta.toFixed(4)} max=${maxTinta.toFixed(4)}; ` +
+          `  [${etiquetaGrupo}] ${etiqueta} — con tinta: min=${minTinta.toFixed(4)} mediana=${medTinta.toFixed(4)} max=${maxTinta.toFixed(4)}; ` +
             `en blanco: min=${minBlanco.toFixed(4)} mediana=${medBlanco.toFixed(4)} max=${maxBlanco.toFixed(4)}` +
-            (limpia ? " — SEPARACIÓN LIMPIA dentro de la banda dudosa (0 solapamiento con esta muestra)." : " — se solapan.")
+            (limpia ? " — SEPARACIÓN LIMPIA (0 solapamiento con esta muestra)." : " — se solapan.")
         );
       }
+    }
+
+    // Dataset COMPLETO (no solo la zona dudosa): con el desalineamiento de
+    // fiduciales corregido (issue #38), vale la pena comprobar si cada señal
+    // ahora separa bien sobre TODAS las casillas, no solo dentro de la banda
+    // que hoy queda como dudosa con el criterio de densidad — la propia banda
+    // dudosa puede haberse encogido tras el fix (menos casos que evaluar ahí).
+    compararFeature("todas", datos);
+    if (dudoso > 0) {
+      compararFeature("dudoso", datos.filter((r) => r.zona === "dudoso"));
     }
   }
 

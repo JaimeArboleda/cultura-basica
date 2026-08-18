@@ -1000,3 +1000,73 @@ investigó y corrigió el #38). Con el desalineamiento ya corregido, toca
 repetir la evaluación de varianza/separabilidad de Otsu/componentes conexas
 de las dos secciones anteriores para ver si ahora sí aportan algo sobre la
 zona dudosa — ver la sección siguiente.
+
+## Veredicto de las 4 estrategias, tras fusionar el fix del #38 (18 de agosto de 2026)
+
+Con el desalineamiento de fiduciales corregido, se repitió la comparación de
+`ocr_tests/verificar_casillas_vacias.mjs` sobre el dataset COMPLETO (no solo
+la zona dudosa, que ahora es mucho más pequeña) — 312 casillas sintéticas +
+160 reales — para las 4 señales evaluadas en esta ronda del issue #37:
+
+| Señal | Sintéticas (312) | Reales (160) |
+|---|---|---|
+| **Densidad relativa al blanco local** | limpia (8.3-38.5 tinta vs -0.5-0.4 blanco) | **limpia** (-2.3-55.4 tinta vs -18.2 a -6.4 blanco) |
+| **Varianza** | limpia (848-4374 tinta vs 0.5-8.0 blanco) | **limpia** (789-5383 tinta vs 0.0-6.2 blanco) |
+| Separabilidad de Otsu | limpia (0.83-0.90 tinta vs 0.61-0.74 blanco) | se solapan (0.80-0.87 tinta vs **0.00-1.00** blanco) |
+| Extensión de la componente mayor | se solapan (0.48-0.74 tinta vs 0.20-1.00 blanco) | se solapan (0.85-1.00 tinta vs 0.00-1.00 blanco) |
+| Fracción de la componente mayor | se solapan (siempre 1.00 tinta vs 0.08-1.00 blanco) | se solapan (0.89-1.00 tinta vs 0.00-1.00 blanco) |
+
+**Confirma exactamente la sospecha del issue #38**: la densidad relativa al
+baseline adaptativo, que antes del fix se solapaba en los escaneos reales
+(máx. blanco +3.6 vs mín. tinta -3.5), ahora separa limpio con margen de
+sobra (máx. blanco -6.4 vs mín. tinta -2.3 — casi 4 puntos de margen, en la
+dirección correcta). La varianza, que antes se solapaba e incluso se
+invertía en reales, ahora TAMBIÉN separa limpio en ambos datasets — la
+contaminación por el borde impreso explicaba efectivamente el fallo
+anterior, no una limitación real de la señal.
+
+**Veredicto por señal:**
+
+1. **Densidad media relativa al blanco local — GANADORA, confirmada.** Es la
+   única señal que ya sostenía la clasificación en producción y sigue siendo
+   la más simple y la más limpia. Con el desalineamiento corregido, los
+   márgenes actuales (`MARGEN_BLANCO_SEGURO = -5`, `MARGEN_TINTA_SEGURA = 9`)
+   son ahora demasiado conservadores — se calibraron para absorber un
+   solapamiento que en gran parte era el bug del #38, no ruido real. **Con
+   los datos actuales cabría un corte único sin banda dudosa** (ver el aviso
+   que imprime el propio script), pero con solo 2 personas reales, conviene
+   ampliar el dataset antes de eliminar la zona dudosa del todo — de momento
+   se deja como trabajo pendiente recalibrar los márgenes más ajustados
+   (candidato: algo cercano al `MARGEN` original de +4/+7, o incluso más
+   ajustado, dado el nuevo margen de casi 4 puntos sin solapar).
+2. **Varianza — REVALORIZADA.** Pasa de "no concluyente en reales" a limpia
+   en ambos datasets. No aporta nada que la densidad no aporte ya (ambas
+   separan limpio, redundante como señal principal), pero es barata de
+   calcular y podría servir de chequeo de confianza cruzado (dos señales
+   independientes de acuerdo = más confianza) si en el futuro se retoma la
+   idea de "forzar contenido" en zona tinta (issue #37, trabajo diferido).
+3. **Separabilidad de Otsu — DESCARTADA.** Sigue sin ser fiable en reales
+   incluso con el desalineamiento corregido: el rango en casillas blancas
+   reales es 0.00-1.00, el rango completo posible — no aporta señal. El fix
+   del #38 solo explicaba PARTE del problema de esta métrica; el resto (qué
+   tan nítido es un corte de Otsu sobre ruido/textura de papel real, sin
+   relación con si hay tinta) sigue siendo una limitación real de la señal,
+   no del desalineamiento.
+4. **Extensión/fracción de la componente mayor — DESCARTADAS.** Ninguna de
+   las dos separa ya ni siquiera en las fixtures sintéticas evaluadas sobre
+   el dataset completo (antes solo se habían mirado dentro de la zona
+   dudosa, una muestra sesgada). La hipótesis de partida ("un trazo ocupa
+   una fracción sustancial y coherente de la casilla, un artefacto no") no
+   se sostiene con este método de medición — `analizarComponentesCasilla` y
+   sus campos quedan en el código (documentados, sin usarse en
+   `zonaTintaCasilla`) por si una futura ronda quiere retomarlos con otra
+   aproximación (p. ej. coherencia de orientación de gradiente, discutida en
+   la propia conversación de este issue pero no implementada).
+
+**Siguiente paso recomendado** (no implementado en esta ronda, para no volver
+a recalibrar sin más evidencia): repetir `node
+ocr_tests/verificar_casillas_vacias.mjs` con más escaneos reales (más
+personas, más condiciones de foto/escaneo) antes de decidir si estrechar
+`MARGEN_BLANCO_SEGURO`/`MARGEN_TINTA_SEGURA` o eliminar la zona dudosa por
+completo — la separación limpia actual se apoya en una muestra de solo 2
+personas físicas.
