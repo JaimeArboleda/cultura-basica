@@ -299,13 +299,16 @@ export function renderConfirmacionYCrear(
 //     así que "en blanco" == "el bloque entero está vacío", fuerza null; si
 //     no, fuerza una letra.
 //   - abierto/seleccion_multiple: cuántas casillas hay entre la primera y la
-//     última con tinta (incluye huecos intermedios: en abierto son los
-//     espacios entre palabras; en selección múltiple, las casillas de
-//     opciones no marcadas entre dos que sí lo están) — el Worker fuerza esa
-//     longitud EXACTA (ya no un techo con margen de seguridad: con el
-//     desalineamiento de fiduciales corregido y la varianza como señal
-//     principal, la detección es fiable de sobra); 0 (ninguna casilla con
-//     tinta) fuerza null.
+//     última con tinta (longitudDetectada*, incluye huecos intermedios: en
+//     abierto son los espacios entre palabras; en selección múltiple, las
+//     casillas de opciones no marcadas entre dos que sí lo están) y cuántas
+//     de esas casillas tienen tinta de verdad (numTinta*) — el Worker fuerza
+//     un RANGO [numTinta, longitudDetectada], no un único valor exacto: un
+//     valor exacto se probó contra la API real (issue #37 seguimiento) y
+//     resultó inseguro para el único ítem "abierto" que envuelve a una 2ª
+//     fila de casillas — cualquier desajuste de ±1 entre el tramo detectado y
+//     la longitud real transcrita hacía que el modelo rellenara o truncara en
+//     vez de transcribir. 0 (ninguna casilla con tinta) fuerza null.
 function conDeteccionDeTinta(itemManifiesto, warpCanvas, casillasPagina) {
   const casillasItem = casillasPagina.filter((c) => c.itemId === itemManifiesto.id);
   if (casillasItem.length === 0) return itemManifiesto;
@@ -329,15 +332,19 @@ function conDeteccionDeTinta(itemManifiesto, warpCanvas, casillasPagina) {
     }
     case "seleccion_multiple":
     case "abierto": {
-      const longitudDetectada = (lado) => {
+      const tramo = (lado) => {
         const inkadas = conTinta.filter((c) => c.lado === lado && c.tieneTinta).map((c) => c.posicion);
-        if (inkadas.length === 0) return 0;
-        return Math.max(...inkadas) - Math.min(...inkadas) + 1;
+        if (inkadas.length === 0) return { longitud: 0, numTinta: 0 };
+        return { longitud: Math.max(...inkadas) - Math.min(...inkadas) + 1, numTinta: inkadas.length };
       };
+      const respuesta = tramo("respuesta");
+      const correccion = tramo("correccion");
       return {
         ...itemManifiesto,
-        longitudDetectadaRespuesta: longitudDetectada("respuesta"),
-        longitudDetectadaCorreccion: longitudDetectada("correccion"),
+        longitudDetectadaRespuesta: respuesta.longitud,
+        longitudDetectadaCorreccion: correccion.longitud,
+        numTintaRespuesta: respuesta.numTinta,
+        numTintaCorreccion: correccion.numTinta,
       };
     }
     default:

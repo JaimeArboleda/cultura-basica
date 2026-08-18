@@ -1205,3 +1205,186 @@ reales de los 3 escaneos). `npm test` (47 tests nuevos/actualizados en
 Gráfica interactiva con la nube de puntos completa (densidad y varianza por
 separado, más el plano combinado con la frontera del separador):
 https://claude.ai/code/artifact/8965f7b0-80ea-4835-a4f1-66c80d866d7b
+
+## Longitud EXACTA en "abierto"/"seleccion_multiple": regresión encontrada y corregida con rango [numTinta, longitudDetectada] (issue #37 seguimiento, 18 de agosto de 2026)
+
+Ronda de verificación del diseño de "forzar contenido" de la sección
+anterior (2 zonas, `esquemaPosicionesConDeteccion`/
+`esquemaCampoRespuestaItemLado`), esta vez integrado de verdad con la
+llamada al LLM (no solo con la detección de tinta aislada) — las 4
+instancias sintéticas de siempre +, por primera vez con este script, los 3
+escaneos reales de `ocr_tests/05-escaneo-real/` mandados por el pipeline
+completo de OCR-IA (sin ground truth completo para ítems `abierto` en los
+reales, pero sí para inspeccionar a mano el JSON crudo de vuelta).
+
+**Regresión real encontrada, dos corridas seguidas de las 4 instancias
+sintéticas (`gpt-5-mini`, `wrangler dev` local):** 96/100 (96%) en ambas —
+plano respecto al 97% de la ronda anterior, no la mejora esperable de un
+diseño que en teoría solo restringe más el esquema. El ítem `02` ("Isabel de
+Castilla y Fernando de Aragón", el ÚNICO ítem `abierto` del banco que
+envuelve a una 2ª fila de casillas, 39 car.) falló en 3 de las 4 apariciones
+con el mismo patrón: contenido real casi correcto + relleno inventado al
+final para completar la longitud exacta forzada, p. ej.
+`"ISABELDECASTILLAYFERNANDO DEARAGONAONR "` — exactamente el mismo efecto
+secundario del grammar-constrained decoding de Structured Outputs que ya se
+había corregido una vez (issue #35, "SODICÁONIMAÑIÑIÑIÑ") y que esta ronda
+(issue #37, sección anterior) reintrodujo para el caso con detección de
+tinta: forzar `minLength = maxLength = longitudDetectada` (el tramo entre la
+primera y la última casilla con tinta) da por hecho que ese tramo coincide
+exactamente con el nº de caracteres que el modelo va a transcribir — cierto
+la mayoría de las veces, pero no cuando hay un desajuste de unas pocas
+casillas (huecos entre palabras al pasar de una fila a otra, una casilla
+borderline en el extremo del tramo en una foto real más ruidosa que las
+fixtures sintéticas). **Reproducido también con tinta real**, no solo con el
+render sintético: el mismo ítem `02`, mandado por el pipeline completo
+contra `escaneo-1.pdf` (persona de letra clara), volvió como
+`"ISABEL DE CASTILLA Y FERNANDO DE ARAGON  FE RN "` (47 caracteres forzados
+por un tramo detectado de 47, contra un contenido real de ~40).
+
+Lado positivo del mismo cambio, para que quede constancia: el fallo
+histórico más persistente del proyecto (autocompletar "PLUSV" → "PLUSVALIA")
+**no apareció en ninguna de las 2 corridas** — con longitud exacta forzada a
+la del tramo detectado, el modelo ya no puede inventar una palabra más larga
+aunque quiera. El problema no es que forzar longitud sea mala idea: es que
+un ÚNICO valor exacto es frágil exactamente igual que ya lo era el umbral
+absoluto de densidad (issue #35): basta con que el tramo detectado no
+coincida con el nº de caracteres reales para que cualquier ítem concreto se
+rompa.
+
+**Fix**: en vez de un único valor exacto, el esquema fuerza ahora un RANGO
+`[minLength, maxLength]` con dos mediciones directas sobre la imagen, cada
+una segura por separado — nunca una estimación puntual:
+
+- `maxLength` sigue siendo `longitudDetectada*` (el tramo completo, primera
+  a última casilla con tinta — el contenido real nunca puede ocupar más).
+- `minLength` es un campo nuevo, `numTinta*` (`worker/src/endpoints/admin/
+  ocrIa.ts::ItemEntrada`): cuántas casillas de ESE tramo tienen tinta de
+  verdad (el contenido real nunca puede tener MENOS caracteres que
+  casillas con tinta detectadas).
+
+Con `minLength = numTinta` y `maxLength = longitudDetectada`, el modelo
+puede transcribir cualquier longitud dentro de ese rango — incluyendo
+exactamente `longitudDetectada` cuando de verdad no hay huecos, el caso
+mayoritario — sin verse forzado a inventar relleno ni a truncar cuando el
+tramo detectado se queda un poco largo. Implementado en los 3 sitios que ya
+duplicaban esta lógica (README §2): `public/admin/papel/
+digitalizar.js::conDeteccionDeTinta`, `ocr_tests/probar_ocr_ia.mjs::
+enderezarYDetectarBlancos` y el esquema/validación en `ocrIa.ts`
+(`esquemaCampoRespuestaItemLado`, `motivoItemInvalido` valida que
+`numTinta* <= longitudDetectada*` del mismo lado). 212 tests en total
+(worker), `tsc --noEmit` sin errores.
+
+**Verificación tras el fix** (`gpt-5-mini`, mismas 4 instancias sintéticas):
+
+| Instancia | Ítems | Demografía |
+|---|---|---|
+| `01-letra-clara` | **25/25 (100%)** | 7/7 (100%) |
+| `02-con-correcciones` | 24/25 (96%) | 7/7 (100%) |
+| `03-valores-invalidos-e-incompletas` | **25/25 (100%)** | 7/7 (100%) |
+| `04-descuidada-ruidosa` | 24/25 (96%) | 7/7 (100%) |
+
+**98/100 (98%)**, el mejor agregado medido hasta ahora en este banco — el
+ítem `02` acierta en las 2 instancias donde antes fallaba (`01-letra-clara`
+y `02-con-correcciones`), sin ningún caso nuevo de relleno inventado.
+
+**Verificación contra los 3 escaneos reales, con el pipeline completo de
+OCR-IA** (antes de este fix, y después): el ítem `02` volvía con relleno
+inventado en las 3 pasadas de escaneado de la persona de letra clara antes
+del fix; tras el fix, transcribe **`"ISABEL DE CASTILLA Y FERNANDO DE
+ARAGON"` limpio y sin variación en las 3 pasadas** (`escaneo-1/2/3.pdf`) —
+la otra persona real (letra descuidada) escribió una respuesta distinta pero
+igual de válida ("LOS REYES CATOLICOS"), también consistente en las 3
+pasadas, sin relación con este fix. No hay ground truth completo de ítems
+`abierto` para los escaneos reales (solo de tinta en ordenar/clasificar, ver
+secciones anteriores), así que esto es inspección manual del JSON crudo
+devuelto, no un % de acierto — suficiente para confirmar que el patrón de
+fallo desaparece también con tinta real, no solo con el render sintético.
+
+**Los 2 fallos que quedan en la corrida sintética, revisados, no están
+relacionados con este fix:**
+
+- Ítem `10` (`02-con-correcciones`, "51/4" → "5 1/"): el plan de esta
+  persona hace fallar la pregunta a propósito, y para simular "qué escribe
+  alguien que falla" usa el string canónico invertido letra a letra cuando
+  el ítem no tiene `alias_parcial` (`generar.mjs::planItem`,
+  `"4/15".split("").reverse().join("") === "51/4"`) — no es una fracción de
+  verdad, es la respuesta correcta leída del revés, mismo mecanismo que
+  genera los casos de texto invertido de otros ítems. Como las 4 casillas de
+  `"51/4"` están inkadas de forma contigua (sin huecos), `numTinta =
+  longitudDetectada = 4` y el rango colapsa a un único valor, igual que
+  antes del fix — el modelo mete un espacio de más al transcribir una
+  cadena que no lee como número real ("5 1/") y, forzado a 4 caracteres
+  exactos (correctamente: solo hay 4 casillas con tinta), pierde el último
+  dígito. Reproducido idéntico en las 2 corridas — mismo patrón que
+  "PLUSV"→"PLUSVALIA" en su día, candidato a un ejemplo few-shot dedicado a
+  dígitos/símbolos no-palabra si se quiere perseguir, pero no accionable
+  desde el esquema: no hay ningún margen adicional que dar sin dejar de
+  reflejar la tinta real.
+- Ítem `11` (`04-descuidada-ruidosa`, texto invertido sin sentido): mismo
+  patrón de espaciado letra a letra ya documentado en rondas anteriores,
+  exclusivo de la instancia adversarial que prueba texto invertido — nunca
+  aparece en texto real, aunque esté mal escrito a mano.
+
+Ambos son el mismo sesgo de fondo (espaciado al transcribir contenido que no
+"lee" como una palabra o número real), ya documentado y mitigado mediante el
+prompt (`SYSTEM_PROMPT_ITEMS`: *"Entre casilla y casilla NO hay un espacio en
+blanco"*), pero no eliminado del todo — razonable dejarlo como límite
+conocido: ambos casos son adversariales por diseño (simulan respuestas
+incorrectas/texto sin sentido a propósito), no representativos de una hoja
+real bien rellenada.
+
+**Margen proporcional sobre el techo, probado y descartado**: se probó
+además dar un +25% de margen (redondeado al alza, topado por `numCasillas`)
+sobre `maxLength` en "abierto", pensado para el caso `numTinta ===
+longitudDetectada` (sin ningún hueco, donde el rango de arriba colapsa a un
+único valor exacto) — el caso exacto de "51/4". Verificado contra la API
+real: **no arregló el caso** (el modelo, en vez de usar el carácter de más
+para conservar el último dígito, metió AÚN más espacio — "5 1 /" en vez de
+"5 1/", perdiendo el dígito igual) y **sí introdujo una regresión nueva**:
+el ítem `10` de `03-valores-invalidos-e-incompletas` (`"4/1"`, respuesta
+incompleta a propósito) volvió como `"4/15"` — el margen le dio al modelo
+hueco para "completar" la fracción hacia la respuesta correcta en vez de
+transcribir literalmente lo escrito, reabriendo exactamente el patrón de
+alucinación que el diseño de longitud EXACTA (sin margen) ya había cerrado.
+Descartado — el punto óptimo está más cerca de "sin margen" que de "+25%":
+`numTinta`/`longitudDetectada` siguen siendo ambos mediciones directas sin
+margen añadido, en `abierto` y en `seleccion_multiple` por igual.
+
+## Ground truth completo de los 2 escaneos reales, verificado visualmente (18 de agosto de 2026)
+
+`ocr_tests/05-escaneo-real/real-A-letra-clara.respuestas-esperadas.json` y
+`real-B-letra-descuidada.respuestas-esperadas.json` (nuevos): ground truth
+completo de los 25 ítems + demografía para las 2 personas reales de
+`ocr_tests/05-escaneo-real/` (antes solo existía el ground truth parcial de
+tinta de `verificar_casillas_vacias.mjs`, limitado a los ítems
+`ordenar`/`clasificar`) — mismo formato que
+`ocr_tests/<persona>/respuestas-esperadas.json` (`demografia` +
+`respuestas_esperadas` con los 25 ítems, `null` explícito en los que la
+persona dejó en blanco), para poder reutilizarlo en una futura versión de
+`probar_ocr_ia.mjs` que también calcule un % de acierto contra los PDFs
+reales, no solo contra las fixtures sintéticas.
+
+**Método**: las 3 pasadas de escaneado (`escaneo-1/2/3.pdf`) son la MISMA
+hoja física rellenada una única vez por cada persona, así que el ground
+truth de qué se escribió es el mismo para las 3 — se construyó a partir de
+`escaneo-1.pdf` únicamente. Cada una de las 12 páginas (6 por persona: 1 de
+datos + 5 de ítems) se inspeccionó visualmente a resolución completa
+(imagen ya enderezada, `detectarFiduciales`+`warpearImagen`, igual que el
+pipeline real) contra el JSON que ya había devuelto OCR-IA en la corrida de
+verificación del fix de `numTinta` (sección anterior) — confirmando
+coincidencia exacta en las 25 respuestas + 7 campos de demografía de
+`real-A-letra-clara` y en las 25 + 7 de `real-B-letra-descuidada`, con **una
+única excepción marcada como incierta**: el ítem `17` de
+`real-B-letra-descuidada` (zonas sísmicas) tiene un rasgo cursivo entre "C"
+y "E" indistinguible a simple vista incluso ampliando la imagen — se dejó el
+valor que devolvió el modelo ("E") por falta de una lectura alternativa más
+segura, marcado aquí para quien quiera revisarlo con el papel físico
+delante.
+
+No incluye `exam_id_qr`/`token_id_qr` (solo se leyó el código de la remesa
+impreso como texto, `e3a25685-a7e4-4928-a92b-4a52ed5c532c` — el `exam_id` de
+cada hoja solo está codificado en el QR de cada página, no como texto
+legible, y decodificarlo quedó fuera de alcance de esta ronda), así que
+estos ficheros sirven para comparar `respuestas_esperadas`/`demografia`
+pero no para probar el extremo a extremo (`POST /api/admin/digitalizacion`)
+como sí hace `probar_ocr_ia.mjs` con las fixtures sintéticas.

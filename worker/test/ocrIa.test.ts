@@ -237,6 +237,62 @@ describe("POST /api/admin/ocr-ia", () => {
     expect(res.status).toBe(400);
   });
 
+  it("400 con numTintaRespuesta en un formato que no es abierto ni seleccion_multiple", async () => {
+    const auth = await tokenAdmin();
+    const res = await postOcrIa(
+      {
+        paginas: [
+          {
+            id: "p1",
+            imagen: IMAGEN_VALIDA,
+            tipo: "items",
+            items: [{ id: "x", formato: "ordenar", numero: 1, n: 3, numTintaRespuesta: 2 }],
+          },
+        ],
+      },
+      auth
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("400 con numTintaRespuesta mayor que longitudDetectadaRespuesta (suelo por encima del techo)", async () => {
+    const auth = await tokenAdmin();
+    const res = await postOcrIa(
+      {
+        paginas: [
+          {
+            id: "p1",
+            imagen: IMAGEN_VALIDA,
+            tipo: "items",
+            items: [
+              { id: "x", formato: "abierto", numero: 1, numCasillas: 20, longitudDetectadaRespuesta: 5, numTintaRespuesta: 6 },
+            ],
+          },
+        ],
+      },
+      auth
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("400 con numTintaRespuesta sin longitudDetectadaRespuesta en el mismo ítem", async () => {
+    const auth = await tokenAdmin();
+    const res = await postOcrIa(
+      {
+        paginas: [
+          {
+            id: "p1",
+            imagen: IMAGEN_VALIDA,
+            tipo: "items",
+            items: [{ id: "x", formato: "abierto", numero: 1, numCasillas: 20, numTintaRespuesta: 3 }],
+          },
+        ],
+      },
+      auth
+    );
+    expect(res.status).toBe(400);
+  });
+
   it("400 con un ítem sin numero (posición impresa en el círculo)", async () => {
     const auth = await tokenAdmin();
     const res = await postOcrIa(
@@ -374,7 +430,7 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     });
   });
 
-  it("seleccion_multiple: longitudDetectadaRespuesta fuerza la longitud EXACTA detectada (minLength=maxLength), no un techo con margen (issue #37, 2 zonas)", () => {
+  it("seleccion_multiple: sin numTintaRespuesta, longitudDetectadaRespuesta fuerza la longitud EXACTA (fallback compatible con el diseño anterior)", () => {
     const esquema = construirEsquemaCompleto([
       {
         id: "p",
@@ -393,6 +449,26 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     // El otro lado, sin nada detectado, sigue con el esquema permisivo normal.
     expect(bloqueRespuesta(pregunta, "correccion")).toEqual({
       anyOf: [{ type: "string", pattern: "^[A-D ]*$" }, { type: "null" }],
+    });
+  });
+
+  it("seleccion_multiple: con numTintaRespuesta, el esquema fuerza un RANGO [numTinta, longitud], no un valor exacto (issue #37 seguimiento)", () => {
+    const esquema = construirEsquemaCompleto([
+      {
+        id: "p",
+        imagen: "x",
+        tipo: "items",
+        items: [
+          { id: "i", formato: "seleccion_multiple", numero: 1, numOpciones: 6, longitudDetectadaRespuesta: 5, numTintaRespuesta: 3 },
+        ],
+      },
+    ]);
+    const pregunta = propiedad(esquema, "1");
+    expect(bloqueRespuesta(pregunta, "respuesta_inicial")).toEqual({
+      type: "string",
+      minLength: 3,
+      maxLength: 5,
+      pattern: "^[A-F ]{3,5}$",
     });
   });
 
@@ -530,7 +606,7 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     });
   });
 
-  it("abierto: longitudDetectadaRespuesta fuerza la longitud EXACTA detectada (minLength=maxLength), no un techo con margen (issue #37, 2 zonas)", () => {
+  it("abierto: sin numTintaRespuesta, longitudDetectadaRespuesta fuerza la longitud EXACTA (fallback compatible con el diseño anterior)", () => {
     const esquema = construirEsquemaCompleto([
       {
         id: "p",
@@ -549,6 +625,29 @@ describe("construirEsquemaCompleto: restringe cada campo a sus letras válidas",
     // El otro lado, sin nada detectado, sigue con el esquema normal (0..numCasillas, sin minLength).
     expect(bloqueRespuesta(pregunta, "correccion")).toEqual({
       anyOf: [{ type: "string", maxLength: 20, pattern: "^[A-Z0-9ÁÉÍÓÚÜÑ /]{0,20}$" }, { type: "null" }],
+    });
+  });
+
+  it("abierto: con numTintaRespuesta, el esquema fuerza un RANGO [numTinta, longitud] — un desajuste entre el tramo detectado y lo escrito ya no fuerza relleno ni truncamiento (issue #37 seguimiento, 18 de agosto de 2026)", () => {
+    const esquema = construirEsquemaCompleto([
+      {
+        id: "p",
+        imagen: "x",
+        tipo: "items",
+        items: [{ id: "i", formato: "abierto", numero: 1, numCasillas: 41, longitudDetectadaRespuesta: 47, numTintaRespuesta: 39 }],
+      },
+    ]);
+    // Caso real (ocr_tests/README.md, ítem "02" que envuelve a una 2ª fila de
+    // casillas): el tramo detectado (47) puede quedarse un poco largo
+    // respecto a las casillas realmente inkadas (39) — con el diseño de
+    // valor exacto anterior esto forzaba al modelo a inventar ~8 caracteres
+    // de relleno para llegar a 47. Con el rango, 39-40 caracteres reales
+    // siguen siendo una respuesta válida.
+    expect(bloqueRespuesta(propiedad(esquema, "1"), "respuesta_inicial")).toEqual({
+      type: "string",
+      minLength: 39,
+      maxLength: 47,
+      pattern: "^[A-Z0-9ÁÉÍÓÚÜÑ /]{39,47}$",
     });
   });
 
