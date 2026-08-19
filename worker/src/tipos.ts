@@ -37,12 +37,17 @@ export interface Item {
   nota_parcial_desactivada?: boolean;
   // Opcional (solo presente en algún ítem "abierto" puntual, p. ej.
   // data/items/10.json): ejemplo del formato esperado en la respuesta (p.
-  // ej. "1/2" para un ítem que pide el resultado como fracción). No revela
-  // la respuesta correcta del ítem, así que ItemPublico sí lo expone —
-  // public/admin/papel/hoja.js lo usa para imprimir, junto al propio
-  // enunciado (misma línea, sin casillas nuevas en el flujo del ítem: ver
-  // construirEnunciado), una casilla pequeña por carácter a modo de
-  // ejemplo, para dejar claro que "/" ocupa su propia casilla.
+  // ej. "1/2" para un ítem que pide el resultado como fracción). NUNCA se
+  // escribe a mano dentro de enunciado (evita mantener el mismo ejemplo
+  // repetido en dos sitios si algún día cambia): cada superficie compone su
+  // propia aclaración a partir de este campo, con su propia redacción —
+  // public/app.js añade "(por ejemplo, escribe "1/2").” tras el enunciado
+  // (no hay ningún ejemplo visual en la web); public/admin/papel/hoja.js
+  // añade solo "(mira el ejemplo)." porque ahí sí hay un ejemplo VISUAL
+  // (una casilla pequeña por carácter, misma línea del enunciado — ver
+  // construirEnunciado) y repetir el valor en texto sería redundante. No
+  // revela la respuesta correcta del ítem, así que ItemPublico sí lo
+  // expone.
   ejemplo_abierto?: string | null;
 }
 
