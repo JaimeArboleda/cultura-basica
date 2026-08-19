@@ -35,6 +35,14 @@ export interface Item {
   // continentes..."). Solo tiene sentido en formatos con puntuación
   // fraccionaria (seleccion_multiple, clasificar, ordenar).
   nota_parcial_desactivada?: boolean;
+  // Opcional (solo presente en algún ítem "abierto" puntual, p. ej.
+  // data/items/10.json): ejemplo del formato esperado en la respuesta (p.
+  // ej. "1/2" para un ítem que pide el resultado como fracción). No revela
+  // la respuesta correcta del ítem, así que ItemPublico sí lo expone —
+  // public/admin/papel/hoja.js lo usa para imprimir, además del propio
+  // texto del enunciado, un pequeño bloque de casillas YA RELLENAS a modo de
+  // ejemplo (p. ej. para dejar claro que "/" ocupa su propia casilla).
+  ejemplo_abierto?: string | null;
 }
 
 // Vista del ítem que sale hacia el cliente: nunca contiene la respuesta correcta.
@@ -70,6 +78,9 @@ export interface ItemPublico {
   // ("Marca TODAS las que correspondan"), igual que ya hacía el test web al
   // suprimir la nota genérica de "rellena las que sepas" para este mismo ítem.
   num_correctas: number | null;
+  // Ver Item.ejemplo_abierto. null en cualquier ítem que no lo tenga
+  // (incluidos todos los formatos distintos de "abierto").
+  ejemplo_abierto: string | null;
 }
 
 // Vista de un ítem ya respondido pero de una sesión aún en curso (README §3, §8:

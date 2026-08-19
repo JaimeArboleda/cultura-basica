@@ -657,6 +657,29 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       // a partir de ella (antes lo intentaba y siempre caía al mínimo fijo:
       // bug real, la hoja en producción nunca dibujaba más de 18 casillas).
       numCasillasAbierto = casillasAbiertoAjustadas(item.casillas_abierto ?? config.casillasAbierto, anchoPt);
+
+      // Ejemplo opcional (item.ejemplo_abierto, p. ej. "1/2" en data/items/
+      // 10.json, el único ítem "abierto" que pide un formato con símbolos
+      // especiales): además del propio texto del enunciado ("por ejemplo,
+      // escribe..."), un bloque de casillas YA RELLENAS con ese ejemplo —
+      // sobre todo para dejar claro con las mismas casillas reales que un
+      // símbolo como "/" ocupa su PROPIA casilla, no comparte una con el
+      // dígito de al lado. Nunca se añade a bloquesCasillas: son casillas
+      // decorativas fijas, no algo que la persona rellene ni que el motor de
+      // OCR-IA necesite leer.
+      if (item.ejemplo_abierto) {
+        partes.push(
+          construirBloqueCasillas(
+            ctx,
+            "Ejemplo de formato (no es la respuesta correcta)",
+            [...item.ejemplo_abierto].length,
+            anchoPt,
+            config,
+            { valores: [...item.ejemplo_abierto] }
+          )
+        );
+      }
+
       const offsetResp = offsetActualPt();
       const bloqueResp = construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config, resp, numCasillasAbierto);
       partes.push(bloqueResp);
