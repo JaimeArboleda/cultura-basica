@@ -210,7 +210,7 @@ function construirTitulo(ctx, texto, anchoPt, config) {
 // ejemplo (opcional, item.ejemplo_abierto, p. ej. "1/2" en data/items/
 // 10.json, el único ítem "abierto" que pide un formato con símbolos
 // especiales): una casilla pequeña por carácter, pegada justo tras el
-// propio texto ("...(mira el ejemplo). [1][/][2]"), en la MISMA línea del
+// propio texto ("...como en este ejemplo: [1][/][2]"), en la MISMA línea del
 // enunciado — para dejar claro con casillas reales que un símbolo como "/"
 // ocupa su PROPIA casilla, sin repetir el valor en texto en ningún otro
 // sitio de la hoja. No ensancha el bloque (altoPt de más abajo no cambia):
@@ -677,7 +677,7 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
   // (misma línea, ver más abajo) — repetir el propio valor ("1/2") en texto
   // sería redundante al tenerlo justo al lado en casillas reales.
   const textoEnunciado =
-    item.formato === "abierto" && item.ejemplo_abierto ? `${item.enunciado} (mira el ejemplo).` : item.enunciado;
+    item.formato === "abierto" && item.ejemplo_abierto ? `${item.enunciado}, como en este ejemplo:` : item.enunciado;
   const partes = [
     construirEnunciado(
       ctx,
