@@ -207,7 +207,24 @@ function construirTitulo(ctx, texto, anchoPt, config) {
 
 // Enunciado numerado: círculo con el número + texto en negrita, con sangría
 // francesa (todas las líneas alineadas con el texto, no con el círculo).
-function construirEnunciado(ctx, numero, texto, anchoPt, config) {
+// ejemplo (opcional, item.ejemplo_abierto, p. ej. "1/2" en data/items/
+// 10.json, el único ítem "abierto" que pide un formato con símbolos
+// especiales): una casilla pequeña por carácter, alineada a la derecha, en
+// la MISMA línea del enunciado — para dejar claro con casillas reales que
+// un símbolo como "/" ocupa su PROPIA casilla, sin repetir el ejemplo en
+// otra parte de la hoja. Cabe sin ensanchar el bloque porque la banda
+// DIAM_PT ya es el suelo del alto de este bloque (altoPt de más abajo), así
+// que añadirlo no desplaza ni un punto la posición de ninguna casilla real
+// (Respuesta/Corrección de este ítem, ni de ningún ítem posterior) — a
+// diferencia de insertar cualquier bloque nuevo en el flujo, que sí
+// arrastraría hacia abajo todo lo que viene después y rompería la
+// correspondencia pixel a pixel que necesita la detección determinista de
+// tinta (comun.js::detectarTintaCasillas) contra hojas YA impresas y
+// escaneadas de verdad (ocr_tests/05-escaneo-real/, fotos reales que no se
+// pueden regenerar). Solo se dibuja si el enunciado cabe en una sola línea
+// — si algún día un enunciado más largo lo hiciera envolver a dos, se omite
+// en silencio en vez de arriesgarse a solaparlo con la segunda línea.
+function construirEnunciado(ctx, numero, texto, anchoPt, config, ejemplo) {
   const DIAM_PT = mmAPt(5.5);
   const GAP_PT = mmAPt(1.8);
   const anchoTexto = anchoPt - DIAM_PT - GAP_PT;
@@ -237,6 +254,23 @@ function construirEnunciado(ctx, numero, texto, anchoPt, config) {
       lineas.forEach((linea, i) =>
         lienzo.texto(xPt + DIAM_PT + GAP_PT, yTopPt + offsetTextoPt + i * altoLinea, linea, { font, tamanoPt })
       );
+
+      if (ejemplo && lineas.length === 1) {
+        const caracteres = [...ejemplo];
+        const LADO_PT = DIAM_PT;
+        const GAP_MINI_PT = mmAPt(0.6);
+        const anchoTotal = caracteres.length * LADO_PT + (caracteres.length - 1) * GAP_MINI_PT;
+        const xIni = xPt + anchoPt - anchoTotal;
+        caracteres.forEach((caracter, i) => {
+          const xCasilla = xIni + i * (LADO_PT + GAP_MINI_PT);
+          lienzo.rect(xCasilla, yTopPt, LADO_PT, LADO_PT, { borderColor: ctx.colorTextoSuave, borderWidth: CASILLA_BORDE_PT });
+          lienzo.textoCentrado(xCasilla + LADO_PT / 2, yTopPt + LADO_PT / 2 - 8 * 0.36, caracter, {
+            font: ctx.fontBold,
+            tamanoPt: 8,
+            color: ctx.colorTextoSuave,
+          });
+        });
+      }
     },
   };
 }
@@ -620,7 +654,16 @@ function contarNecesitaN(formato) {
 // array de longitud n para ordenar/clasificar). Nunca lo pasa el panel de
 // admin real (la hoja para imprimir/rellenar a mano siempre va sin esto).
 function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
-  const partes = [construirEnunciado(ctx, numero, item.enunciado, anchoPt, config)];
+  const partes = [
+    construirEnunciado(
+      ctx,
+      numero,
+      item.enunciado,
+      anchoPt,
+      config,
+      item.formato === "abierto" ? item.ejemplo_abierto : undefined
+    ),
+  ];
   if (item.texto) partes.push(construirPasaje(ctx, item.texto, anchoPt, config));
   const resp = sintetico?.respuesta;
   const corr = sintetico?.correccion;
@@ -657,29 +700,6 @@ function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
       // a partir de ella (antes lo intentaba y siempre caía al mínimo fijo:
       // bug real, la hoja en producción nunca dibujaba más de 18 casillas).
       numCasillasAbierto = casillasAbiertoAjustadas(item.casillas_abierto ?? config.casillasAbierto, anchoPt);
-
-      // Ejemplo opcional (item.ejemplo_abierto, p. ej. "1/2" en data/items/
-      // 10.json, el único ítem "abierto" que pide un formato con símbolos
-      // especiales): además del propio texto del enunciado ("por ejemplo,
-      // escribe..."), un bloque de casillas YA RELLENAS con ese ejemplo —
-      // sobre todo para dejar claro con las mismas casillas reales que un
-      // símbolo como "/" ocupa su PROPIA casilla, no comparte una con el
-      // dígito de al lado. Nunca se añade a bloquesCasillas: son casillas
-      // decorativas fijas, no algo que la persona rellene ni que el motor de
-      // OCR-IA necesite leer.
-      if (item.ejemplo_abierto) {
-        partes.push(
-          construirBloqueCasillas(
-            ctx,
-            "Ejemplo de formato (no es la respuesta correcta)",
-            [...item.ejemplo_abierto].length,
-            anchoPt,
-            config,
-            { valores: [...item.ejemplo_abierto] }
-          )
-        );
-      }
-
       const offsetResp = offsetActualPt();
       const bloqueResp = construirRespuestaAbierta(ctx, "Respuesta", anchoPt, config, resp, numCasillasAbierto);
       partes.push(bloqueResp);

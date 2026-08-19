@@ -39,9 +39,10 @@ export interface Item {
   // data/items/10.json): ejemplo del formato esperado en la respuesta (p.
   // ej. "1/2" para un ítem que pide el resultado como fracción). No revela
   // la respuesta correcta del ítem, así que ItemPublico sí lo expone —
-  // public/admin/papel/hoja.js lo usa para imprimir, además del propio
-  // texto del enunciado, un pequeño bloque de casillas YA RELLENAS a modo de
-  // ejemplo (p. ej. para dejar claro que "/" ocupa su propia casilla).
+  // public/admin/papel/hoja.js lo usa para imprimir, junto al propio
+  // enunciado (misma línea, sin casillas nuevas en el flujo del ítem: ver
+  // construirEnunciado), una casilla pequeña por carácter a modo de
+  // ejemplo, para dejar claro que "/" ocupa su propia casilla.
   ejemplo_abierto?: string | null;
 }
 
