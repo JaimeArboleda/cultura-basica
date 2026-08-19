@@ -12,6 +12,7 @@ const CLAVES_PERMITIDAS = new Set([
   "nota_parcial_desactivada",
   "casillas_abierto",
   "num_correctas",
+  "ejemplo_abierto",
 ]);
 
 const CLAVES_PROHIBIDAS = [

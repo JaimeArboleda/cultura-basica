@@ -35,6 +35,20 @@ export interface Item {
   // continentes..."). Solo tiene sentido en formatos con puntuación
   // fraccionaria (seleccion_multiple, clasificar, ordenar).
   nota_parcial_desactivada?: boolean;
+  // Opcional (solo presente en algún ítem "abierto" puntual, p. ej.
+  // data/items/10.json): ejemplo del formato esperado en la respuesta (p.
+  // ej. "1/2" para un ítem que pide el resultado como fracción). NUNCA se
+  // escribe a mano dentro de enunciado (evita mantener el mismo ejemplo
+  // repetido en dos sitios si algún día cambia): cada superficie compone su
+  // propia aclaración a partir de este campo, con su propia redacción —
+  // public/app.js añade "(por ejemplo, escribe "1/2").” tras el enunciado
+  // (no hay ningún ejemplo visual en la web); public/admin/papel/hoja.js
+  // añade solo "(mira el ejemplo)." porque ahí sí hay un ejemplo VISUAL
+  // (una casilla pequeña por carácter, misma línea del enunciado — ver
+  // construirEnunciado) y repetir el valor en texto sería redundante. No
+  // revela la respuesta correcta del ítem, así que ItemPublico sí lo
+  // expone.
+  ejemplo_abierto?: string | null;
 }
 
 // Vista del ítem que sale hacia el cliente: nunca contiene la respuesta correcta.
@@ -70,6 +84,9 @@ export interface ItemPublico {
   // ("Marca TODAS las que correspondan"), igual que ya hacía el test web al
   // suprimir la nota genérica de "rellena las que sepas" para este mismo ítem.
   num_correctas: number | null;
+  // Ver Item.ejemplo_abierto. null en cualquier ítem que no lo tenga
+  // (incluidos todos los formatos distintos de "abierto").
+  ejemplo_abierto: string | null;
 }
 
 // Vista de un ítem ya respondido pero de una sesión aún en curso (README §3, §8:

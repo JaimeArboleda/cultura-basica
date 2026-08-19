@@ -304,7 +304,15 @@ function renderItemActual(
         </div>
       </div>
       ${item.texto ? `<p class="texto-lectura">${escaparHtml(item.texto)}</p>` : ""}
-      <h2>${escaparHtml(item.enunciado)}</h2>
+      <h2>${escaparHtml(item.enunciado)}${
+        // ItemPublico.ejemplo_abierto (solo algún ítem "abierto" puntual,
+        // p. ej. data/items/10.json): la web no tiene ningún ejemplo visual
+        // como la hoja en papel (public/admin/papel/hoja.js), así que aquí
+        // sí hace falta escribirlo — enunciado deliberadamente no lleva ya
+        // esta aclaración incrustada a mano (evita mantenerla duplicada en
+        // dos sitios si cambia el ejemplo).
+        item.ejemplo_abierto ? ` (por ejemplo, escribe "${escaparHtml(item.ejemplo_abierto)}").` : ""
+      }</h2>
       ${
         NOTAS_PARCIALES[item.formato] && !item.nota_parcial_desactivada
           ? `<p class="nota-formato">${NOTAS_PARCIALES[item.formato]}</p>`

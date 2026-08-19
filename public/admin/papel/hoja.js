@@ -207,7 +207,27 @@ function construirTitulo(ctx, texto, anchoPt, config) {
 
 // Enunciado numerado: círculo con el número + texto en negrita, con sangría
 // francesa (todas las líneas alineadas con el texto, no con el círculo).
-function construirEnunciado(ctx, numero, texto, anchoPt, config) {
+// ejemplo (opcional, item.ejemplo_abierto, p. ej. "1/2" en data/items/
+// 10.json, el único ítem "abierto" que pide un formato con símbolos
+// especiales): una casilla pequeña por carácter, pegada justo tras el
+// propio texto ("...como en este ejemplo: [1][/][2]"), en la MISMA línea del
+// enunciado — para dejar claro con casillas reales que un símbolo como "/"
+// ocupa su PROPIA casilla, sin repetir el valor en texto en ningún otro
+// sitio de la hoja. No ensancha el bloque (altoPt de más abajo no cambia):
+// las casillas se dibujan más pequeñas que DIAM_PT y centradas en la MISMA
+// banda vertical que ya ocupan el círculo y el propio texto (yTopPt +
+// DIAM_PT/2, el mismo centro óptico que usa el número del círculo), así que
+// añadirlas no desplaza ni un punto la posición de ninguna casilla real
+// (Respuesta/Corrección de este ítem, ni de ningún ítem posterior) — a
+// diferencia de insertar cualquier bloque nuevo en el flujo, que sí
+// arrastraría hacia abajo todo lo que viene después y rompería la
+// correspondencia pixel a pixel que necesita la detección determinista de
+// tinta (comun.js::detectarTintaCasillas) contra hojas YA impresas y
+// escaneadas de verdad (ocr_tests/05-escaneo-real/, fotos reales que no se
+// pueden regenerar). Solo se dibuja si el enunciado cabe en una sola línea
+// — si algún día un enunciado más largo lo hiciera envolver a dos, se omite
+// en silencio en vez de arriesgarse a solaparlo con la segunda línea.
+function construirEnunciado(ctx, numero, texto, anchoPt, config, ejemplo) {
   const DIAM_PT = mmAPt(5.5);
   const GAP_PT = mmAPt(1.8);
   const anchoTexto = anchoPt - DIAM_PT - GAP_PT;
@@ -237,6 +257,36 @@ function construirEnunciado(ctx, numero, texto, anchoPt, config) {
       lineas.forEach((linea, i) =>
         lienzo.texto(xPt + DIAM_PT + GAP_PT, yTopPt + offsetTextoPt + i * altoLinea, linea, { font, tamanoPt })
       );
+
+      if (ejemplo && lineas.length === 1) {
+        const caracteres = [...ejemplo];
+        const LADO_PT = mmAPt(4.2);
+        const GAP_MINI_PT = mmAPt(0.5);
+        const TAM_CARACTER_PT = 7;
+        const anchoTotal = caracteres.length * LADO_PT + (caracteres.length - 1) * GAP_MINI_PT;
+        // Pegado justo tras el final del propio texto (no suelto al margen
+        // derecho) — pero sin desbordarlo si el texto casi llena la línea:
+        // en ese caso cae de vuelta al margen derecho del bloque.
+        const anchoTextoLinea = font.widthOfTextAtSize(lineas[0], tamanoPt);
+        const xTrasTexto = xPt + DIAM_PT + GAP_PT + anchoTextoLinea + mmAPt(2.5);
+        const xIni = Math.min(xTrasTexto, xPt + anchoPt - anchoTotal);
+        // Mismo centro óptico vertical que el círculo y el propio texto
+        // (yTopPt + DIAM_PT/2): así queda a la misma altura que la línea,
+        // no "flotando" por encima con una casilla del tamaño del círculo.
+        const yCentro = yTopPt + DIAM_PT / 2;
+        caracteres.forEach((caracter, i) => {
+          const xCasilla = xIni + i * (LADO_PT + GAP_MINI_PT);
+          lienzo.rect(xCasilla, yCentro - LADO_PT / 2, LADO_PT, LADO_PT, {
+            borderColor: ctx.colorTextoSuave,
+            borderWidth: CASILLA_BORDE_PT,
+          });
+          lienzo.textoCentrado(xCasilla + LADO_PT / 2, yCentro - TAM_CARACTER_PT * 0.36, caracter, {
+            font: ctx.fontBold,
+            tamanoPt: TAM_CARACTER_PT,
+            color: ctx.colorTextoSuave,
+          });
+        });
+      }
     },
   };
 }
@@ -620,7 +670,24 @@ function contarNecesitaN(formato) {
 // array de longitud n para ordenar/clasificar). Nunca lo pasa el panel de
 // admin real (la hoja para imprimir/rellenar a mano siempre va sin esto).
 function construirBloqueItem(ctx, item, numero, anchoPt, config, sintetico) {
-  const partes = [construirEnunciado(ctx, numero, item.enunciado, anchoPt, config)];
+  // item.ejemplo_abierto (solo algún ítem "abierto" puntual, p. ej.
+  // data/items/10.json): a diferencia de la web (public/app.js, que sí
+  // necesita escribir el ejemplo porque no tiene ninguna casilla visual),
+  // aquí basta con remitir al ejemplo VISUAL que dibuja construirEnunciado
+  // (misma línea, ver más abajo) — repetir el propio valor ("1/2") en texto
+  // sería redundante al tenerlo justo al lado en casillas reales.
+  const textoEnunciado =
+    item.formato === "abierto" && item.ejemplo_abierto ? `${item.enunciado}, como en este ejemplo:` : item.enunciado;
+  const partes = [
+    construirEnunciado(
+      ctx,
+      numero,
+      textoEnunciado,
+      anchoPt,
+      config,
+      item.formato === "abierto" ? item.ejemplo_abierto : undefined
+    ),
+  ];
   if (item.texto) partes.push(construirPasaje(ctx, item.texto, anchoPt, config));
   const resp = sintetico?.respuesta;
   const corr = sintetico?.correccion;

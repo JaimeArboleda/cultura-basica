@@ -75,6 +75,7 @@ export function paraCliente(item: Item): ItemPublico {
     nota_parcial_desactivada: item.nota_parcial_desactivada === true,
     casillas_abierto: casillasAbiertoPara(item),
     num_correctas: numCorrectasPara(item),
+    ejemplo_abierto: item.formato === "abierto" ? (item.ejemplo_abierto ?? null) : null,
   };
 }
 

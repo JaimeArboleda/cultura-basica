@@ -109,6 +109,14 @@ for (const it of items) {
     err(`${ctx} alias_parcial solo aplica a ítems abiertos`);
   }
 
+  if (it.ejemplo_abierto != null) {
+    if (typeof it.ejemplo_abierto !== "string" || it.ejemplo_abierto.trim() === "") {
+      err(`${ctx} ejemplo_abierto debe ser una cadena no vacía si está presente`);
+    } else if (it.formato !== "abierto") {
+      err(`${ctx} ejemplo_abierto solo aplica a ítems abiertos`);
+    }
+  }
+
   if (it.formato === "ordenar") {
     if (!Array.isArray(it.elementos) || it.elementos.length < 4) {
       err(`${ctx} ordenar debe tener al menos 4 elementos`);
